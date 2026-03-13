@@ -346,6 +346,11 @@
         #configPanel.visible { opacity: 1; visibility: visible; transform: translateY(0) scale(1); }
 
         @media (max-width: 768px) and (orientation: portrait) {
+            :root {
+                --safe-inline: calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right));
+                --safe-block: calc(var(--app-height) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+            }
+
             body,
             #gameContainer {
                 min-height: 100dvh;
@@ -358,8 +363,9 @@
             }
 
             canvas {
-                width: calc((var(--app-height) - env(safe-area-inset-top) - env(safe-area-inset-bottom)) * 5 / 3);
-                height: calc(var(--app-height) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+                width: min(var(--safe-inline), calc(var(--safe-block) * 5 / 3));
+                height: auto;
+                max-height: var(--safe-block);
                 max-width: none;
                 aspect-ratio: 5 / 3;
                 border-radius: 0;
