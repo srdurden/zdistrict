@@ -265,6 +265,41 @@
             opacity: 0.65;
         }
 
+        .editor-overlay {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 50;
+            width: min(96vw, 1020px);
+            background: rgba(255, 252, 245, 0.95);
+            border: 1px solid #e4d8cf;
+            border-radius: 12px;
+            box-shadow: 0 16px 40px rgba(0,0,0,0.16);
+            padding: 10px;
+            display: none;
+            gap: 8px;
+        }
+        .editor-overlay.visible { display: grid; }
+        .editor-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        .editor-chip {
+            border: 1px solid #ccb9ad;
+            background: #fff;
+            color: #5d4037;
+            padding: 5px 8px;
+            border-radius: 8px;
+            font: 700 12px/1 Nunito, sans-serif;
+            cursor: pointer;
+        }
+        .editor-chip.active { background: #5d4037; color: #fff; border-color: #5d4037; }
+        .editor-mini-input {
+            width: 76px;
+            border-radius: 7px;
+            border: 1px solid #ccb9ad;
+            padding: 4px 6px;
+            font: 700 12px Nunito, sans-serif;
+        }
+
         .post-stats{
             margin: 10px 0 6px;
             padding: 12px 14px;
@@ -422,6 +457,7 @@
     <div class="menu-subtitle">Simulación de planificación zombie</div>
     <div class="menu-actions">
       <button id="menuFreeBtn" class="menu-btn primary">🧟 Nueva simulación</button>
+      <button id="menuCampaignBtn" class="menu-btn">🎯 Modo campaña</button>
     </div>
     <div class="menu-hint">Despliega zombies tocando el escenario. Sin control directo del jugador.</div>
   </div>
@@ -536,7 +572,24 @@
     </div>
 
     <button id="restartBtn">Reiniciar Simulación</button>
+    <button id="editCampaignBtn" style="margin-top:8px; display:none;">Editar</button>
     <div class="hint">Usa el botón 🧟 para elegir tipo y desplegar zombies en el escenario.</div>
+</div>
+
+<div id="editorOverlay" class="editor-overlay">
+    <div class="editor-row" id="editorPaletteRow"></div>
+    <div class="editor-row">
+        <span style="font:700 12px Nunito;color:#5d4037">Tamaño:</span>
+        <input id="editorWidthInput" class="editor-mini-input" type="number" min="15" max="200" value="60">
+        <span style="font:700 12px Nunito;color:#5d4037">x</span>
+        <input id="editorHeightInput" class="editor-mini-input" type="number" min="15" max="200" value="40">
+        <button id="editorResizeBtn" class="editor-chip">Aplicar tamaño</button>
+        <button id="editorSaveBtn" class="editor-chip">Guardar nivel</button>
+        <button id="editorExportBtn" class="editor-chip">Exportar nivel</button>
+        <button id="editorImportBtn" class="editor-chip">Importar nivel</button>
+        <button id="editorExitBtn" class="editor-chip">Salir editor</button>
+    </div>
+    <div style="font:700 12px Nunito;color:#6d4c41">Rueda para zoom, arrastra para mover cámara, clic para pintar.</div>
 </div>
 
 <div id="gameContainer">
@@ -874,6 +927,17 @@ const txtEventoElem = document.getElementById("txtEvento");
     const mainMenuOverlay = document.getElementById("mainMenuOverlay");
     const menuCampaignBtn = document.getElementById("menuCampaignBtn");
     const menuFreeBtn = document.getElementById("menuFreeBtn");
+    const editCampaignBtn = document.getElementById("editCampaignBtn");
+
+    const editorOverlay = document.getElementById("editorOverlay");
+    const editorPaletteRow = document.getElementById("editorPaletteRow");
+    const editorWidthInput = document.getElementById("editorWidthInput");
+    const editorHeightInput = document.getElementById("editorHeightInput");
+    const editorResizeBtn = document.getElementById("editorResizeBtn");
+    const editorSaveBtn = document.getElementById("editorSaveBtn");
+    const editorExportBtn = document.getElementById("editorExportBtn");
+    const editorImportBtn = document.getElementById("editorImportBtn");
+    const editorExitBtn = document.getElementById("editorExitBtn");
 
     const postGameOverlay = document.getElementById("postGameOverlay");
     const postTitle = document.getElementById("postTitle");
@@ -948,13 +1012,68 @@ const txtEventoElem = document.getElementById("txtEvento");
     // Main Menu wiring
     if (homeBtn) homeBtn.addEventListener("click", () => showMainMenu());
     if (menuFreeBtn) menuFreeBtn.addEventListener("click", () => startFreeMode());
-    if (menuCampaignBtn) menuCampaignBtn.style.display = "none";
+    if (menuCampaignBtn) menuCampaignBtn.addEventListener("click", () => startCampaignMode(0));
 
 
 
     if (postPrimaryBtn) postPrimaryBtn.addEventListener("click", () => handlePostgamePrimaryAction());
     if (postSecondaryBtn) postSecondaryBtn.addEventListener("click", () => handlePostgameSecondaryAction());
     if (postMenuBtn) postMenuBtn.addEventListener("click", () => showMainMenu());
+    if (editCampaignBtn) editCampaignBtn.addEventListener("click", () => startCampaignEditor());
+    if (editorExitBtn) editorExitBtn.addEventListener("click", () => {
+        showEditorOverlay(false);
+        editorState.active = false;
+        if (currentRunDef && currentRunDef.mode === "campaign") startCampaignMode(getActiveCampaignIndex());
+        else showMainMenu();
+    });
+    if (editorResizeBtn) editorResizeBtn.addEventListener("click", () => {
+        const w = Math.max(15, Math.min(200, parseInt(editorWidthInput && editorWidthInput.value, 10) || editorState.mapWidthTiles || 100));
+        const h = Math.max(15, Math.min(200, parseInt(editorHeightInput && editorHeightInput.value, 10) || editorState.mapHeightTiles || 100));
+        editorState.mapWidthTiles = w;
+        editorState.mapHeightTiles = h;
+        editorState.mapRows = createEditorRows(w, h);
+        editorState.mapRows = ensureEditorMarkers(editorState.mapRows);
+        const lvl = buildCampaignLevelFromEditor();
+        resetGame({ mode: "campaign", campaignIndex: getActiveCampaignIndex(), levelId: lvl.id, levelName: lvl.name, directorOverrides: lvl.directorOverrides, settingsOverrides: lvl.settingsOverrides, mapDef: lvl.mapDef });
+    });
+    if (editorSaveBtn) editorSaveBtn.addEventListener("click", () => {
+        campaignCustomLevel = buildCampaignLevelFromEditor();
+        alert("Nivel de campaña guardado. Se añadirá al final de la campaña.");
+    });
+    if (editorExportBtn) editorExportBtn.addEventListener("click", async () => {
+        const payload = JSON.stringify(buildCampaignLevelFromEditor(), null, 2);
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(payload);
+            else throw new Error("clipboard unavailable");
+            alert("Definición de nivel copiada al portapapeles.");
+        } catch {
+            prompt("Copia manualmente la definición:", payload);
+        }
+    });
+    if (editorImportBtn) editorImportBtn.addEventListener("click", () => {
+        const txt = prompt("Pega la definición del nivel (JSON):", "");
+        if (!txt) return;
+        try {
+            const lvl = JSON.parse(txt);
+            const rows = parseRowsFromMapDef(lvl.mapDef || {});
+            if (!rows.length) throw new Error("El nivel importado no contiene mapa ASCII.");
+            editorState.mapRows = ensureEditorMarkers(rows);
+            editorState.mapWidthTiles = rows[0].length;
+            editorState.mapHeightTiles = rows.length;
+            if (editorWidthInput) editorWidthInput.value = String(editorState.mapWidthTiles);
+            if (editorHeightInput) editorHeightInput.value = String(editorState.mapHeightTiles);
+            editorState.settingsOverrides = Object.assign({}, lvl.settingsOverrides || {}, {
+                mapWidthTiles: editorState.mapWidthTiles,
+                mapHeightTiles: editorState.mapHeightTiles,
+                structureAttempts: 0
+            });
+            const previewLevel = buildCampaignLevelFromEditor();
+            resetGame({ mode: "campaign", campaignIndex: getActiveCampaignIndex(), levelId: previewLevel.id, levelName: previewLevel.name, directorOverrides: previewLevel.directorOverrides, settingsOverrides: previewLevel.settingsOverrides, mapDef: previewLevel.mapDef });
+            alert("Nivel importado en el editor.");
+        } catch (e) {
+            alert("Importación inválida: " + (e && e.message ? e.message : e));
+        }
+    });
 
     // ===========================
     // Phase 0: Run definitions
@@ -970,10 +1089,120 @@ const txtEventoElem = document.getElementById("txtEvento");
     // ===========================
     // Phase 2: App state + Main Menu
     // ===========================
-    let appState = "MENU"; // MENU | GAME
+    let appState = "MENU"; // MENU | GAME | EDITOR
     let campaignIndex = 0;
     let postGameShown = false;
     let postWasVictory = false;
+
+    let editorState = {
+        active: false,
+        selectedTool: "floor",
+        mapWidthTiles: 100,
+        mapHeightTiles: 100,
+        settingsOverrides: {},
+        mapRows: []
+    };
+    let campaignCustomLevel = null;
+    const EDITOR_TOOLS = [
+        { key: "floor", label: "Suelo", token: "." },
+        { key: "wall", label: "Pared", token: "#" },
+        { key: "door", label: "Puerta", token: "D" },
+        { key: "player", label: "Jugador (P)", token: "P" },
+        { key: "key", label: "Llave (K)", token: "K" },
+        { key: "heli", label: "Heli (H)", token: "H" },
+        { key: "citizen", label: "Civil (C)", token: "C" },
+        { key: "zombie", label: "Zombie (Z)", token: "Z" },
+        { key: "police", label: "Policía (O)", token: "O" },
+        { key: "soldier", label: "Militar (M)", token: "M" }
+    ];
+
+    function createEditorRows(w, h) {
+        const rows = [];
+        const topBottom = "#".repeat(w);
+        rows.push(topBottom);
+        for (let y = 1; y < h - 1; y++) rows.push("#" + ".".repeat(Math.max(0, w - 2)) + "#");
+        rows.push(topBottom);
+        return rows;
+    }
+
+    function parseRowsFromMapDef(mapDef) {
+        if (!mapDef) return [];
+        const ascii = (typeof mapDef.ascii === "string") ? mapDef.ascii : (typeof mapDef.data === "string" ? mapDef.data : "");
+        return ascii ? ascii.replace(/\r/g, "").trim().split("\n") : [];
+    }
+
+    function ensureEditorMarkers(rows) {
+        const h = rows.length;
+        const w = h ? rows[0].length : 0;
+        if (!w || !h) return rows;
+        const list = rows.map(r => r.split(""));
+        const has = (ch) => list.some(r => r.includes(ch));
+        if (!has("P")) list[2][2] = "P";
+        if (!has("K")) list[Math.max(1, Math.floor(h * 0.35))][Math.max(2, Math.floor(w * 0.3))] = "K";
+        if (!has("H")) list[Math.max(1, Math.floor(h * 0.7))][Math.max(2, Math.floor(w * 0.75))] = "H";
+        return list.map(r => r.join(""));
+    }
+
+    function hydrateEditorFromLevel(level) {
+        const base = level || CAMPAIGN_LEVELS[0];
+        const rows = parseRowsFromMapDef(base && base.mapDef);
+        const w = Math.max(15, Math.min(200, (base && base.settingsOverrides && base.settingsOverrides.mapWidthTiles) || (rows[0] ? rows[0].length : 100)));
+        const h = Math.max(15, Math.min(200, (base && base.settingsOverrides && base.settingsOverrides.mapHeightTiles) || rows.length || 100));
+        let finalRows = rows.length ? rows : createEditorRows(w, h);
+        if (!rows.length && w >= 6 && h >= 6) {
+            const grid = finalRows.map(r => r.split(""));
+            grid[2][2] = "P";
+            grid[Math.floor(h * 0.35)][Math.floor(w * 0.3)] = "K";
+            grid[Math.floor(h * 0.7)][Math.floor(w * 0.8)] = "H";
+            finalRows = grid.map(r => r.join(""));
+        }
+        editorState.mapWidthTiles = w;
+        editorState.mapHeightTiles = h;
+        editorState.mapRows = ensureEditorMarkers(finalRows);
+        editorState.settingsOverrides = Object.assign({}, (base && base.settingsOverrides) || {}, { mapWidthTiles: w, mapHeightTiles: h, structureAttempts: 0 });
+        if (editorWidthInput) editorWidthInput.value = String(w);
+        if (editorHeightInput) editorHeightInput.value = String(h);
+    }
+
+    function buildEditorPalette() {
+        if (!editorPaletteRow) return;
+        editorPaletteRow.innerHTML = "";
+        EDITOR_TOOLS.forEach(tool => {
+            const b = document.createElement("button");
+            b.className = "editor-chip" + (tool.key === editorState.selectedTool ? " active" : "");
+            b.textContent = tool.label;
+            b.addEventListener("click", () => {
+                editorState.selectedTool = tool.key;
+                buildEditorPalette();
+            });
+            editorPaletteRow.appendChild(b);
+        });
+    }
+
+    function buildCampaignLevelFromEditor() {
+        const w = Math.max(15, Math.min(200, parseInt(editorWidthInput && editorWidthInput.value, 10) || editorState.mapWidthTiles || 100));
+        const h = Math.max(15, Math.min(200, parseInt(editorHeightInput && editorHeightInput.value, 10) || editorState.mapHeightTiles || 100));
+        const rows = ensureEditorMarkers(editorState.mapRows.length ? editorState.mapRows : createEditorRows(w, h));
+        const uiSettings = getSettingsFromUI();
+        const settingsOverrides = Object.assign({}, uiSettings, editorState.settingsOverrides || {}, { mapWidthTiles: w, mapHeightTiles: h, structureAttempts: 0 });
+        return {
+            id: "C-EDIT",
+            name: "Nivel editado",
+            directorOverrides: { enabled: true },
+            settingsOverrides,
+            mapDef: {
+                type: "ascii",
+                w,
+                h,
+                data: rows.join("\n")
+            }
+        };
+    }
+
+    function showEditorOverlay(show) {
+        if (!editorOverlay) return;
+        editorOverlay.classList.toggle("visible", !!show);
+    }
 
 
     // Placeholder campaign content (Phase 3 will add real 3-level campaign)
@@ -1128,7 +1357,65 @@ const txtEventoElem = document.getElementById("txtEvento");
 ############################################################
 `.trim()
             }
+
         }
+
+,
+        {
+            id: "C04",
+            name: "Ciudad Compacta",
+            directorOverrides: {
+                enabled: true
+            },
+            settingsOverrides: {
+                zombieCount: 18,
+                citizenCount: 28,
+                policeCount: 1,
+                soldierCount: 0,
+                boxCount: 3,
+                zombieSpeed: 1.45,
+                balas: 0,
+                bengalas: 0,
+                soldierSpawnDelaySec: 0,
+                mapWidthTiles: 100,
+                mapHeightTiles: 100,
+                structureAttempts: 0
+            },
+            mapDef: {
+                type: "ascii",
+                w: 100,
+                h: 100,
+                data: (() => {
+                    const w = 100, h = 100;
+                    const rows = new Array(h).fill(null).map((_, y) => {
+                        if (y === 0 || y === h - 1) return "#".repeat(w);
+                        return "#" + ".".repeat(w - 2) + "#";
+                    });
+                    function set(x, y, ch) {
+                        if (x < 1 || y < 1 || x >= w - 1 || y >= h - 1) return;
+                        const r = rows[y].split("");
+                        r[x] = ch;
+                        rows[y] = r.join("");
+                    }
+                    function house(x0, y0, x1, y1, dx, dy) {
+                        for (let x = x0; x <= x1; x++) { set(x, y0, "#"); set(x, y1, "#"); }
+                        for (let y = y0; y <= y1; y++) { set(x0, y, "#"); set(x1, y, "#"); }
+                        set(dx, dy, "D");
+                    }
+                    house(10, 10, 28, 24, 19, 24);
+                    house(40, 16, 58, 30, 49, 16);
+                    house(67, 58, 88, 80, 67, 69);
+                    set(5, 5, "P");
+                    set(27, 20, "K");
+                    set(93, 92, "H");
+                    set(18, 18, "C");
+                    set(50, 24, "C");
+                    set(78, 72, "C");
+                    return rows.join("\n");
+                })()
+            }
+        }
+
     ];
 
     function stopToMenu() {
@@ -1141,31 +1428,41 @@ const txtEventoElem = document.getElementById("txtEvento");
 
     function showMainMenu() {
         appState = "MENU";
+        editorState.active = false;
+        showEditorOverlay(false);
         stopToMenu();
         if (postGameOverlay) postGameOverlay.classList.remove("visible");
         postGameShown = false;
         if (configPanel) configPanel.classList.remove("visible");
         setSettingsUIEnabled(true); // allow tweaking for Free mode while in menu
+        if (editCampaignBtn) editCampaignBtn.style.display = "none";
         if (mainMenuOverlay) mainMenuOverlay.classList.add("visible");
     }
 
     function startFreeMode() {
         appState = "GAME";
+        editorState.active = false;
+        showEditorOverlay(false);
         if (mainMenuOverlay) mainMenuOverlay.classList.remove("visible");
         if (postGameOverlay) postGameOverlay.classList.remove("visible");
         postGameShown = false;
         setSettingsUIEnabled(true);
+        if (editCampaignBtn) editCampaignBtn.style.display = "none";
         resetGame({ mode: "free" });
     }
 
     function startCampaignMode(index = 0) {
         appState = "GAME";
+        editorState.active = false;
+        showEditorOverlay(false);
         if (mainMenuOverlay) mainMenuOverlay.classList.remove("visible");
         if (postGameOverlay) postGameOverlay.classList.remove("visible");
         postGameShown = false;
         setSettingsUIEnabled(false);
-        campaignIndex = Math.max(0, Math.min(index, CAMPAIGN_LEVELS.length - 1));
-        const lvl = CAMPAIGN_LEVELS[campaignIndex];
+        if (editCampaignBtn) editCampaignBtn.style.display = "";
+        const pool = campaignCustomLevel ? CAMPAIGN_LEVELS.concat([campaignCustomLevel]) : CAMPAIGN_LEVELS;
+        campaignIndex = Math.max(0, Math.min(index, pool.length - 1));
+        const lvl = pool[campaignIndex];
         resetGame({
             mode: "campaign",
             campaignIndex,
@@ -1174,6 +1471,32 @@ const txtEventoElem = document.getElementById("txtEvento");
             directorOverrides: lvl.directorOverrides || null,
             settingsOverrides: lvl.settingsOverrides || {},
             mapDef: lvl.mapDef || null
+        });
+    }
+
+    function startCampaignEditor() {
+        appState = "EDITOR";
+        editorState.active = true;
+        if (mainMenuOverlay) mainMenuOverlay.classList.remove("visible");
+        if (postGameOverlay) postGameOverlay.classList.remove("visible");
+        hidePostGameOverlay();
+        setSettingsUIEnabled(true);
+        if (editCampaignBtn) editCampaignBtn.style.display = "none";
+
+        const base = getActiveCampaignLevel() || CAMPAIGN_LEVELS[0];
+        hydrateEditorFromLevel(base);
+        buildEditorPalette();
+        showEditorOverlay(true);
+
+        const tempLevel = buildCampaignLevelFromEditor();
+        resetGame({
+            mode: "campaign",
+            campaignIndex: getActiveCampaignIndex(),
+            levelId: tempLevel.id,
+            levelName: tempLevel.name,
+            directorOverrides: tempLevel.directorOverrides,
+            settingsOverrides: tempLevel.settingsOverrides,
+            mapDef: tempLevel.mapDef
         });
     }
 
@@ -1189,17 +1512,23 @@ const txtEventoElem = document.getElementById("txtEvento");
     function isCampaignRun() {
         return !!(currentRunDef && currentRunDef.mode === "campaign");
     }
+    function getCampaignLevelPool() {
+        return campaignCustomLevel ? CAMPAIGN_LEVELS.concat([campaignCustomLevel]) : CAMPAIGN_LEVELS;
+    }
     function getActiveCampaignIndex() {
+        const pool = getCampaignLevelPool();
         const idx = (currentRunDef && currentRunDef.campaignIndex != null)
             ? (currentRunDef.campaignIndex | 0)
             : (campaignIndex | 0);
-        return Math.max(0, Math.min(idx, CAMPAIGN_LEVELS.length - 1));
+        return Math.max(0, Math.min(idx, pool.length - 1));
     }
     function getActiveCampaignLevel() {
-        return CAMPAIGN_LEVELS[getActiveCampaignIndex()] || null;
+        const pool = getCampaignLevelPool();
+        return pool[getActiveCampaignIndex()] || null;
     }
     function isLastCampaignLevel() {
-        return getActiveCampaignIndex() >= (CAMPAIGN_LEVELS.length - 1);
+        const pool = getCampaignLevelPool();
+        return getActiveCampaignIndex() >= (pool.length - 1);
     }
     function hidePostGameOverlay() {
         if (postGameOverlay) postGameOverlay.classList.remove("visible");
@@ -1217,7 +1546,7 @@ const txtEventoElem = document.getElementById("txtEvento");
         if (isCampaignRun() && victory && isLastCampaignLevel()) titleText = "¡CAMPAÑA COMPLETADA!";
 
         let subtitleText = isCampaignRun()
-            ? `Campaña — Nivel ${idx + 1}/${CAMPAIGN_LEVELS.length}: ${lvl ? lvl.name : "—"}`
+            ? `Campaña — Nivel ${idx + 1}/${getCampaignLevelPool().length}: ${lvl ? lvl.name : "—"}`
             : "Modo libre";
 
         if (postTitle) postTitle.textContent = titleText;
@@ -1421,7 +1750,7 @@ const txtEventoElem = document.getElementById("txtEvento");
         const els = configPanel.querySelectorAll("input, select, textarea, button");
         els.forEach(el => {
             // keep restart usable; Campaign will replace UX later
-            if (el.id === "restartBtn") return;
+            if (el.id === "restartBtn" || el.id === "editCampaignBtn") return;
             el.disabled = !enabled;
         });
         configPanel.classList.toggle("settings-locked", !enabled);
@@ -1631,6 +1960,27 @@ const DOOR_BASE_HP = 70;
         actualizarStatsUI();
     }
 
+    function paintEditorTile(tx, ty) {
+        if (!editorState.active || !editorState.mapRows.length) return;
+        if (tx < 1 || ty < 1 || tx >= editorState.mapWidthTiles - 1 || ty >= editorState.mapHeightTiles - 1) return;
+        const tool = EDITOR_TOOLS.find(t => t.key === editorState.selectedTool) || EDITOR_TOOLS[0];
+        const token = tool.token;
+        const rows = editorState.mapRows.map(r => r.split(""));
+
+        if (token === "P" || token === "K" || token === "H") {
+            for (let y = 0; y < rows.length; y++) {
+                for (let x = 0; x < rows[y].length; x++) {
+                    if (rows[y][x] === token) rows[y][x] = ".";
+                }
+            }
+        }
+
+        rows[ty][tx] = token;
+        editorState.mapRows = rows.map(r => r.join(""));
+        const previewLevel = buildCampaignLevelFromEditor();
+        resetGame({ mode: "campaign", campaignIndex: getActiveCampaignIndex(), levelId: previewLevel.id, levelName: previewLevel.name, directorOverrides: previewLevel.directorOverrides, settingsOverrides: previewLevel.settingsOverrides, mapDef: previewLevel.mapDef });
+    }
+
     const pointerState = new Map();
     let hoverTile = null;
     let wasPinching = false;
@@ -1664,7 +2014,9 @@ const DOOR_BASE_HP = 70;
         const world = screenToWorld(e.clientX, e.clientY);
         const tx = Math.floor(world.x / cellSize);
         const ty = Math.floor(world.y / cellSize);
-        hoverTile = (deployZombieArmed && tx >= 0 && tx < gridWidth && ty >= 0 && ty < gridHeight) ? { x: tx, y: ty } : null;
+        const canHoverEditor = editorState.active && tx >= 0 && tx < gridWidth && ty >= 0 && ty < gridHeight;
+        const canHoverDeploy = deployZombieArmed && tx >= 0 && tx < gridWidth && ty >= 0 && ty < gridHeight;
+        hoverTile = (canHoverEditor || canHoverDeploy) ? { x: tx, y: ty } : null;
 
         if (!pointerState.has(e.pointerId)) return;
         e.preventDefault();
@@ -1703,14 +2055,20 @@ const DOOR_BASE_HP = 70;
         const p = pointerState.get(e.pointerId);
         if (!p) return;
 
-        if (!wasPinching && !p.moved && deployZombieArmed) {
+        if (!wasPinching && !p.moved) {
             const world = screenToWorld(e.clientX, e.clientY);
-            const zombieType = {
-                speed: Number(deployZSpeedNum.value) || 1.5,
-                propagationSec: Number(deployInfectNum.value) || 5
-            };
-            spawnZombieAtWorld(world.x, world.y, zombieType);
-            setDeployArmed(false);
+            if (editorState.active) {
+                const tx = Math.floor(world.x / cellSize);
+                const ty = Math.floor(world.y / cellSize);
+                paintEditorTile(tx, ty);
+            } else if (deployZombieArmed) {
+                const zombieType = {
+                    speed: Number(deployZSpeedNum.value) || 1.5,
+                    propagationSec: Number(deployInfectNum.value) || 5
+                };
+                spawnZombieAtWorld(world.x, world.y, zombieType);
+                setDeployArmed(false);
+            }
         }
 
         pointerState.delete(e.pointerId);
@@ -3482,12 +3840,12 @@ drawDoorsWorld();
 
         cadaveres.forEach(c => { ctx.fillStyle="#d7ccc8"; ctx.beginPath(); ctx.arc(c.x+1.5,c.y+1.5,1.5,0,Math.PI*2); ctx.fill(); });
 
-        if (deployZombieArmed && hoverTile) {
+        if (hoverTile && (deployZombieArmed || editorState.active)) {
             const hx = hoverTile.x * cellSize;
             const hy = hoverTile.y * cellSize;
-            ctx.fillStyle = "rgba(229, 57, 53, 0.45)";
+            ctx.fillStyle = editorState.active ? "rgba(66, 165, 245, 0.35)" : "rgba(229, 57, 53, 0.45)";
             ctx.fillRect(hx, hy, cellSize, cellSize);
-            ctx.strokeStyle = "rgba(198, 40, 40, 0.95)";
+            ctx.strokeStyle = editorState.active ? "rgba(30, 136, 229, 0.95)" : "rgba(198, 40, 40, 0.95)";
             ctx.lineWidth = 1;
             ctx.strokeRect(hx + 0.5, hy + 0.5, cellSize - 1, cellSize - 1);
         }
