@@ -507,11 +507,6 @@
     </div>
 
     <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">📦 Cajas</span><input type="number" id="boxNum" min="0" max="200" value="0"></div>
-        <input type="range" id="boxSlider" min="0" max="200" step="1" value="0">
-    </div>
-
-    <div class="slider-group">
         <div class="slider-header"><span class="slider-label">Ancho escenario (tiles)</span><input type="number" id="mapWidthTilesNum" min="15" max="1000" value="50"></div>
         <input type="range" id="mapWidthTilesSlider" min="15" max="1000" step="1" value="50">
     </div>
@@ -829,30 +824,6 @@
             }
         }
 
-        // helipad hint (if helicopter has a known location)
-        if (typeof helicoptero !== "undefined" && helicoptero && helicoptero.x != null) {
-            const cx = helicoptero.x + helicoptero.ancho / 2;
-            const cy = helicoptero.y + helicoptero.alto / 2;
-
-            staticCtx.strokeStyle = "rgba(38, 166, 154, 0.35)";
-            staticCtx.lineWidth = 2;
-            staticCtx.beginPath();
-            staticCtx.arc(cx, cy, 16, 0, Math.PI * 2);
-            staticCtx.stroke();
-
-            staticCtx.strokeStyle = "rgba(38, 166, 154, 0.25)";
-            staticCtx.lineWidth = 1;
-            staticCtx.beginPath();
-            staticCtx.arc(cx, cy, 24, 0, Math.PI * 2);
-            staticCtx.stroke();
-
-            staticCtx.fillStyle = "rgba(38, 166, 154, 0.18)";
-            staticCtx.font = "900 14px Nunito";
-            staticCtx.textAlign = "center";
-            staticCtx.textBaseline = "middle";
-            staticCtx.fillText("H", cx, cy + 0.5);
-        }
-
         staticDirty = false;
     }
 
@@ -875,7 +846,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     const soldierSlider = document.getElementById("soldierSlider"); const soldierNum = document.getElementById("soldierNum");
     const zSpeedSlider = document.getElementById("zombieSpeedSlider"); const zSpeedNum = document.getElementById("zSpeedNum");
     const bengalaSlider = document.getElementById("bengalaSlider"); const bengalaNum = document.getElementById("bengalaNum");
-    const boxSlider = document.getElementById("boxSlider"); const boxNum = document.getElementById("boxNum");
     const mapWidthTilesSlider = document.getElementById("mapWidthTilesSlider"); const mapWidthTilesNum = document.getElementById("mapWidthTilesNum");
     const mapHeightTilesSlider = document.getElementById("mapHeightTilesSlider"); const mapHeightTilesNum = document.getElementById("mapHeightTilesNum");
     const structureAttemptsSlider = document.getElementById("structureAttemptsSlider"); const structureAttemptsNum = document.getElementById("structureAttemptsNum");
@@ -924,7 +894,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     linkInput(soldierSlider, soldierNum);
     linkInput(zSpeedSlider, zSpeedNum);
     linkInput(bengalaSlider, bengalaNum);
-    linkInput(boxSlider, boxNum);
     linkInput(mapWidthTilesSlider, mapWidthTilesNum);
     linkInput(mapHeightTilesSlider, mapHeightTilesNum);
     linkInput(structureAttemptsSlider, structureAttemptsNum);
@@ -1373,7 +1342,7 @@ const txtEventoElem = document.getElementById("txtEvento");
             citizenCount: toInt(citizenNum, 15),
             policeCount: toInt(policeNum, 1),
             soldierCount: toInt(soldierNum, 0),
-            boxCount: toInt(boxNum, 0),
+            boxCount: 0,
             mapWidthTiles: toInt(mapWidthTilesNum, 50),
             mapHeightTiles: toInt(mapHeightTilesNum, 50),
             structureAttempts: toInt(structureAttemptsNum, 1),
@@ -2359,12 +2328,9 @@ function zombieTryHitMueble(zombie) {
         // Marker expectations for ASCII maps (campaign levels will normally include these)
         if (usingAscii && parsed) {
             if (!parsed.playerTile) errors.push("ASCII map missing 'P' (player start).");
-            if (!parsed.heliTile) errors.push("ASCII map missing 'H' (helicopter).");
-            if (!parsed.keyTile) warnings.push("ASCII map missing 'K' (key). Using fallback key position.");
         }
 
         if (!playerTile) errors.push("Missing player tile.");
-        if (!heliTile) errors.push("Missing helicopter tile.");
 
         // Temporarily treat all doors as open for structural connectivity validation.
         const doorStates = doorGroups.map(g => g ? { g, open: !!g.open, broken: !!g.broken } : null);
@@ -2383,15 +2349,6 @@ function zombieTryHitMueble(zombie) {
         // Restore original door open states
         for (const s of doorStates) {
             if (s && s.g) s.g.open = s.open;
-        }
-
-        if (heliTile && !(mask[heliTile.y] && mask[heliTile.y][heliTile.x])) {
-            errors.push("Helicopter is unreachable from player (even with doors open).");
-        }
-
-        const keyIsMeaningful = usingAscii ? !!(parsed && parsed.keyTile) : !!(def && (def.keyTile || def.key));
-        if (keyIsMeaningful && keyTile && !(mask[keyTile.y] && mask[keyTile.y][keyTile.x])) {
-            errors.push("Key is unreachable from player (even with doors open).");
         }
 
         if (Array.isArray(reachable) && reachable.length < 5) {
@@ -2550,7 +2507,7 @@ function zombieTryHitMueble(zombie) {
         helicoptero.visible = false;
 
         const kPos = tileToEntityPixel(keyTile.x, keyTile.y);
-        llave.x = kPos.x; llave.y = kPos.y; llave.visible = true;
+        llave.x = kPos.x; llave.y = kPos.y; llave.visible = false;
 
         // Compute reachability
         const alcanzables = floodFill(playerTile.x, playerTile.y);
@@ -2969,7 +2926,7 @@ if(alcanzables.length === 0) {
                 if (d > bestKeyScore && dp > 8) { bestKeyScore = d; bestKeyTile = t; }
             }
             const kPos = tileToEntityPixel(bestKeyTile.x, bestKeyTile.y);
-            llave.x = kPos.x; llave.y = kPos.y; llave.visible = true;
+            llave.x = kPos.x; llave.y = kPos.y; llave.visible = false;
         } else {
             // Predefined map: loadMap() already positioned player/key/heli. Keep optional field tint.
             const fr = currentRunDef && currentRunDef.mapDef && (currentRunDef.mapDef.fieldRectTiles || currentRunDef.mapDef.fieldRect);
@@ -2992,72 +2949,11 @@ function normTilePos(t0) {
     return null;
 }
 
-const predefAmmoTiles =
-    (isPredefMap && predefParsed && Array.isArray(predefParsed.ammoTiles) && predefParsed.ammoTiles.length) ? predefParsed.ammoTiles :
-    ((isPredefMap && predefMapDef && Array.isArray(predefMapDef.ammoTiles) && predefMapDef.ammoTiles.length) ? predefMapDef.ammoTiles : null);
-
-const usePredefAmmo = !!(predefAmmoTiles && predefAmmoTiles.length);
-
+// Lógica removida: sin llaves, helicóptero ni cajas de munición/muebles
 cajasMunicion.length = 0;
-if (usePredefAmmo) {
-    const seen = new Set();
-    for (const t0 of predefAmmoTiles) {
-        const t = normTilePos(t0);
-        if (!t) continue;
-        const tx = t.x, ty = t.y;
-        if (tx < 1 || ty < 1 || tx >= gridWidth - 1 || ty >= gridHeight - 1) continue;
-        if (!grid[ty] || grid[ty][tx]) continue;            // must be floor
-        if (getDoorGroupAtTile(tx, ty)) continue;          // don't place on door tiles
-        if (tx === startTile.x && ty === startTile.y) continue;
-        const key = tx + "," + ty;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        const p = tileToEntityPixel(tx, ty);
-        cajasMunicion.push({ x: p.x, y: p.y });
-    }
-} else if (!deterministicCampaign) {
-    const ammoPool0 = alcanzables.filter(t => !isInFieldRect(t.x, t.y));
-    const ammoPool = ammoPool0.length ? ammoPool0 : alcanzables;
-    for (let i = 0; i < 8; i++) {
-        const t = ammoPool[randInt(0, ammoPool.length - 1)];
-    const p = tileToEntityPixel(t.x, t.y);
-    cajasMunicion.push({ x: p.x, y: p.y });
-}
-
-
-}
-// Muebles (cajas empujables) para montar barricadas (bloques de 1 celda)
 muebles.length = 0;
 
-const predefBoxTiles =
-    (isPredefMap && predefParsed && Array.isArray(predefParsed.boxTiles) && predefParsed.boxTiles.length) ? predefParsed.boxTiles :
-    ((isPredefMap && predefMapDef && Array.isArray(predefMapDef.boxTiles) && predefMapDef.boxTiles.length) ? predefMapDef.boxTiles : null);
-
-const usePredefBoxes = !!(predefBoxTiles && predefBoxTiles.length);
-
-if (usePredefBoxes) {
-    const seen = new Set();
-    for (const t0 of predefBoxTiles) {
-        const t = normTilePos(t0);
-        if (!t) continue;
-        const tx = t.x, ty = t.y;
-        if (tx < 1 || ty < 1 || tx >= gridWidth - 1 || ty >= gridHeight - 1) continue;
-        if (!grid[ty] || grid[ty][tx]) continue;            // must be floor
-        if (getDoorGroupAtTile(tx, ty)) continue;          // don't place on door tiles
-        if (!deterministicCampaign && tx >= fieldX0p && tx < fieldX1p && ty >= fieldY0p && ty < fieldY1p) continue; // keep heli field clear (free mode only)
-        if (tx === startTile.x && ty === startTile.y) continue;
-
-        const key = tx + "," + ty;
-        if (seen.has(key)) continue;
-        seen.add(key);
-
-        const x = tx * cellSize;
-        const y = ty * cellSize;
-        if (colisionConMuebles(x, y, cellSize, cellSize)) continue;
-        muebles.push({ x, y, size: cellSize, hp: BOX_MAX_HP, maxHp: BOX_MAX_HP, lastHitFrame: -9999 });
-    }
-} else if (!deterministicCampaign) {
-const desiredBoxes = Math.max(0, Math.min(200, Number.isFinite(mergedSettings.boxCount) ? mergedSettings.boxCount : 0));
+const desiredBoxes = 0;
 
 // candidatos cerca de casas (para poder encerrarte / montar barricadas)
 const candidates = [];
@@ -3357,13 +3253,6 @@ drawDoorsWorld();
             ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(cx, cy, 2, 0, Math.PI*2); ctx.fill();
         }
 
-        cajasMunicion.forEach((b,i) => {
-            const pulse = (Math.sin(timestamp/300+i)+1)/2;
-            ctx.fillStyle = `rgba(255, 204, 128, ${0.3+0.2*pulse})`; ctx.beginPath(); ctx.arc(b.x+1.5, b.y+1.5, 6+2*pulse, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = "#ffb74d"; ctx.fillRect(b.x-1, b.y-1, 5, 5);
-            if(distancia(jugador.x,jugador.y,b.x,b.y)<10) { cajasMunicion.splice(i,1); balasRestantes+=5; actualizarStatsUI(); }
-        });
-
         const drawEnt = (e, color, radius, kind = "generic") => {
             const cx = e.x + 1.5, cy = e.y + 1.5;
 
@@ -3405,8 +3294,6 @@ drawDoorsWorld();
             ctx.restore();
         };
 
-        const hx = helicoptero.x + helicoptero.ancho/2, hy = helicoptero.y + helicoptero.alto/2;
-        
         const pendingZombieTransforms = [];
 
         ciudadanos.forEach(cit => {
@@ -3433,27 +3320,11 @@ drawDoorsWorld();
             };
             checkThreat(zombies); checkThreat(militares);
             if (threatFound) { cit.direccion = normalizar(threatVec.x, threatVec.y); } 
-            else { if(helicoptero.visible) { const dh = distancia(cit.x, cit.y, hx, hy); if (dh < 150) cit.direccion = normalizar(hx - cit.x, hy - cit.y); } }
+            else { /* lógica de extracción removida */ }
             if(Math.random() < 0.2) { const sep = obtenerFuerzaSeparacion(cit, ciudadanos, radioSeparacion); cit.direccion.x += sep.x * 0.5; cit.direccion.y += sep.y * 0.5; }
             const choco = aplicarFuerzas(cit, velocidadCiudadano, timeScale);
             if(choco) cit.direccion = direccionAleatoria();
-            // Salvado: si toca el helicóptero y aguanta 5s "subiendo"
-if (helicoptero.visible) {
-    const dh = distancia(cit.x, cit.y, helicoptero.x, helicoptero.y);
-    if (dh < cellSize * 1.1) {
-        cit.boarding = (cit.boarding || 0) + 1 * timeScale;
-        if (cit.boarding >= 150 && !cit._saved) {
-            cit._saved = true;
-            ciudadanosSalvados += 1;
-            addNoise(helicoptero.x + cellSize / 2, helicoptero.y + cellSize / 2, 140, 18);
-            actualizarStatsUI();
-        }
-    } else {
-        cit.boarding = 0;
-    }
-} else {
-    cit.boarding = 0;
-}
+            cit.boarding = 0;
             const citizenColor = (cit.infectionFramesLeft && cit.infectionFramesLeft > 0) ? PALETA.ciudadanoEnfermo : PALETA.ciudadano;
             drawEnt(cit, citizenColor, radioVisual);
         });
@@ -3473,8 +3344,6 @@ if (helicoptero.visible) {
             actualizarStatsUI();
         }
 
-        // elimina los ciudadanos ya salvados
-        if (ciudadanos.some(c => c._saved)) ciudadanos = ciudadanos.filter(c => !c._saved);
 
         policias.forEach(poli => {
             if(poli.cooldown > 0) poli.cooldown -= 1 * timeScale;
@@ -3623,17 +3492,6 @@ if (helicoptero.visible) {
             ctx.strokeStyle = "rgba(198, 40, 40, 0.95)";
             ctx.lineWidth = 1;
             ctx.strokeRect(hx + 0.5, hy + 0.5, cellSize - 1, cellSize - 1);
-        }
-
-        if(helicoptero.visible) {
-            const hx=helicoptero.x+helicoptero.ancho/2, hy=helicoptero.y+helicoptero.alto/2;
-            const pulseHeli = (Math.sin(timestamp / 100) + 1) / 2;
-            ctx.beginPath(); ctx.ellipse(hx, hy + 10, cellSize * 2, cellSize * 1.5, 0, 0, Math.PI*2); ctx.fillStyle = "rgba(0,0,0,0.1)"; ctx.fill();
-            ctx.beginPath(); ctx.arc(hx, hy, cellSize * 2 + (pulseHeli * 5), 0, Math.PI*2); ctx.fillStyle = "rgba(129, 199, 132, 0.3)"; ctx.fill(); 
-            ctx.strokeStyle = PALETA.heliOn; ctx.lineWidth = 3; ctx.stroke();
-            ctx.save(); ctx.translate(hx, hy); ctx.rotate(timestamp / 20); 
-            ctx.fillStyle = "rgba(62, 39, 35, 0.8)"; ctx.fillRect(-16, -2, 32, 4); ctx.fillRect(-2, -16, 4, 32); ctx.restore();
-            ctx.fillStyle = "#fff"; ctx.font = "800 10px Nunito"; ctx.textAlign="center"; ctx.fillText("ESCAPE", hx, hy+4);
         }
 
         disparoEnFotograma = false;
