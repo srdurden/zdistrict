@@ -540,8 +540,8 @@
     <!-- Ocultos -->
     <div style="display:none">
         <input type="range" id="citizenSpeedSlider" value="1.0">
-        <input type="number" id="balasNum" value="5">
-        <input type="range" id="balasSlider" value="5">
+        <input type="number" id="balasNum" value="0">
+        <input type="range" id="balasSlider" value="0">
         <input type="range" id="bengalaDuracionSlider" value="15">
     </div>
 
@@ -1075,9 +1075,7 @@ const txtEventoElem = document.getElementById("txtEvento");
             id: "C02",
             name: "Barrio Cortado",
             directorOverrides: {
-                enabled: true,
-                shelterInterval: 33 * 30,
-                shelterHoldNeed: 2 * 30
+                enabled: true
             },
             settingsOverrides: {
                 zombieCount: 28,
@@ -1124,9 +1122,7 @@ const txtEventoElem = document.getElementById("txtEvento");
             id: "C03",
             name: "El Laberinto",
             directorOverrides: {
-                enabled: true,
-                shelterInterval: 28 * 30,
-                shelterHoldNeed: 2 * 30
+                enabled: true
             },
             settingsOverrides: {
                 zombieCount: 46,
@@ -1394,7 +1390,7 @@ const txtEventoElem = document.getElementById("txtEvento");
             soldierSpeed: toFloat(soldierSpeedNum, 1.1),
 
             // Player
-            balas: toInt(balasNum, 5),
+            balas: toInt(balasNum, 0),
             bengalas: toInt(bengalaNum, 0),
 
             // Toggles
@@ -1629,17 +1625,11 @@ const DOOR_BASE_HP = 70;
 
     const director = {
         enabled: true,
-        shelterInterval: 35 * 30,
-        shelterTimer: 35 * 30,
-        shelter: null, // {x,y,radius,ttl,hold,claimed}
-        shelterHoldNeed: 2 * 30,
         message: "-"
     };
 
     const DIRECTOR_BASE = {
-        enabled: director.enabled,
-        shelterInterval: director.shelterInterval,
-        shelterHoldNeed: director.shelterHoldNeed
+        enabled: director.enabled
     };
 
 
@@ -2263,80 +2253,9 @@ function zombieTryHitMueble(zombie) {
         if (estadoJuego !== "PLAYING") { if (txtEventoElem) txtEventoElem.textContent = "-"; return; }
         if (introTimer < INTRO_DURATION) { if (txtEventoElem) txtEventoElem.textContent = "-"; return; }
 
-        // shelter lifecycle
-        if (director.shelter) {
-            director.shelter.ttl -= step;
-            // check player inside
-            const px = jugador.x + tamanoEntidad / 2;
-            const py = jugador.y + tamanoEntidad / 2;
-            const d = Math.hypot(px - director.shelter.x, py - director.shelter.y);
-            if (!director.shelter.claimed && d <= director.shelter.radius) {
-                director.shelter.hold += step;
-                if (director.shelter.hold >= director.shelterHoldNeed) {
-                    director.shelter.claimed = true;
-                    balasRestantes += 15;
-                    bengalasRestantes += 1;
-director.message = "REFUGIO ✅";
-                    actualizarStatsUI();
-                }
-            } else {
-                director.shelter.hold = Math.max(0, director.shelter.hold - 2 * step);
-            }
-            if (director.shelter.ttl <= 0) director.shelter = null;
-        }
-
-        // shelter spawn timer
-        if (!director.shelter) {
-            director.shelterTimer -= step;
-            if (director.shelterTimer <= 0) {
-                spawnShelter();
-                director.shelterTimer = director.shelterInterval;
-            }
-        }
-
-        director.message = director.shelter ? "REFUGIO" : "-";
+        director.message = "-";
 
         if (txtEventoElem) txtEventoElem.textContent = director.message;
-    }
-
-    function pickFarTile(minDistTiles = 18) {
-        if (!reachableTiles || reachableTiles.length === 0) return null;
-        const pt = { x: Math.floor((jugador.x + tamanoEntidad/2) / cellSize), y: Math.floor((jugador.y + tamanoEntidad/2) / cellSize) };
-        const candidates = reachableTiles.filter(t => distancia(t.x, t.y, pt.x, pt.y) >= minDistTiles);
-        const arr = candidates.length ? candidates : reachableTiles;
-        return arr[randInt(0, arr.length - 1)];
-    }
-
-    function spawnShelter() {
-        const t = pickFarTile(16);
-        if (!t) return;
-        const cx = t.x * cellSize + cellSize / 2;
-        const cy = t.y * cellSize + cellSize / 2;
-        director.shelter = { x: cx, y: cy, radius: 45, ttl: 14 * 30, hold: 0, claimed: false };
-        director.message = "REFUGIO";
-        addNoise(cx, cy, 140, 25);
-    }
-
-    function drawShelterWorld() {
-        if (!director.shelter) return;
-        const s = director.shelter;
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
-        ctx.fillStyle = s.claimed ? "rgba(129,199,132,0.18)" : "rgba(100,181,246,0.18)";
-        ctx.fill();
-        ctx.strokeStyle = s.claimed ? "rgba(129,199,132,0.45)" : "rgba(100,181,246,0.45)";
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        // progress
-        if (!s.claimed) {
-            const ratio = Math.max(0, Math.min(1, s.hold / director.shelterHoldNeed));
-            ctx.beginPath();
-            ctx.arc(s.x, s.y, s.radius + 6, -Math.PI/2, -Math.PI/2 + ratio * Math.PI * 2);
-            ctx.strokeStyle = "rgba(255,255,255,0.55)";
-            ctx.lineWidth = 3;
-            ctx.stroke();
-        }
     }
 
         // ===========================
@@ -2904,15 +2823,10 @@ function generarMapa() {
 noises = [];
         // Reset director to base defaults, then apply overrides per run
         director.enabled = DIRECTOR_BASE.enabled;
-        director.shelterInterval = DIRECTOR_BASE.shelterInterval;
-        director.shelterHoldNeed = DIRECTOR_BASE.shelterHoldNeed;
-
         if (currentRunDef && currentRunDef.directorOverrides) {
             Object.assign(director, currentRunDef.directorOverrides);
         }
 
-        director.shelterTimer = director.shelterInterval;
-        director.shelter = null;
         director.message = "-";
         
         const isPredefMap = !!(currentRunDef && currentRunDef.mapDef);
@@ -2985,7 +2899,7 @@ noises = [];
         // Phase 3: campaign soldier event settings are deterministic and do NOT inherit UI defaults
         activeSoldierEventSpawnTiles = null;
         if (deterministicCampaign) {
-            // Force director OFF for deterministic campaign runs (no random waves/shelters)
+            // Force director OFF for deterministic campaign runs (no random director events)
             director.enabled = false;
 
             const delaySec = (currentRunDef && currentRunDef.settingsOverrides && currentRunDef.settingsOverrides.soldierSpawnDelaySec !== undefined && currentRunDef.settingsOverrides.soldierSpawnDelaySec !== null)
@@ -3151,7 +3065,7 @@ if (usePredefBoxes) {
         muebles.push({ x, y, size: cellSize, hp: BOX_MAX_HP, maxHp: BOX_MAX_HP, lastHitFrame: -9999 });
     }
 } else if (!deterministicCampaign) {
-const desiredBoxes = Math.max(0, Math.min(200, Number.isFinite(mergedSettings.boxCount) ? mergedSettings.boxCount : 32));
+const desiredBoxes = Math.max(0, Math.min(200, Number.isFinite(mergedSettings.boxCount) ? mergedSettings.boxCount : 0));
 
 // candidatos cerca de casas (para poder encerrarte / montar barricadas)
 const candidates = [];
@@ -3440,8 +3354,6 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
 drawDoorsWorld();
 
         drawMueblesWorld();
-
-        drawShelterWorld();
 
         for(let i = bengalasActivas.length - 1; i >= 0; i--) {
             const b = bengalasActivas[i]; b.vida--;
