@@ -1,0 +1,3502 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <title>Z-District: Pastel Panic v7.0 (Director's Cut)</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap');
+
+        :root {
+            /* PALETA PASTEL RENOVADA */
+            --bg-body: #fffcf5;       
+            --bg-canvas: #fdfaf6;     
+            --text-main: #6d4c41;     
+            --panel-bg: rgba(255, 255, 255, 0.95);
+            
+            /* Entidades UI */
+            --c-player: #ffab91;      
+            --c-zombie: #ef5350;      
+            --c-citizen: #bcaaa4;     
+            --c-police: #7986cb;      
+            --c-flare: #ff7043;       
+            --c-soldier: #9ccc65;     
+            
+            --accent: #ffcc80;        
+            --shadow-card: 0 12px 30px rgba(109, 76, 65, 0.12);
+            --shadow-float: 0 8px 16px rgba(0,0,0,0.08);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: var(--bg-body);
+            font-family: 'Nunito', sans-serif;
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #gameContainer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        canvas {
+            border-radius: 24px;
+            background: var(--bg-canvas);
+            box-shadow: var(--shadow-card);
+            cursor: crosshair;
+            display: block;
+            border: 4px solid rgba(255,255,255,0.92);
+
+            /* Responsive without looking pixelated */
+            width: min(920px, 92vw);
+            aspect-ratio: 5 / 3;
+            height: auto;
+            image-rendering: auto;
+            will-change: transform;
+        }
+
+        #statusBar {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(5px);
+            border-radius: 20px;
+            padding: 12px 25px;
+            box-shadow: var(--shadow-float);
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+            border: 1px solid rgba(255,255,255,0.5);
+            max-width: 900px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            font-size: 12px;
+            font-weight: 800;
+            color: var(--text-main);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-count {
+            background: #efebe9;
+            padding: 2px 8px;
+            border-radius: 8px;
+            color: #5d4037;
+            margin-left: 6px;
+            font-family: 'Nunito', monospace;
+            font-size: 14px;
+            font-weight: 900;
+        }
+
+        #settingsToggle {
+            position: fixed;
+            top: 25px;
+            right: 25px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: #fff;
+            color: var(--text-main);
+            border: 2px solid #efebe9;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: var(--shadow-float);
+            z-index: 1000;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.3s;
+        }
+        
+        #homeBtn {
+            position: fixed;
+            top: 25px;
+            right: 85px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: #fff;
+            color: var(--text-main);
+            border: 2px solid #efebe9;
+            font-size: 22px;
+            cursor: pointer;
+            box-shadow: var(--shadow-float);
+            z-index: 999;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        #homeBtn:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(0,0,0,0.12); }
+        #homeBtn:active { transform: translateY(0px) scale(0.98); }
+
+        .menu-overlay {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            z-index: 2000;
+            padding: 24px;
+        }
+        .menu-overlay.visible { display: flex; }
+
+        .menu-card {
+            width: min(520px, 96vw);
+            border-radius: 20px;
+            background: var(--panel-bg);
+            border: 1px solid #efe7e3;
+            box-shadow: 0 18px 60px rgba(0,0,0,0.10);
+            padding: 22px 22px 18px;
+            text-align: center;
+        }
+        .menu-title {
+            font-size: 28px;
+            font-weight: 900;
+            letter-spacing: -0.5px;
+            margin: 0 0 6px;
+        }
+        .menu-subtitle {
+            font-size: 14px;
+            opacity: 0.72;
+            margin-bottom: 16px;
+        }
+        .menu-actions {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            margin: 8px 0 14px;
+        }
+        .menu-btn {
+            border: 1px solid #efe7e3;
+            background: #fff;
+            border-radius: 16px;
+            padding: 14px 16px;
+            font-weight: 800;
+            font-size: 16px;
+            cursor: pointer;
+            box-shadow: 0 10px 26px rgba(0,0,0,0.08);
+            transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+        }
+        .menu-btn:hover { transform: translateY(-2px); box-shadow: 0 14px 34px rgba(0,0,0,0.10); }
+        .menu-btn:active { transform: translateY(0px) scale(0.99); }
+        .menu-btn.primary {
+            border: 1px solid rgba(255, 168, 182, 0.55);
+            background: linear-gradient(180deg, rgba(255, 236, 239, 1), rgba(255, 255, 255, 1));
+        }
+        .menu-hint {
+            font-size: 12px;
+            opacity: 0.65;
+        }
+
+        .post-stats{
+            margin: 10px 0 6px;
+            padding: 12px 14px;
+            border-radius: 16px;
+            background: rgba(255,255,255,0.65);
+            border: 1px solid #efe7e3;
+            text-align: left;
+        }
+        .post-row{
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:12px;
+            font-size: 13px;
+            font-weight: 800;
+            color: var(--text-main);
+            padding: 6px 0;
+            border-bottom: 1px dashed rgba(0,0,0,0.08);
+        }
+        .post-row:last-child{ border-bottom: none; }
+        .post-row b{ font-weight: 900; }
+#settingsToggle:hover { transform: scale(1.1) rotate(90deg); color: var(--c-player); border-color: var(--c-player); }
+
+        #configPanel {
+            position: fixed;
+            top: 90px;
+            right: 25px;
+            width: 340px;
+            background: var(--panel-bg);
+            backdrop-filter: blur(15px);
+            padding: 25px;
+            border-radius: 24px;
+            box-shadow: var(--shadow-card);
+            border: 1px solid rgba(255,255,255,0.8);
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px) scale(0.95);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        #configPanel.visible { opacity: 1; visibility: visible; transform: translateY(0) scale(1); }
+
+        #configPanel h1 {
+            margin: 0 0 15px 0; font-size: 16px; font-weight: 900; text-align: center;
+            color: var(--text-main); text-transform: uppercase; letter-spacing: 1.5px;
+            border-bottom: 2px dashed #d7ccc8; padding-bottom: 10px;
+        }
+
+        .slider-group { margin-bottom: 12px; }
+        .slider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .slider-label { font-size: 12px; font-weight: 700; color: #8d6e63; }
+        
+        input[type="number"] {
+            width: 50px; padding: 2px 6px; border: 2px solid #efebe9; border-radius: 8px;
+            font-family: 'Nunito', sans-serif; font-weight: 800; color: var(--text-main);
+            text-align: center; background: #fff; font-size: 12px;
+        }
+        input[type="range"] {
+            width: 100%; height: 6px; background: #efebe9; border-radius: 10px;
+            outline: none; -webkit-appearance: none; display: block;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 16px; height: 16px; background: var(--c-player);
+            border-radius: 50%; cursor: pointer; border: 2px solid #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .toggle-row {
+            display: flex; justify-content: space-between; align-items: center;
+            margin: 10px 0; background: #fff; padding: 8px 12px; border-radius: 10px;
+            border: 1px solid #efebe9;
+        }
+        .toggle-label { font-size: 12px; font-weight: 700; color: var(--text-main); }
+        input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: var(--c-player); }
+
+        #restartBtn {
+            width: 100%; padding: 12px; margin-top: 10px; border: none; border-radius: 12px;
+            background: linear-gradient(135deg, #ffab91, #ffcc80); color: #fff;
+            font-weight: 900; font-size: 14px; cursor: pointer; text-transform: uppercase;
+            box-shadow: 0 4px 10px rgba(255, 171, 145, 0.4);
+        }
+        #restartBtn:hover { transform: translateY(-2px); }
+
+        .hint { font-size: 10px; color: #a1887f; text-align: center; margin-top: 10px; font-weight: 600; }
+
+        .dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: 2px solid #fff; }
+        .dot.player { background: var(--c-player); }
+        .dot.zombie { background: var(--c-zombie); }
+        .dot.citizen { background: var(--c-citizen); }
+        .dot.police { background: var(--c-police); }
+        .dot.soldier { background: var(--c-soldier); }
+        .dot.ammo { background: #ffcc80; }
+        .dot.flare { background: var(--c-flare); border-radius: 3px; }
+
+        .dot.barric { background: #8d6e63; border-radius: 3px; }
+        .dot.event { background: #64b5f6; }
+    </style>
+</head>
+<body>
+
+<button id="settingsToggle" title="Configuración">⚙️</button>
+<button id="homeBtn" title="Menú">🏠</button>
+
+<div id="mainMenuOverlay" class="menu-overlay">
+  <div class="menu-card">
+    <div class="menu-title">Z-District: Pastel Panic</div>
+    <div class="menu-subtitle">Elige un modo</div>
+    <div class="menu-actions">
+      <button id="menuCampaignBtn" class="menu-btn primary">🎯 Campaña</button>
+      <button id="menuFreeBtn" class="menu-btn">🎲 Modo libre</button>
+    </div>
+    <div class="menu-hint">En campaña la configuración está bloqueada.</div>
+  </div>
+</div>
+
+<div id="postGameOverlay" class="menu-overlay">
+  <div class="menu-card">
+    <div id="postTitle" class="menu-title">—</div>
+    <div id="postSubtitle" class="menu-subtitle">—</div>
+    <div id="postStats" class="post-stats"></div>
+    <div class="menu-actions">
+      <button id="postPrimaryBtn" class="menu-btn primary">Continuar</button>
+      <button id="postSecondaryBtn" class="menu-btn">Opción</button>
+      <button id="postMenuBtn" class="menu-btn">🏠 Menú</button>
+    </div>
+    <div id="postHint" class="menu-hint">ESPACIO = acción principal</div>
+  </div>
+</div>
+
+<div id="configPanel">
+    <h1>Configuración</h1>
+    
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Zombies</span><input type="number" id="zombieNum" value="5"></div>
+        <input type="range" id="zombieSlider" min="0" max="500" value="5">
+    </div>
+    
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Civiles</span><input type="number" id="citizenNum" value="1500"></div>
+        <input type="range" id="citizenSlider" min="0" max="3000" value="1500">
+    </div>
+    
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Policía</span><input type="number" id="policeNum" value="5"></div>
+        <input type="range" id="policeSlider" min="0" max="100" value="5">
+    </div>
+
+    <!-- Militares -->
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label" style="color:var(--c-soldier)">Militares (Pelotón)</span><input type="number" id="soldierNum" value="10"></div>
+        <input type="range" id="soldierSlider" min="0" max="50" value="10">
+    </div>
+
+    <!-- Retraso militar -->
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Retraso Refuerzos (s)</span><input type="number" id="milDelayNum" min="0" max="120" value="7"></div>
+        <input type="range" id="milDelaySlider" min="0" max="120" value="7">
+    </div>
+
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Vel. Militar</span><input type="number" id="soldierSpeedNum" min="0.5" max="3" step="0.1" value="1.1"></div>
+        <input type="range" id="soldierSpeedSlider" min="0.5" max="3" step="0.1" value="1.1">
+    </div>
+    
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Cooldown Policía (s)</span><input type="number" id="policeCoolNum" min="0.1" max="5" step="0.1" value="1.0"></div>
+        <input type="range" id="policeCoolSlider" min="0.1" max="5" step="0.1" value="1.0">
+    </div>
+
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Cooldown Militar (s)</span><input type="number" id="soldierCoolNum" min="0.1" max="5" step="0.1" value="0.7"></div>
+        <input type="range" id="soldierCoolSlider" min="0.1" max="5" step="0.1" value="0.7">
+    </div>
+
+    <!-- Jamming Config -->
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Disparos antes atasco</span><input type="number" id="jamCountNum" min="1" max="100" value="10"></div>
+        <input type="range" id="jamCountSlider" min="1" max="100" value="10">
+    </div>
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Duración atasco (s)</span><input type="number" id="jamDurNum" min="1" max="15" value="5"></div>
+        <input type="range" id="jamDurSlider" min="1" max="15" value="5">
+    </div>
+
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Vel. Zombies</span><input type="number" id="zSpeedNum" step="0.1" value="1.5"></div>
+        <input type="range" id="zombieSpeedSlider" min="0.2" max="3" step="0.1" value="1.5">
+    </div>
+
+    <!-- Rango Disparo Jugador -->
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Rango Disparo (px)</span><input type="number" id="playerRangeNum" min="30" max="300" value="60"></div>
+        <input type="range" id="playerRangeSlider" min="30" max="300" value="60">
+    </div>
+
+    <!-- Velocidad Jugador -->
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Velocidad Jugador</span><input type="number" id="playerSpeedNum" step="0.1" value="2.5"></div>
+        <input type="range" id="playerSpeedSlider" min="1.0" max="4.0" step="0.1" value="2.5">
+    </div>
+
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Bengalas</span><input type="number" id="bengalaNum" value="1"></div>
+        <input type="range" id="bengalaSlider" min="0" max="10" value="1">
+    </div>
+
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">📦 Cajas</span><input type="number" id="boxNum" min="0" max="200" value="32"></div>
+        <input type="range" id="boxSlider" min="0" max="200" step="1" value="32">
+    </div>
+
+
+    <div class="toggle-row">
+        <span class="toggle-label" style="color:var(--c-soldier)">⚠️ Fuego Amigo Militar</span>
+        <input type="checkbox" id="friendlyFireToggle" checked>
+    </div>
+
+    <div class="toggle-row">
+        <span class="toggle-label">🛡️ Modo Inmortal</span>
+        <input type="checkbox" id="ghostToggle">
+    </div>
+
+    <!-- Ocultos -->
+    <div style="display:none">
+        <input type="range" id="citizenSpeedSlider" value="1.0">
+        <input type="number" id="balasNum" value="5">
+        <input type="range" id="balasSlider" value="5">
+        <input type="range" id="bengalaDuracionSlider" value="15">
+    </div>
+
+    <button id="restartBtn">Reiniciar Simulación</button>
+    <div class="hint">CLICK: Infectar • B: Bengala • SPACE: Disparar • C: Puertas • Empuja cajas chocando</div>
+</div>
+
+<div id="gameContainer">
+    <canvas id="myCanvas" width="900" height="540"></canvas>
+
+    <div id="statusBar">
+        <div class="status-item"><div class="dot player"></div> TÚ</div>
+        <div class="status-item"><div class="dot zombie"></div> ZOMBIES <span class="status-count" id="numZombies">0</span></div>
+        <div class="status-item"><div class="dot citizen"></div> CIVILES <span class="status-count" id="numCiudadanos">0</span></div>
+        <div class="status-item"><div class="dot police"></div> POLICÍA <span class="status-count" id="numPolicias">0</span></div>
+        <div class="status-item"><div class="dot soldier"></div> MILITAR <span class="status-count" id="numMilitares">0</span></div>
+        <div class="status-item"><div class="dot ammo"></div> BALAS <span class="status-count" id="numBalas">0</span></div>
+        <div class="status-item"><div class="dot flare"></div> BENG. <span class="status-count" id="numBengalas">0</span></div>
+<div class="status-item"><div class="dot saved"></div> SALV. <span class="status-count" id="numSalvados">0</span></div>
+        <div class="status-item"><div class="dot event"></div> EVENTO <span class="status-count" id="txtEvento">-</span></div>
+    </div>
+</div>
+
+<script>
+
+    const canvas = document.getElementById("myCanvas");
+    const ctx = canvas.getContext("2d");
+
+    // --- Visual polish: pre-rendered static layer + particles (no sprites) ---
+    ctx.imageSmoothingEnabled = true;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    const staticLayer = document.createElement("canvas");
+    const staticCtx = staticLayer.getContext("2d");
+    staticCtx.imageSmoothingEnabled = true;
+    let staticDirty = true;
+
+    let fieldRectTiles = null; // {x0,x1,y0,y1} in tile coords, for a subtle "safe field" tint
+
+    // Grain pattern (subtle) for cinematic look
+    const grainCanvas = document.createElement("canvas");
+    grainCanvas.width = 128; grainCanvas.height = 128;
+    const grainCtx = grainCanvas.getContext("2d");
+    let grainPattern = null;
+
+    function rebuildGrain() {
+        const img = grainCtx.createImageData(grainCanvas.width, grainCanvas.height);
+        for (let i = 0; i < img.data.length; i += 4) {
+            const v = (Math.random() * 255) | 0;
+            img.data[i] = v; img.data[i + 1] = v; img.data[i + 2] = v;
+            img.data[i + 3] = (Math.random() * 20) | 0;
+        }
+        grainCtx.putImageData(img, 0, 0);
+        grainPattern = ctx.createPattern(grainCanvas, "repeat");
+    }
+    rebuildGrain();
+
+    function hash01(ix, iy) {
+        let n = (ix * 374761393 + iy * 668265263) | 0;
+        n = (n ^ (n >>> 13)) | 0;
+        n = Math.imul(n, 1274126177);
+        n = (n ^ (n >>> 16)) >>> 0;
+        return n / 4294967295;
+    }
+
+    function chance(p, step = 1) {
+        if (p <= 0) return false;
+        const pe = 1 - Math.pow(1 - p, step);
+        return Math.random() < pe;
+    }
+
+    let particles = [];
+    let bloodStains = [];
+    let floatingTexts = [];
+
+    function spawnParticles(x, y, color, count = 8, speed = 1.2, spread = Math.PI * 2, life = 18, size = 1.2, alpha = 1) {
+        for (let i = 0; i < count; i++) {
+            const a = (Math.random() * spread);
+            const s = speed * (0.4 + Math.random() * 0.9);
+            particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life, ttl: life, size: size * (0.7 + Math.random() * 0.8), color, alpha });
+        }
+        if (particles.length > 900) particles.splice(0, particles.length - 900);
+    }
+
+    function addBlood(x, y, intensity = 1) {
+        const r = 2.5 + Math.random() * (2.0 + intensity * 1.6);
+        bloodStains.push({ x, y, r, ttl: 60 * 35, life: 60 * 35 });
+        if (bloodStains.length > 280) bloodStains.splice(0, bloodStains.length - 280);
+        spawnParticles(x, y, "rgba(229, 57, 53, 0.9)", 5 + (intensity | 0) * 3, 1.9, Math.PI * 2, 16, 1.05, 0.95);
+    }
+
+    function addFloatText(text, x, y, color = "rgba(62,39,35,0.85)") {
+        floatingTexts.push({ text, x, y, vx: (Math.random() - 0.5) * 0.25, vy: -0.55 - Math.random() * 0.25, ttl: 34, life: 34, color });
+        if (floatingTexts.length > 28) floatingTexts.shift();
+    }
+
+    function updateParticles(step = 1) {
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i];
+            p.ttl -= step;
+            p.x += p.vx * step;
+            p.y += p.vy * step;
+            p.vx *= Math.pow(0.92, step);
+            p.vy *= Math.pow(0.92, step);
+            if (p.ttl <= 0) particles.splice(i, 1);
+        }
+        for (let i = bloodStains.length - 1; i >= 0; i--) {
+            bloodStains[i].ttl -= step;
+            if (bloodStains[i].ttl <= 0) bloodStains.splice(i, 1);
+        }
+        for (let i = floatingTexts.length - 1; i >= 0; i--) {
+            const t = floatingTexts[i];
+            t.ttl -= step;
+            t.x += t.vx * step;
+            t.y += t.vy * step;
+            if (t.ttl <= 0) floatingTexts.splice(i, 1);
+        }
+    }
+
+    function drawBloodStains() {
+        for (const s of bloodStains) {
+            const a = Math.max(0, Math.min(1, s.ttl / s.life)) * 0.30;
+            ctx.fillStyle = `rgba(229,57,53,${a})`;
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    function drawParticles() {
+        for (const p of particles) {
+            const a = Math.max(0, Math.min(1, p.ttl / p.life)) * p.alpha;
+            ctx.globalAlpha = a;
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+    }
+
+    function drawFloatingTexts() {
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = "800 11px Nunito";
+        for (const t of floatingTexts) {
+            const a = Math.max(0, Math.min(1, t.ttl / t.life));
+            ctx.globalAlpha = a;
+            ctx.fillStyle = "rgba(255,255,255,0.65)";
+            ctx.fillText(t.text, t.x + 0.8, t.y + 0.8);
+            ctx.fillStyle = t.color;
+            ctx.fillText(t.text, t.x, t.y);
+        }
+        ctx.restore();
+        ctx.globalAlpha = 1;
+    }
+
+    function drawGrainAndVignette() {
+        const w = canvas.width, h = canvas.height;
+
+        // vignette
+        const rg = ctx.createRadialGradient(w * 0.5, h * 0.45, Math.min(w, h) * 0.18, w * 0.5, h * 0.45, Math.max(w, h) * 0.78);
+        rg.addColorStop(0, "rgba(0,0,0,0)");
+        rg.addColorStop(1, "rgba(0,0,0,0.16)");
+        ctx.fillStyle = rg;
+        ctx.fillRect(0, 0, w, h);
+
+        // grain
+        if (grainPattern) {
+            ctx.globalAlpha = 0.085;
+            ctx.fillStyle = grainPattern;
+            ctx.fillRect(0, 0, w, h);
+            ctx.globalAlpha = 1;
+        }
+    }
+
+    function buildStaticLayer() {
+        if (!grid || !grid.length) return;
+        staticLayer.width = canvas.width;
+        staticLayer.height = canvas.height;
+
+        const w = staticLayer.width, h = staticLayer.height;
+        staticCtx.clearRect(0, 0, w, h);
+
+        // subtle tint for "field"/helipad area (tile coords)
+        if (fieldRectTiles) {
+            const fx = fieldRectTiles.x0 * cellSize;
+            const fy = fieldRectTiles.y0 * cellSize;
+            const fw = (fieldRectTiles.x1 - fieldRectTiles.x0) * cellSize;
+            const fh = (fieldRectTiles.y1 - fieldRectTiles.y0) * cellSize;
+            staticCtx.fillStyle = "rgba(208, 232, 220, 0.18)";
+            staticCtx.fillRect(fx, fy, fw, fh);
+        }
+
+        // floor texture + roads
+        const roadY = Math.floor(gridHeight * 0.52);
+        const roadX = Math.floor(gridWidth * 0.33);
+        const roadToFieldX = Math.max(2, (fieldRectTiles ? fieldRectTiles.x0 : Math.floor(gridWidth * 0.68)) - 2);
+
+        for (let ty = 0; ty < gridHeight; ty++) {
+            for (let tx = 0; tx < gridWidth; tx++) {
+                const x = tx * cellSize;
+                const y = ty * cellSize;
+
+                const isRoad = (ty === roadY || ty === roadY + 1 || tx === roadX || tx === roadX + 1 || tx === roadToFieldX || tx === roadToFieldX + 1);
+
+                if (!grid[ty][tx]) {
+                    // empty tile "floor"
+                    if (isRoad) {
+                        staticCtx.fillStyle = "rgba(120, 144, 156, 0.10)";
+                        staticCtx.fillRect(x, y, cellSize, cellSize);
+                        staticCtx.fillStyle = "rgba(255,255,255,0.08)";
+                        staticCtx.fillRect(x, y, cellSize, 1);
+                    } else {
+                        const r = hash01(tx, ty);
+                        if (r < 0.055) {
+                            staticCtx.fillStyle = "rgba(121, 85, 72, 0.06)";
+                            staticCtx.fillRect(x + 2 + (r * 3), y + 2, 1, 1);
+                        } else if (r < 0.058) {
+                            staticCtx.strokeStyle = "rgba(121, 85, 72, 0.07)";
+                            staticCtx.lineWidth = 1;
+                            staticCtx.beginPath();
+                            staticCtx.moveTo(x + 1, y + cellSize - 2);
+                            staticCtx.lineTo(x + cellSize - 2, y + 1);
+                            staticCtx.stroke();
+                        }
+                    }
+                    continue;
+                }
+
+                // wall tile with bevel
+                staticCtx.fillStyle = PALETA.pared;
+                staticCtx.fillRect(x, y, cellSize, cellSize);
+
+                staticCtx.fillStyle = "rgba(0,0,0,0.07)";
+                staticCtx.fillRect(x + 1, y + 2, cellSize, cellSize);
+
+                staticCtx.fillStyle = "rgba(255,255,255,0.22)";
+                staticCtx.fillRect(x, y, cellSize, 2);
+                staticCtx.fillRect(x, y, 2, cellSize);
+
+                staticCtx.fillStyle = "rgba(0,0,0,0.12)";
+                staticCtx.fillRect(x, y + cellSize - 2, cellSize, 2);
+                staticCtx.fillRect(x + cellSize - 2, y, 2, cellSize);
+            }
+        }
+
+        // helipad hint (if helicopter has a known location)
+        if (typeof helicoptero !== "undefined" && helicoptero && helicoptero.x != null) {
+            const cx = helicoptero.x + helicoptero.ancho / 2;
+            const cy = helicoptero.y + helicoptero.alto / 2;
+
+            staticCtx.strokeStyle = "rgba(38, 166, 154, 0.35)";
+            staticCtx.lineWidth = 2;
+            staticCtx.beginPath();
+            staticCtx.arc(cx, cy, 16, 0, Math.PI * 2);
+            staticCtx.stroke();
+
+            staticCtx.strokeStyle = "rgba(38, 166, 154, 0.25)";
+            staticCtx.lineWidth = 1;
+            staticCtx.beginPath();
+            staticCtx.arc(cx, cy, 24, 0, Math.PI * 2);
+            staticCtx.stroke();
+
+            staticCtx.fillStyle = "rgba(38, 166, 154, 0.18)";
+            staticCtx.font = "900 14px Nunito";
+            staticCtx.textAlign = "center";
+            staticCtx.textBaseline = "middle";
+            staticCtx.fillText("H", cx, cy + 0.5);
+        }
+
+        staticDirty = false;
+    }
+
+
+    // UI Elements
+    const numZombiesElem = document.getElementById("numZombies");
+    const numCiudadanosElem = document.getElementById("numCiudadanos");
+    const numPoliciasElem = document.getElementById("numPolicias");
+    const numMilitaresElem = document.getElementById("numMilitares");
+    const numBalasElem = document.getElementById("numBalas");
+    const numBengalasElem = document.getElementById("numBengalas");
+    const numSalvadosElem = document.getElementById("numSalvados");
+const txtEventoElem = document.getElementById("txtEvento");
+    const configPanel = document.getElementById("configPanel");
+
+    // Inputs
+    const zombieSlider = document.getElementById("zombieSlider"); const zombieNum = document.getElementById("zombieNum");
+    const citizenSlider = document.getElementById("citizenSlider"); const citizenNum = document.getElementById("citizenNum");
+    const policeSlider = document.getElementById("policeSlider"); const policeNum = document.getElementById("policeNum");
+    const soldierSlider = document.getElementById("soldierSlider"); const soldierNum = document.getElementById("soldierNum");
+    const zSpeedSlider = document.getElementById("zombieSpeedSlider"); const zSpeedNum = document.getElementById("zSpeedNum");
+    const bengalaSlider = document.getElementById("bengalaSlider"); const bengalaNum = document.getElementById("bengalaNum");
+    const boxSlider = document.getElementById("boxSlider"); const boxNum = document.getElementById("boxNum");
+    
+    // Config Inputs
+    const policeCoolSlider = document.getElementById("policeCoolSlider"); const policeCoolNum = document.getElementById("policeCoolNum");
+    const soldierCoolSlider = document.getElementById("soldierCoolSlider"); const soldierCoolNum = document.getElementById("soldierCoolNum");
+    const soldierSpeedSlider = document.getElementById("soldierSpeedSlider"); const soldierSpeedNum = document.getElementById("soldierSpeedNum");
+    const jamCountSlider = document.getElementById("jamCountSlider"); const jamCountNum = document.getElementById("jamCountNum");
+    const jamDurSlider = document.getElementById("jamDurSlider"); const jamDurNum = document.getElementById("jamDurNum");
+    const playerSpeedSlider = document.getElementById("playerSpeedSlider"); const playerSpeedNum = document.getElementById("playerSpeedNum");
+    const playerRangeSlider = document.getElementById("playerRangeSlider"); const playerRangeNum = document.getElementById("playerRangeNum");
+    const milDelaySlider = document.getElementById("milDelaySlider"); const milDelayNum = document.getElementById("milDelayNum");
+
+    const friendlyFireToggle = document.getElementById("friendlyFireToggle");
+    const citizenSpeedSlider = document.getElementById("citizenSpeedSlider");
+    const balasSlider = document.getElementById("balasSlider"); const balasNum = document.getElementById("balasNum");
+    const ghostToggle = document.getElementById("ghostToggle");
+    const restartBtn = document.getElementById("restartBtn");
+    const settingsToggle = document.getElementById("settingsToggle");
+    const homeBtn = document.getElementById("homeBtn");
+    const mainMenuOverlay = document.getElementById("mainMenuOverlay");
+    const menuCampaignBtn = document.getElementById("menuCampaignBtn");
+    const menuFreeBtn = document.getElementById("menuFreeBtn");
+
+    const postGameOverlay = document.getElementById("postGameOverlay");
+    const postTitle = document.getElementById("postTitle");
+    const postSubtitle = document.getElementById("postSubtitle");
+    const postStats = document.getElementById("postStats");
+    const postPrimaryBtn = document.getElementById("postPrimaryBtn");
+    const postSecondaryBtn = document.getElementById("postSecondaryBtn");
+    const postMenuBtn = document.getElementById("postMenuBtn");
+    const postHint = document.getElementById("postHint");
+
+    function linkInput(slider, number) {
+        slider.addEventListener('input', () => number.value = slider.value);
+        number.addEventListener('input', () => slider.value = number.value);
+    }
+    linkInput(zombieSlider, zombieNum);
+    linkInput(citizenSlider, citizenNum);
+    linkInput(policeSlider, policeNum);
+    linkInput(soldierSlider, soldierNum);
+    linkInput(zSpeedSlider, zSpeedNum);
+    linkInput(bengalaSlider, bengalaNum);
+    linkInput(boxSlider, boxNum);
+    linkInput(policeCoolSlider, policeCoolNum);
+    linkInput(soldierCoolSlider, soldierCoolNum);
+    linkInput(soldierSpeedSlider, soldierSpeedNum);
+    linkInput(jamCountSlider, jamCountNum);
+    linkInput(jamDurSlider, jamDurNum);
+    linkInput(playerSpeedSlider, playerSpeedNum);
+    linkInput(playerRangeSlider, playerRangeNum);
+    linkInput(milDelaySlider, milDelayNum);
+
+    settingsToggle.addEventListener("click", () => configPanel.classList.toggle("visible"));
+
+    // Main Menu wiring
+    if (homeBtn) homeBtn.addEventListener("click", () => showMainMenu());
+    if (menuFreeBtn) menuFreeBtn.addEventListener("click", () => startFreeMode());
+    if (menuCampaignBtn) menuCampaignBtn.addEventListener("click", () => startCampaignMode(0));
+
+
+
+    if (postPrimaryBtn) postPrimaryBtn.addEventListener("click", () => handlePostgamePrimaryAction());
+    if (postSecondaryBtn) postSecondaryBtn.addEventListener("click", () => handlePostgameSecondaryAction());
+    if (postMenuBtn) postMenuBtn.addEventListener("click", () => showMainMenu());
+
+    // ===========================
+    // Phase 0: Run definitions
+    // (Prep for Campaign/Free mode without changing current behavior)
+    // ===========================
+    let currentRunDef = null;   // { mode: "free" | "campaign", settingsOverrides?: {...}, ... }
+
+    // Global flag: campaign maps are deterministic (no RNG + no spawn filtering)
+    let deterministicCampaign = false;
+    let activeSoldierEventSpawnTiles = null; // for campaign soldier event spawns ('M')
+
+
+    // ===========================
+    // Phase 2: App state + Main Menu
+    // ===========================
+    let appState = "MENU"; // MENU | GAME
+    let campaignIndex = 0;
+    let postGameShown = false;
+    let postWasVictory = false;
+
+
+    // Placeholder campaign content (Phase 3 will add real 3-level campaign)
+    const CAMPAIGN_LEVELS = [
+        {
+            id: "C01",
+            name: "Primer Encierro",
+            directorOverrides: { enabled: false },
+            settingsOverrides: {
+                zombieCount: 1,
+                citizenCount: 10,
+                policeCount: 0,
+                soldierCount: 0,
+                boxCount: 1,
+                zombieSpeed: 1,
+                playerSpeed: 2.7,
+                balas: 0,
+                bengalas: 1,
+                soldierSpawnDelaySec: 0
+            },
+            mapDef: {
+                type: "ascii",
+                data: `
+############################################################
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#.......##########################################.........#
+#.......#........................................#.........#
+#..C....#........................................#.........#
+#.......#........................................#.........#
+#.......#........................................#.........#
+#.......#........................................#.........#
+#.......#........................................#.........#
+#.......#.K................C...........P..H......#.........#
+#.......#........................................#.........#
+#..C....#........................................#.........#
+#.......#........................................#.........#
+#.......#........................................#.........#
+#.......#........................................#.........#
+#.......#........................................#.........#
+#.......#........................................#.........#
+#.C.....##########################################.........#
+#..........................................................#
+#......C...................................................#
+#...............................C..........................#
+#..........................................................#
+#............C.......C............................C........#
+#....C...................C.....D.......C...................#
+#..........................................................#
+#..........................................................#
+#...C........C.....C.......................................#
+#............................C.......C........C............#
+#..........................................................#
+#..........................................................#
+############################################################
+`.trim()
+            }
+        },
+
+        {
+            id: "C02",
+            name: "Barrio Cortado",
+            directorOverrides: {
+                enabled: true,
+                waveInterval: 22 * 30,
+                waveCountdown: 3 * 30,
+                shelterInterval: 33 * 30,
+                shelterHoldNeed: 2 * 30
+            },
+            settingsOverrides: {
+                zombieCount: 28,
+                citizenCount: 125,
+                policeCount: 2,
+                soldierCount: 2,
+                boxCount: 30,
+                zombieSpeed: 1.55,
+                playerSpeed: 2.65,
+                balas: 17,
+                bengalas: 1,
+                soldierSpawnDelaySec: 10,
+                soldierCooldownSec: 1.0
+            },
+            mapDef: {
+                type: "ascii",
+                data: `
+############################################################
+#...........................#..............................#
+#..###############..........#..............................#
+#..#.............#..........#..............................#
+#..#.............#..........#.......................H......#
+#..#....K........#..........#..............................#
+#..#.............#..........D..............................#
+#..#.............#..........#..............................#
+#..#######D#######..........#..............................#
+#...........................#..............................#
+#...........................#..............................#
+#...........................#..............................#
+#...........................#..............................#
+#...........................#..............................#
+#...........................#..............................#
+#...........................D..............................#
+#.....P.....................#..............................#
+#...........................#..............................#
+#...........................#..............................#
+#...........................#..............................#
+#...........................#..............................#
+############################################################
+`.trim()
+            }
+        },
+
+        {
+            id: "C03",
+            name: "El Laberinto",
+            directorOverrides: {
+                enabled: true,
+                waveInterval: 17 * 30,
+                waveCountdown: 3 * 30,
+                shelterInterval: 28 * 30,
+                shelterHoldNeed: 2 * 30
+            },
+            settingsOverrides: {
+                zombieCount: 46,
+                citizenCount: 110,
+                policeCount: 1,
+                soldierCount: 3,
+                boxCount: 34,
+                zombieSpeed: 1.65,
+                playerSpeed: 2.6,
+                balas: 14,
+                bengalas: 1,
+                soldierSpawnDelaySec: 7,
+                soldierCooldownSec: 0.9
+            },
+            mapDef: {
+                type: "ascii",
+                data: `
+############################################################
+#...................#...................#..................#
+#..........########.#...................#...############...#
+#..........#......#.#...................#...#..........#...#
+#..........#..K...#.D...................#...#..........#...#
+#..........#......#.#...................#...#..........#...#
+#..........#......#.#...................D...#..........#...#
+#..........####D###.#...................#...#..........#...#
+#...................#...................#...#####D######...#
+#...................#...................#..................#
+########D#####################D###################D#########
+#...................#...................#..................#
+#...................D...############....#..................#
+#...................#...#..........#....#..................#
+#...................#...D..........#....#..................#
+#...................#...#..........#....D..................#
+#...................#...#..........#....#..................#
+#...................#...############....#..................#
+#...................#...................#..................#
+#...................D...................#..................#
+#.....P.............#...................#.............H....#
+#...................#...................D..................#
+#...................#...................#..................#
+############################################################
+`.trim()
+            }
+        }
+    ];
+
+    function stopToMenu() {
+        estadoJuego = "STOPPED";
+        if (animationId) cancelAnimationFrame(animationId);
+        animationId = null;
+        // clear movement keys
+        Object.keys(teclas).forEach(k => teclas[k] = false);
+    }
+
+    function showMainMenu() {
+        appState = "MENU";
+        stopToMenu();
+        if (postGameOverlay) postGameOverlay.classList.remove("visible");
+        postGameShown = false;
+        if (configPanel) configPanel.classList.remove("visible");
+        setSettingsUIEnabled(true); // allow tweaking for Free mode while in menu
+        if (mainMenuOverlay) mainMenuOverlay.classList.add("visible");
+    }
+
+    function startFreeMode() {
+        appState = "GAME";
+        if (mainMenuOverlay) mainMenuOverlay.classList.remove("visible");
+        if (postGameOverlay) postGameOverlay.classList.remove("visible");
+        postGameShown = false;
+        setSettingsUIEnabled(true);
+        resetGame({ mode: "free" });
+    }
+
+    function startCampaignMode(index = 0) {
+        appState = "GAME";
+        if (mainMenuOverlay) mainMenuOverlay.classList.remove("visible");
+        if (postGameOverlay) postGameOverlay.classList.remove("visible");
+        postGameShown = false;
+        setSettingsUIEnabled(false);
+        campaignIndex = Math.max(0, Math.min(index, CAMPAIGN_LEVELS.length - 1));
+        const lvl = CAMPAIGN_LEVELS[campaignIndex];
+        resetGame({
+            mode: "campaign",
+            campaignIndex,
+            levelId: lvl.id,
+            levelName: lvl.name,
+            directorOverrides: lvl.directorOverrides || null,
+            settingsOverrides: lvl.settingsOverrides || {},
+            mapDef: lvl.mapDef || null
+        });
+    }
+
+    function restartCurrentRun() {
+        if (appState === "MENU") return;
+        if (currentRunDef && currentRunDef.mode === "campaign") {
+            startCampaignMode(currentRunDef.campaignIndex ?? campaignIndex ?? 0);
+        } else {
+            startFreeMode();
+        }
+    }
+
+    function isCampaignRun() {
+        return !!(currentRunDef && currentRunDef.mode === "campaign");
+    }
+    function getActiveCampaignIndex() {
+        const idx = (currentRunDef && currentRunDef.campaignIndex != null)
+            ? (currentRunDef.campaignIndex | 0)
+            : (campaignIndex | 0);
+        return Math.max(0, Math.min(idx, CAMPAIGN_LEVELS.length - 1));
+    }
+    function getActiveCampaignLevel() {
+        return CAMPAIGN_LEVELS[getActiveCampaignIndex()] || null;
+    }
+    function isLastCampaignLevel() {
+        return getActiveCampaignIndex() >= (CAMPAIGN_LEVELS.length - 1);
+    }
+    function hidePostGameOverlay() {
+        if (postGameOverlay) postGameOverlay.classList.remove("visible");
+    }
+
+    function showPostGameOverlay(resultState) {
+        if (!postGameOverlay) return;
+        const victory = (resultState === "VICTORY");
+        postWasVictory = victory;
+
+        const lvl = isCampaignRun() ? getActiveCampaignLevel() : null;
+        const idx = isCampaignRun() ? getActiveCampaignIndex() : 0;
+
+        let titleText = victory ? "¡EVACUACIÓN EXITOSA!" : "GAME OVER";
+        if (isCampaignRun() && victory && isLastCampaignLevel()) titleText = "¡CAMPAÑA COMPLETADA!";
+
+        let subtitleText = isCampaignRun()
+            ? `Campaña — Nivel ${idx + 1}/${CAMPAIGN_LEVELS.length}: ${lvl ? lvl.name : "—"}`
+            : "Modo libre";
+
+        if (postTitle) postTitle.textContent = titleText;
+        if (postSubtitle) postSubtitle.textContent = subtitleText;
+
+        const totalTime = ((Date.now() - gameStats.startTime) / 1000).toFixed(1);
+        const rows = [
+            ["⏱️ Tiempo", `${totalTime}s`],
+            ["🧟 Zombies eliminados", `${gameStats.zombiesKilled}`],
+            ["💀 Civiles infectados", `${gameStats.civsInfected}`],
+            ["🛟 Civiles salvados", `${ciudadanosSalvados}`]
+        ];
+        if (gameStats.soldiersLost > 0) rows.push(["🎖️ Bajas militares", `${gameStats.soldiersLost}`]);
+
+        if (postStats) postStats.innerHTML = rows
+            .map(r => `<div class="post-row"><span>${r[0]}</span><b>${r[1]}</b></div>`)
+            .join("");
+
+        // Configure buttons
+        if (postSecondaryBtn) postSecondaryBtn.style.display = "";
+        if (isCampaignRun()) {
+            const last = isLastCampaignLevel();
+            if (victory) {
+                if (!last) {
+                    if (postPrimaryBtn) postPrimaryBtn.textContent = "➡️ Siguiente nivel";
+                    if (postSecondaryBtn) postSecondaryBtn.textContent = "🔁 Reintentar nivel";
+                } else {
+                    if (postPrimaryBtn) postPrimaryBtn.textContent = "🔁 Jugar campaña otra vez";
+                    if (postSecondaryBtn) postSecondaryBtn.textContent = "🏠 Volver al menú";
+                }
+            } else {
+                if (postPrimaryBtn) postPrimaryBtn.textContent = "🔁 Reintentar";
+                if (postSecondaryBtn) postSecondaryBtn.textContent = "🏠 Volver al menú";
+            }
+        } else {
+            if (postPrimaryBtn) postPrimaryBtn.textContent = "🔁 Jugar otra vez";
+            if (postSecondaryBtn) postSecondaryBtn.textContent = "🏠 Volver al menú";
+        }
+
+        if (postHint) postHint.textContent = "ESPACIO = acción principal";
+        postGameOverlay.classList.add("visible");
+    }
+
+    function handlePostgamePrimaryAction() {
+        if (appState === "MENU") return;
+        if (estadoJuego === "PLAYING") return;
+        hidePostGameOverlay();
+
+        if (isCampaignRun()) {
+            const idx = getActiveCampaignIndex();
+            if (estadoJuego === "VICTORY") {
+                if (!isLastCampaignLevel()) startCampaignMode(idx + 1);
+                else startCampaignMode(0);
+            } else startCampaignMode(idx);
+        } else startFreeMode();
+    }
+
+    function handlePostgameSecondaryAction() {
+        if (appState === "MENU") return;
+        if (estadoJuego === "PLAYING") return;
+
+        if (isCampaignRun()) {
+            const idx = getActiveCampaignIndex();
+            if (estadoJuego === "VICTORY") {
+                if (!isLastCampaignLevel()) { hidePostGameOverlay(); startCampaignMode(idx); }
+                else showMainMenu();
+            } else showMainMenu();
+        } else showMainMenu();
+    }
+
+    function getEndHintText() {
+        if (estadoJuego === "PLAYING") return "";
+        if (!isCampaignRun()) return "Pulsa ESPACIO para reintentar";
+        if (estadoJuego === "VICTORY") {
+            return isLastCampaignLevel()
+                ? "Pulsa ESPACIO para reiniciar la campaña"
+                : "Pulsa ESPACIO para pasar al siguiente nivel";
+        }
+        return "Pulsa ESPACIO para reintentar el nivel";
+    }
+
+    let runSettings = null;     // resolved settings for the current run (UI merged with overrides)
+
+    function isProbablyEvent(v) {
+        return v && typeof v === "object" && ("type" in v) && ("target" in v);
+    }
+
+    function getSettingsFromUI() {
+        const toFloat = (el, fallback) => {
+            const n = parseFloat(el && el.value);
+            return Number.isFinite(n) ? n : fallback;
+        };
+        const toInt = (el, fallback) => {
+            const n = parseInt(el && el.value, 10);
+            return Number.isFinite(n) ? n : fallback;
+        };
+
+        return {
+            // Counts
+            zombieCount: toInt(zombieNum, 10),
+            citizenCount: toInt(citizenNum, 120),
+            policeCount: toInt(policeNum, 2),
+            soldierCount: toInt(soldierNum, 0),
+            boxCount: toInt(boxNum, 32),
+
+            // Speeds
+            zombieSpeed: toFloat(zSpeedNum, 1.5),
+            citizenSpeed: toFloat(citizenSpeedSlider, 1.0),
+            playerSpeed: toFloat(playerSpeedNum, 2.6),
+            soldierSpeed: toFloat(soldierSpeedNum, 1.1),
+
+            // Player
+            balas: toInt(balasNum, 5),
+            bengalas: toInt(bengalaNum, 1),
+            playerRange: toInt(playerRangeNum, 60),
+
+            // Toggles
+            ghostMode: !!(ghostToggle && ghostToggle.checked),
+            friendlyFire: !!(friendlyFireToggle && friendlyFireToggle.checked),
+
+            // Timings (seconds in UI)
+            policeCooldownSec: toFloat(policeCoolNum, 1.0),
+            soldierCooldownSec: toFloat(soldierCoolNum, 1.0),
+            soldierJamCount: toInt(jamCountNum, 3),
+            soldierJamDurationSec: toFloat(jamDurNum, 1.5),
+            soldierSpawnDelaySec: toFloat(milDelayNum, 7)
+        };
+    }
+
+    function applySettings(settings) {
+        runSettings = settings;
+
+        velocidadZombie = settings.zombieSpeed;
+        velocidadCiudadano = settings.citizenSpeed;
+        velocidadJugador = settings.playerSpeed;
+        velocidadMilitar = settings.soldierSpeed;
+
+        balasRestantes = settings.balas;
+        bengalasRestantes = settings.bengalas;
+
+        modoFantasma = settings.ghostMode;
+        fuegoAmigo = settings.friendlyFire;
+
+        policeReloadFrames = settings.policeCooldownSec * 30;
+        soldierReloadFrames = settings.soldierCooldownSec * 30;
+
+        soldierJamCount = settings.soldierJamCount;
+        soldierJamDurationFrames = settings.soldierJamDurationSec * 30;
+
+        soldierSpawnDelayFrames = settings.soldierSpawnDelaySec * 30;
+
+        diametroDisparo = settings.playerRange;
+    }
+
+
+    // Phase 1.01: unified map builder entry point (random vs predefined mapDef).
+    // If runDef.mapDef is present, we will later load it via loadMap(mapDef) (Phase 1.02+).
+    // For now, if loadMap is not implemented or errors, we fall back to the existing random generator.
+    function buildMapFromRunDef(runDef) {
+        if (runDef && runDef.mapDef) {
+            if (typeof loadMap === "function") {
+                try {
+                    return loadMap(runDef.mapDef);
+                } catch (e) {
+                    console.error("[Map] loadMap failed.", e);
+                    // In campaign (deterministic maps), do NOT silently fall back to random maps.
+                    if (runDef.mode === "campaign") throw e;
+                }
+            } else {
+                const err = new Error("[Map] loadMap not implemented yet.");
+                console.warn(err.message);
+                if (runDef.mode === "campaign") throw err;
+            }
+        }
+        generarMapa();
+        return null;
+    }
+
+    function setSettingsUIEnabled(enabled) {
+        // In Phase 0 we don't use it yet, but it's ready for Campaign mode.
+        if (!configPanel) return;
+        const els = configPanel.querySelectorAll("input, select, textarea, button");
+        els.forEach(el => {
+            // keep restart usable; Campaign will replace UX later
+            if (el.id === "restartBtn") return;
+            el.disabled = !enabled;
+        });
+        configPanel.classList.toggle("settings-locked", !enabled);
+    }
+
+    function getRunSetting(key, fallback) {
+        if (runSettings && runSettings[key] !== undefined && runSettings[key] !== null) return runSettings[key];
+        return fallback;
+    }
+
+
+    const PALETA = {
+        fondo: "#fdfaf6",    
+        pared: "#d7ccc8",    
+        jugador: "#ffab91",  
+        zombie: "#ef5350",   
+        ciudadano: "#cfd8dc",
+        policia: "#7986cb",
+        militar: "#9ccc65",
+        bala: "#ffcc80",     
+        llave: "#e57373",    
+        heliOn: "#81c784",   
+        bengala: "#ff7043", 
+    };
+
+    const BASE_FPS = 30;
+    const FRAME_MS = 1000 / BASE_FPS;
+    const cellSize = 9; 
+    const tamanoEntidad = 3; 
+    const radioVisual = 3.5; 
+    
+    // Distancias
+    let distanciaPersecucion = 120; 
+    let distanciaHuida = 60; 
+    let radioSeparacion = 5; 
+    let diametroDisparo = 60; 
+    let distanciaAtaque = 3; 
+    let radioAtraccionBengala = 250; 
+    let rangoVisionMilitar = 60; 
+    let rangoDeteccionMilitar = 200; 
+    let anguloVisionMilitar = 120 * (Math.PI / 180); 
+    let distanciaAtraccionHeli = 150;
+    let wallRepulsionForce = 0.5; 
+
+    const gridWidth = Math.floor(canvas.width / cellSize);
+    const gridHeight = Math.floor(canvas.height / cellSize);
+    let grid = [];
+    let openPlazas = []; 
+    let houseRooms = [];
+
+    // Variables de Juego
+    let velocidadZombie = 1.5; // Default
+    let velocidadCiudadano = 1.0;
+    let velocidadJugador = 2.5; 
+    let velocidadMilitar = 1.1; 
+    
+    let balasRestantes = 0;
+    let bengalasRestantes = 1;
+    let modoFantasma = false;
+    let fuegoAmigo = true;
+
+    // Cooldowns
+    const policeInitialBullets = 8;
+    let policeReloadFrames = 30; 
+    let soldierReloadFrames = 21; 
+    let soldierJamCount = 10;
+    let soldierJamDurationFrames = 150; 
+    let soldierSpawnDelayFrames = 0;
+    let soldiersDeployed = false;
+
+    let screenShake = 0; 
+    let estadoJuego = "STOPPED"; 
+    let animationId = null;
+    let lastFrameTime = 0;
+    let disparoEnFotograma = false;
+    
+    // STATS
+    let gameStats = {
+        startTime: 0,
+        zombiesKilled: 0,
+        civsInfected: 0,
+        soldiersLost: 0
+    };
+
+    // --- INTRO CINEMATIC VARS ---
+    let introTimer = 0;
+    const INTRO_DURATION = 90; // 3 segundos
+
+    const jugador = { x: 0, y: 0, direccion: { x: 0, y: 0 } };
+    const helicoptero = { x: 0, y: 0, ancho: cellSize - 2, alto: cellSize - 2, visible: false };
+    const llave = { x: 0, y: 0, visible: true };
+
+    let cajasMunicion = [];
+    
+    // Muebles (cajas empujables tipo sokoban)
+    let muebles = [];
+let ciudadanos = [];
+    let zombies = [];
+    let policias = [];
+    let militares = [];
+    let cadaveres = [];
+    let bengalasActivas = []; 
+
+    
+    let ciudadanosSalvados = 0;
+// --- DOORS / NOISE / DIRECTOR ---
+    let doorGroups = [];             // {tiles:[{x,y}], open:boolean, broken:boolean, barricaded:boolean, hp:number, maxHp:number}
+    let doorIndex = Object.create(null); // key "x,y" -> group index
+    let noises = [];                 // {x,y,strength,ttl}
+
+    // --- NOISE SYSTEM ---
+    // Zombies can "hear" temporary noise events (steps, door hits, shots, etc.)
+    // Each noise has a position, a hearing radius ("strength") and a TTL (in frames).
+    function addNoise(x, y, strength, ttl) {
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+        strength = Number.isFinite(strength) ? strength : 0;
+        ttl = Number.isFinite(ttl) ? ttl : 0;
+
+        strength = Math.max(0, strength);
+        ttl = Math.max(1, ttl);
+
+        // Merge with an existing nearby noise to avoid spamming the array
+        const mergeDist2 = (cellSize * 0.8) * (cellSize * 0.8);
+        for (let i = noises.length - 1; i >= 0; i--) {
+            const n = noises[i];
+            const dx = n.x - x, dy = n.y - y;
+            if (dx * dx + dy * dy <= mergeDist2) {
+                n.x = (n.x + x) * 0.5;
+                n.y = (n.y + y) * 0.5;
+                n.strength = Math.max(n.strength, strength);
+                n.ttl = Math.max(n.ttl, ttl);
+                return;
+            }
+        }
+        noises.push({ x, y, strength, ttl });
+    }
+
+    function updateNoises(step) {
+        if (!noises || noises.length === 0) return;
+        const decay = 0.015; // strength decay per frame-step
+        for (let i = noises.length - 1; i >= 0; i--) {
+            const n = noises[i];
+            n.ttl -= step;
+            n.strength *= Math.max(0, 1 - decay * step);
+            if (n.ttl <= 0 || n.strength < 4) noises.splice(i, 1);
+        }
+    }
+
+    let reachableTiles = [];         // set at reset for director spawning
+let frameCount = 0;
+    let footstepCooldown = 0;
+
+    
+    // --- MUEBLES (CAJAS) ---
+    const BOX_SIZE = cellSize;
+    const BOX_MAX_HP = 120;
+    const BOX_HIT_DAMAGE = 16;
+    const BOX_HIT_COOLDOWN = 14; // frames between zombie hits to the same box
+const DOOR_BASE_HP = 70;
+    const DOOR_BARRICADE_BONUS = 90;
+    const DOOR_HIT_COOLDOWN = 10; // frames between zombie hits
+    const DOOR_HIT_DAMAGE = 10;
+
+    const director = {
+        enabled: true,
+        waveInterval: 25 * 30,
+        waveCountdown: 3 * 30,
+        waveTimer: 25 * 30,
+        countdownLeft: 0,
+        shelterInterval: 35 * 30,
+        shelterTimer: 35 * 30,
+        shelter: null, // {x,y,radius,ttl,hold,claimed}
+        shelterHoldNeed: 2 * 30,
+        message: "-"
+    };
+
+    const DIRECTOR_BASE = {
+        enabled: director.enabled,
+        waveInterval: director.waveInterval,
+        waveCountdown: director.waveCountdown,
+        shelterInterval: director.shelterInterval,
+        shelterHoldNeed: director.shelterHoldNeed
+    };
+
+
+    const teclas = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false, Space: false, ShiftLeft: false, ShiftRight: false };
+
+    document.addEventListener("keydown", (e) => {
+        if (e.code === "KeyM") { e.preventDefault(); showMainMenu(); return; }
+        if (estadoJuego !== "PLAYING" && e.code === "Space") { e.preventDefault(); handlePostgamePrimaryAction(); return; }
+        if (estadoJuego === "PLAYING" && e.code === "KeyB" && bengalasRestantes > 0) {
+            bengalasRestantes--; activeBengala(jugador.x, jugador.y); actualizarStatsUI();
+        }        if (estadoJuego === "PLAYING" && e.code === "KeyC") { toggleAllDoors(); e.preventDefault(); return; }
+        if (e.code in teclas) { teclas[e.code] = true; e.preventDefault(); } 
+    });
+    document.addEventListener("keyup", (e) => { 
+        if (e.code in teclas) { teclas[e.code] = false; e.preventDefault(); } 
+    });
+
+    ghostToggle.addEventListener('change', (e) => modoFantasma = e.target.checked);
+    friendlyFireToggle.addEventListener('change', (e) => fuegoAmigo = e.target.checked);
+
+    canvas.addEventListener('mousedown', (e) => {
+        if(estadoJuego !== "PLAYING") return;
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+        const infectar = (arr, i) => {
+            const e = arr[i]; arr.splice(i, 1);
+            zombies.push({x: e.x, y: e.y, direccion: direccionAleatoria()});
+            actualizarStatsUI();
+        };
+        [ciudadanos, policias, militares].forEach(arr => {
+            for(let i=0; i<arr.length; i++) {
+                if(distancia(mx, my, arr[i].x+1.5, arr[i].y+1.5) < 15) { infectar(arr, i); return; }
+            }
+        });
+    });
+
+    function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+    function distancia(x1, y1, x2, y2) { return Math.hypot(x2 - x1, y2 - y1); }
+    function manhattan(a, b) { return Math.abs(a.x - b.x) + Math.abs(a.y - b.y); }
+    function isInFieldRect(tx, ty) {
+        if (!fieldRectTiles) return false;
+        return tx >= fieldRectTiles.x0 && tx < fieldRectTiles.x1 && ty >= fieldRectTiles.y0 && ty < fieldRectTiles.y1;
+    }
+    function normalizar(x, y) { const m = Math.sqrt(x*x + y*y); return m === 0 ? {x:0, y:0} : {x: x/m, y: y/m}; }
+    function direccionAleatoria() { return [{x:1,y:0}, {x:-1,y:0}, {x:0,y:1}, {x:0,y:-1}][Math.floor(Math.random()*4)]; }
+    function anguloEntrePuntos(x1, y1, x2, y2) { return Math.atan2(y2 - y1, x2 - x1); }
+
+    function tieneLineaDeVision(x1, y1, x2, y2) {
+        let x0 = Math.floor(x1 / cellSize), y0 = Math.floor(y1 / cellSize);
+        let xEnd = Math.floor(x2 / cellSize), yEnd = Math.floor(y2 / cellSize);
+        let dx = Math.abs(xEnd - x0), dy = Math.abs(yEnd - y0);
+        let sx = (x0 < xEnd) ? 1 : -1, sy = (y0 < yEnd) ? 1 : -1;
+        let err = dx - dy;
+        while (true) {
+            if (x0 < 0 || x0 >= gridWidth || y0 < 0 || y0 >= gridHeight) return false;
+            if (isTileBlocked(x0, y0)) return false; 
+            if (x0 === xEnd && y0 === yEnd) break;
+            let e2 = 2 * err;
+            if (e2 > -dy) { err -= dy; x0 += sx; }
+            if (e2 < dx) { err += dx; y0 += sy; }
+        }
+        return true;
+    }
+
+    function colisionConParedBase(x, y, w, h) {
+        const left = Math.floor(x / cellSize), right = Math.floor((x + w - 0.1) / cellSize);
+        const top = Math.floor(y / cellSize), bottom = Math.floor((y + h - 0.1) / cellSize);
+        if (left < 0 || top < 0 || right >= gridWidth || bottom >= gridHeight) return true;
+        for (let ty = top; ty <= bottom; ty++) for (let tx = left; tx <= right; tx++) if (isTileBlocked(tx, ty)) return true;
+        return false;
+    }
+
+function aabbIntersects(ax, ay, aw, ah, bx, by, bw, bh) {
+    return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+}
+
+function colisionConMuebles(x, y, w, h, ignoreIndex = -1) {
+    if (!muebles || muebles.length === 0) return false;
+    for (let i = 0; i < muebles.length; i++) {
+        if (i === ignoreIndex) continue;
+        const b = muebles[i];
+        if (aabbIntersects(x, y, w, h, b.x, b.y, b.size, b.size)) return true;
+    }
+    return false;
+}
+
+function findMuebleCollisionIndex(x, y, w, h) {
+    if (!muebles || muebles.length === 0) return -1;
+    for (let i = 0; i < muebles.length; i++) {
+        const b = muebles[i];
+        if (aabbIntersects(x, y, w, h, b.x, b.y, b.size, b.size)) return i;
+    }
+    return -1;
+}
+
+// Ahora "colisionConPared" incluye también los muebles como obstáculo
+function colisionConPared(x, y, w, h, ignoreMuebleIndex = -1) {
+    if (colisionConParedBase(x, y, w, h)) return true;
+    return colisionConMuebles(x, y, w, h, ignoreMuebleIndex);
+}
+
+
+    // --- FUNCIÓN DE MOVIMIENTO MANUAL (JUGADOR) ---
+    function moverEntidad(entidad, vx, vy, velocidad) {
+        const nextX = entidad.x + vx * velocidad;
+        const nextY = entidad.y + vy * velocidad;
+        if (!colisionConPared(nextX, entidad.y, tamanoEntidad, tamanoEntidad)) entidad.x = nextX;
+        if (!colisionConPared(entidad.x, nextY, tamanoEntidad, tamanoEntidad)) entidad.y = nextY;
+        entidad.x = Math.max(0, Math.min(canvas.width - tamanoEntidad, entidad.x));
+        entidad.y = Math.max(0, Math.min(canvas.height - tamanoEntidad, entidad.y));
+    }
+
+function moverJugadorConMuebles(vx, vy, velocidad) {
+    const dx = vx * velocidad;
+    const dy = vy * velocidad;
+
+    // X axis with pushing (Sokoban-like: push 1 celda)
+    if (dx !== 0) {
+        const nextX = jugador.x + dx;
+        if (!colisionConPared(nextX, jugador.y, tamanoEntidad, tamanoEntidad)) {
+            jugador.x = nextX;
+        } else {
+            const idx = findMuebleCollisionIndex(nextX, jugador.y, tamanoEntidad, tamanoEntidad);
+            if (idx >= 0) {
+                const b = muebles[idx];
+                const dir = Math.sign(dx);
+                const bNextX = b.x + dir * cellSize;
+                if (!colisionConParedBase(bNextX, b.y, b.size, b.size) && !colisionConMuebles(bNextX, b.y, b.size, b.size, idx)) {
+                    b.x = bNextX;
+                    // after moving the box, player can move
+                    if (!colisionConPared(nextX, jugador.y, tamanoEntidad, tamanoEntidad)) jugador.x = nextX;
+                }
+            }
+        }
+    }
+
+    // Y axis with pushing (Sokoban-like: push 1 celda)
+    if (dy !== 0) {
+        const nextY = jugador.y + dy;
+        if (!colisionConPared(jugador.x, nextY, tamanoEntidad, tamanoEntidad)) {
+            jugador.y = nextY;
+        } else {
+            const idx = findMuebleCollisionIndex(jugador.x, nextY, tamanoEntidad, tamanoEntidad);
+            if (idx >= 0) {
+                const b = muebles[idx];
+                const dir = Math.sign(dy);
+                const bNextY = b.y + dir * cellSize;
+                if (!colisionConParedBase(b.x, bNextY, b.size, b.size) && !colisionConMuebles(b.x, bNextY, b.size, b.size, idx)) {
+                    b.y = bNextY;
+                    if (!colisionConPared(jugador.x, nextY, tamanoEntidad, tamanoEntidad)) jugador.y = nextY;
+                }
+            }
+        }
+    }
+
+    jugador.x = Math.max(0, Math.min(canvas.width - tamanoEntidad, jugador.x));
+    jugador.y = Math.max(0, Math.min(canvas.height - tamanoEntidad, jugador.y));
+}
+
+
+    // --- NUEVA FUNCIÓN DE MOVIMIENTO IA (Rebote) ---
+    function moverEntidadIA(entidad, vx, vy, velocidad) {
+        let choco = false;
+        const nextX = entidad.x + vx * velocidad;
+        const nextY = entidad.y + vy * velocidad;
+        
+        if (!colisionConPared(nextX, entidad.y, tamanoEntidad, tamanoEntidad)) {
+            entidad.x = nextX;
+        } else { choco = true; }
+        
+        if (!colisionConPared(entidad.x, nextY, tamanoEntidad, tamanoEntidad)) {
+            entidad.y = nextY;
+        } else { choco = true; }
+        
+        if (entidad.x <= 0 || entidad.x >= canvas.width - tamanoEntidad) choco = true;
+        if (entidad.y <= 0 || entidad.y >= canvas.height - tamanoEntidad) choco = true;
+        
+        entidad.x = Math.max(0, Math.min(canvas.width - tamanoEntidad, entidad.x));
+        entidad.y = Math.max(0, Math.min(canvas.height - tamanoEntidad, entidad.y));
+        return choco;
+    }
+
+    // --- REPULSIÓN DE PAREDES ---
+    function obtenerRepulsionParedes(entidad) {
+        let fx = 0, fy = 0;
+        const tx = Math.floor((entidad.x + tamanoEntidad/2) / cellSize);
+        const ty = Math.floor((entidad.y + tamanoEntidad/2) / cellSize);
+        const checks = [{dx:0, dy:-1}, {dx:0, dy:1}, {dx:-1, dy:0}, {dx:1, dy:0}];
+        checks.forEach(c => {
+            const nx = tx + c.dx;
+            const ny = ty + c.dy;
+            if(nx >= 0 && nx < gridWidth && ny >= 0 && ny < gridHeight) {
+                if(isTileBlocked(nx, ny)) { fx -= c.dx; fy -= c.dy; }
+            }
+        });
+        const edgeMargin = 20;
+        if (entidad.x < edgeMargin) fx += 1.0;
+        if (entidad.x > canvas.width - edgeMargin) fx -= 1.0;
+        if (entidad.y < edgeMargin) fy += 1.0;
+        if (entidad.y > canvas.height - edgeMargin) fy -= 1.0;
+
+        if (fx !== 0 || fy !== 0) return normalizar(fx, fy);
+        return {x:0, y:0};
+    }
+
+    function aplicarFuerzas(entidad, velocidad, timeScale) {
+        const wallRep = obtenerRepulsionParedes(entidad);
+        let moveX = entidad.direccion.x + wallRep.x * wallRepulsionForce;
+        let moveY = entidad.direccion.y + wallRep.y * wallRepulsionForce;
+
+        const final = normalizar(moveX, moveY);
+        entidad.direccion.x = entidad.direccion.x * 0.8 + final.x * 0.2;
+        entidad.direccion.y = entidad.direccion.y * 0.8 + final.y * 0.2;
+        
+        const normDir = normalizar(entidad.direccion.x, entidad.direccion.y);
+        entidad.direccion = normDir;
+
+        return moverEntidadIA(entidad, normDir.x, normDir.y, velocidad * timeScale);
+    }
+
+    
+    // --- DOOR / NOISE HELPERS ---
+    function keyForTile(tx, ty) { return tx + "," + ty; }
+
+    function crearPuerta(tiles) {
+        // Avoid duplicates
+        const k0 = keyForTile(tiles[0].x, tiles[0].y);
+        if (doorIndex[k0] !== undefined) return;
+        const idx = doorGroups.length;
+        const group = {
+            tiles: tiles,
+            open: true,
+            broken: false,
+            barricaded: false,
+            maxHp: DOOR_BASE_HP,
+            hp: DOOR_BASE_HP,
+            lastHitFrame: -9999
+        };
+        doorGroups.push(group);
+        tiles.forEach(t => { doorIndex[keyForTile(t.x, t.y)] = idx; });
+    }
+
+    function getDoorGroupAtTile(tx, ty) {
+        const idx = doorIndex[keyForTile(tx, ty)];
+        return (idx === undefined) ? null : doorGroups[idx];
+    }
+
+    function isTileBlocked(tx, ty) {
+        if (tx < 0 || ty < 0 || tx >= gridWidth || ty >= gridHeight) return true;
+        if (grid[ty][tx]) return true;
+        const g = getDoorGroupAtTile(tx, ty);
+        if (!g) return false;
+        if (g.broken) return false;
+        return !g.open; // closed door blocks
+    }
+
+    function nearestDoorToPlayer(maxDistPx = 24) {
+        const px = jugador.x + tamanoEntidad / 2;
+        const py = jugador.y + tamanoEntidad / 2;
+        let best = null;
+        let bestD = Infinity;
+        doorGroups.forEach(g => {
+            if (!g || g.broken) return;
+            // distance to nearest tile center
+            for (const t of g.tiles) {
+                const cx = t.x * cellSize + cellSize / 2;
+                const cy = t.y * cellSize + cellSize / 2;
+                const d = Math.hypot(cx - px, cy - py);
+                if (d < bestD) { bestD = d; best = g; }
+            }
+        });
+        return (best && bestD <= maxDistPx) ? best : null;
+    }
+
+    function toggleNearestDoor() {
+        const g = nearestDoorToPlayer(28);
+        if (!g || g.broken) return;
+        if (!g.open) {
+            // opening a barricaded door removes barricade (no refund)
+            if (g.barricaded) {
+                g.barricaded = false;
+                g.maxHp = DOOR_BASE_HP;
+                g.hp = Math.min(g.hp, g.maxHp);
+            }
+            g.open = true;
+            addNoise(jugador.x, jugador.y, 110, 20);
+        } else {
+            g.open = false;
+            // restore HP when closing so it can be attacked again
+            if (g.hp <= 0 || g.hp > g.maxHp) { g.maxHp = DOOR_BASE_HP; g.hp = DOOR_BASE_HP; }
+            addNoise(jugador.x, jugador.y, 90, 18);
+        }
+        actualizarStatsUI();
+    }
+
+    
+    function toggleAllDoors() {
+        if (!doorGroups || doorGroups.length === 0) return;
+
+        // If all non-broken doors are already open, close them all; otherwise open them all.
+        let allOpen = true;
+        for (const g of doorGroups) {
+            if (!g || g.broken) continue;
+            if (!g.open) { allOpen = false; break; }
+        }
+        const targetOpen = !allOpen;
+
+        for (const g of doorGroups) {
+            if (!g || g.broken) continue;
+            if (g.open === targetOpen) continue;
+
+            if (targetOpen) {
+                // Opening a barricaded door removes the barricade (no refund)
+                if (g.barricaded) {
+                    g.barricaded = false;
+                    g.maxHp = DOOR_BASE_HP;
+                    g.hp = Math.min(g.hp, g.maxHp);
+                }
+                g.open = true;
+            } else {
+                g.open = false;
+                // Restore HP when closing so it can be attacked again
+                if (g.hp <= 0 || g.hp > g.maxHp) {
+                    g.maxHp = DOOR_BASE_HP;
+                    g.hp = DOOR_BASE_HP;
+                }
+            }
+        }
+
+        // One global "sound cue" so players can feel the action.
+        addNoise(jugador.x, jugador.y, targetOpen ? 140 : 120, 28);
+        actualizarStatsUI();
+    }
+
+function barricadeNearestDoor() { return; }
+
+    function drawDoorsWorld() {
+        if (!doorGroups.length) return;
+        for (const g of doorGroups) {
+            if (!g || g.broken) continue;
+            for (const t of g.tiles) {
+                const x = t.x * cellSize;
+                const y = t.y * cellSize;
+
+                if (g.open) {
+                    // open door: light frame
+                    ctx.strokeStyle = "rgba(121,85,72,0.32)";
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+                    continue;
+                }
+
+                // closed door: panel with bevel + hinges
+                ctx.save();
+                ctx.shadowColor = "rgba(0,0,0,0.18)";
+                ctx.shadowBlur = 4;
+                ctx.shadowOffsetY = 2;
+
+                ctx.fillStyle = "rgba(141,110,99,0.92)";
+                ctx.fillRect(x, y, cellSize, cellSize);
+
+                ctx.shadowBlur = 0;
+                ctx.shadowOffsetY = 0;
+
+                // bevel
+                ctx.fillStyle = "rgba(255,255,255,0.20)";
+                ctx.fillRect(x, y, cellSize, 2);
+                ctx.fillRect(x, y, 2, cellSize);
+
+                ctx.fillStyle = "rgba(0,0,0,0.12)";
+                ctx.fillRect(x, y + cellSize - 2, cellSize, 2);
+                ctx.fillRect(x + cellSize - 2, y, 2, cellSize);
+
+                // center seam
+                ctx.strokeStyle = "rgba(62,39,35,0.18)";
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(x + cellSize * 0.5, y + 1);
+                ctx.lineTo(x + cellSize * 0.5, y + cellSize - 1);
+                ctx.stroke();
+
+                // knob
+                ctx.fillStyle = "rgba(255, 235, 200, 0.85)";
+                ctx.beginPath();
+                ctx.arc(x + cellSize * 0.68, y + cellSize * 0.55, 1.2, 0, Math.PI * 2);
+                ctx.fill();
+
+                // barricade hint
+                if (g.barricaded) {
+                    ctx.strokeStyle = "rgba(255, 171, 145, 0.55)";
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(x + 1, y + 1);
+                    ctx.lineTo(x + cellSize - 1, y + cellSize - 1);
+                    ctx.moveTo(x + cellSize - 1, y + 1);
+                    ctx.lineTo(x + 1, y + cellSize - 1);
+                    ctx.stroke();
+                }
+
+                ctx.restore();
+            }
+        }
+    }
+
+function drawMueblesWorld() {
+    if (!muebles || muebles.length === 0) return;
+    for (const b of muebles) {
+        const x = b.x, y = b.y, s = b.size;
+
+        // block with depth (sokoban style)
+        ctx.save();
+        ctx.shadowColor = "rgba(0,0,0,0.16)";
+        ctx.shadowBlur = 6;
+        ctx.shadowOffsetY = 3;
+
+        ctx.fillStyle = "rgba(255, 213, 179, 0.92)";
+        ctx.fillRect(x, y, s, s);
+
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+
+        // bevel highlights
+        ctx.fillStyle = "rgba(255,255,255,0.22)";
+        ctx.fillRect(x, y, s, 2);
+        ctx.fillRect(x, y, 2, s);
+
+        ctx.fillStyle = "rgba(0,0,0,0.12)";
+        ctx.fillRect(x, y + s - 2, s, 2);
+        ctx.fillRect(x + s - 2, y, 2, s);
+
+        // outline
+        ctx.strokeStyle = "rgba(121, 85, 72, 0.55)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 0.5, y + 0.5, s - 1, s - 1);
+
+        // small "crate" detail
+        ctx.strokeStyle = "rgba(62,39,35,0.14)";
+        ctx.beginPath();
+        ctx.moveTo(x + 2, y + s * 0.35);
+        ctx.lineTo(x + s - 2, y + s * 0.35);
+        ctx.moveTo(x + s * 0.35, y + 2);
+        ctx.lineTo(x + s * 0.35, y + s - 2);
+        ctx.stroke();
+
+        // HP bar
+        const ratio = Math.max(0, Math.min(1, b.hp / b.maxHp));
+        ctx.fillStyle = "rgba(255,255,255,0.60)";
+        ctx.fillRect(x + 2, y + s - 4, (s - 4) * ratio, 2);
+
+        ctx.restore();
+    }
+}
+
+function bestNoiseFor(x, y) {
+        let best = null;
+        let bestScore = 0;
+        for (const n of noises) {
+            const d = distancia(x, y, n.x, n.y);
+            if (d > n.strength) continue; // "hearing radius"
+            const score = (n.strength - d) / Math.max(10, n.strength);
+            if (score > bestScore) { bestScore = score; best = n; }
+        }
+        return best;
+    }
+
+    function zombieTryHitDoor(zombie) {
+        // look at tile in front of zombie
+        const zx = zombie.x + tamanoEntidad / 2;
+        const zy = zombie.y + tamanoEntidad / 2;
+        const fx = zx + zombie.direccion.x * (cellSize * 0.65);
+        const fy = zy + zombie.direccion.y * (cellSize * 0.65);
+        const tx = Math.floor(fx / cellSize);
+        const ty = Math.floor(fy / cellSize);
+        const g = getDoorGroupAtTile(tx, ty);
+        if (!g || g.broken || g.open) return false;
+        if (frameCount - g.lastHitFrame < DOOR_HIT_COOLDOWN) return true;
+        g.lastHitFrame = frameCount;
+        g.hp -= DOOR_HIT_DAMAGE;
+        addNoise(tx * cellSize + cellSize / 2, ty * cellSize + cellSize / 2, 120, 18);
+        if (g.hp <= 0) {
+            g.broken = true;
+            g.open = true;
+            g.barricaded = false;
+            addNoise(tx * cellSize, ty * cellSize, 180, 25);
+        }
+        return true;
+    }
+
+function zombieTryHitMueble(zombie) {
+    if (!muebles || muebles.length === 0) return false;
+    const zx = zombie.x + tamanoEntidad / 2;
+    const zy = zombie.y + tamanoEntidad / 2;
+    const fx = zx + zombie.direccion.x * (cellSize * 0.65);
+    const fy = zy + zombie.direccion.y * (cellSize * 0.65);
+
+    for (let i = 0; i < muebles.length; i++) {
+        const b = muebles[i];
+        if (fx >= b.x && fx <= b.x + b.size && fy >= b.y && fy <= b.y + b.size) {
+            if (frameCount - (b.lastHitFrame || 0) < BOX_HIT_COOLDOWN) return true;
+            b.lastHitFrame = frameCount;
+            b.hp -= BOX_HIT_DAMAGE;
+            addNoise(b.x + b.size / 2, b.y + b.size / 2, 115, 16);
+            if (b.hp <= 0) {
+                muebles.splice(i, 1);
+                addNoise(fx, fy, 175, 22);
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+    // --- DIRECTOR ---
+    function directorTick(step = 1) {
+        if (!director.enabled) return;
+        if (estadoJuego !== "PLAYING") { if (txtEventoElem) txtEventoElem.textContent = "-"; return; }
+        if (introTimer < INTRO_DURATION) { if (txtEventoElem) txtEventoElem.textContent = "-"; return; }
+
+        // shelter lifecycle
+        if (director.shelter) {
+            director.shelter.ttl -= step;
+            // check player inside
+            const px = jugador.x + tamanoEntidad / 2;
+            const py = jugador.y + tamanoEntidad / 2;
+            const d = Math.hypot(px - director.shelter.x, py - director.shelter.y);
+            if (!director.shelter.claimed && d <= director.shelter.radius) {
+                director.shelter.hold += step;
+                if (director.shelter.hold >= director.shelterHoldNeed) {
+                    director.shelter.claimed = true;
+                    balasRestantes += 15;
+                    bengalasRestantes += 1;
+director.message = "REFUGIO ✅";
+                    actualizarStatsUI();
+                }
+            } else {
+                director.shelter.hold = Math.max(0, director.shelter.hold - 2 * step);
+            }
+            if (director.shelter.ttl <= 0) director.shelter = null;
+        }
+
+        // shelter spawn timer
+        if (!director.shelter) {
+            director.shelterTimer -= step;
+            if (director.shelterTimer <= 0) {
+                spawnShelter();
+                director.shelterTimer = director.shelterInterval;
+            }
+        }
+
+        // wave logic
+        if (director.countdownLeft > 0) {
+            director.countdownLeft -= step;
+            const secs = Math.ceil(director.countdownLeft / BASE_FPS);
+            director.message = "OLEADA EN " + secs;
+            if (director.countdownLeft <= 0) {
+                spawnWave();
+                director.waveTimer = director.waveInterval;
+                director.message = "OLEADA 💥";
+            }
+        } else {
+            director.waveTimer -= step;
+            if (director.waveTimer <= director.waveCountdown) {
+                director.countdownLeft = director.waveCountdown;
+            } else {
+                director.message = director.shelter ? "REFUGIO" : "-";
+            }
+        }
+
+        txtEventoElem.textContent = director.message;
+    }
+
+    function pickFarTile(minDistTiles = 18) {
+        if (!reachableTiles || reachableTiles.length === 0) return null;
+        const pt = { x: Math.floor((jugador.x + tamanoEntidad/2) / cellSize), y: Math.floor((jugador.y + tamanoEntidad/2) / cellSize) };
+        const candidates = reachableTiles.filter(t => distancia(t.x, t.y, pt.x, pt.y) >= minDistTiles);
+        const arr = candidates.length ? candidates : reachableTiles;
+        return arr[randInt(0, arr.length - 1)];
+    }
+
+    function spawnWave() {
+        const base = 6;
+        const extra = Math.min(10, Math.floor((Date.now() - gameStats.startTime) / 60000)); // +1 per minute, cap 10
+        const n = base + extra;
+        for (let i = 0; i < n; i++) {
+            const t = pickFarTile(20);
+            if (!t) break;
+            const p = tileToEntityPixel(t.x, t.y);
+            zombies.push({ x: p.x, y: p.y, direccion: direccionAleatoria() });
+            addNoise(p.x, p.y, 160, 30);
+        }
+        actualizarStatsUI();
+    }
+
+    function spawnShelter() {
+        const t = pickFarTile(16);
+        if (!t) return;
+        const cx = t.x * cellSize + cellSize / 2;
+        const cy = t.y * cellSize + cellSize / 2;
+        director.shelter = { x: cx, y: cy, radius: 45, ttl: 14 * 30, hold: 0, claimed: false };
+        director.message = "REFUGIO";
+        addNoise(cx, cy, 140, 25);
+    }
+
+    function drawShelterWorld() {
+        if (!director.shelter) return;
+        const s = director.shelter;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
+        ctx.fillStyle = s.claimed ? "rgba(129,199,132,0.18)" : "rgba(100,181,246,0.18)";
+        ctx.fill();
+        ctx.strokeStyle = s.claimed ? "rgba(129,199,132,0.45)" : "rgba(100,181,246,0.45)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // progress
+        if (!s.claimed) {
+            const ratio = Math.max(0, Math.min(1, s.hold / director.shelterHoldNeed));
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.radius + 6, -Math.PI/2, -Math.PI/2 + ratio * Math.PI * 2);
+            ctx.strokeStyle = "rgba(255,255,255,0.55)";
+            ctx.lineWidth = 3;
+            ctx.stroke();
+        }
+    }
+
+        // ===========================
+    // Phase 1.03 — ASCII map parser (walls + P/H/K)
+    // ===========================
+    function parseAsciiMap(ascii, opts) {
+        const def = opts || {};
+        if (typeof ascii !== "string") throw new Error("ASCII map data must be a string.");
+
+        let lines = ascii.replace(/\r/g, "").split("\n");
+        // Trim empty first/last lines (common with template literals)
+        while (lines.length && lines[0].trim() === "") lines.shift();
+        while (lines.length && lines[lines.length - 1].trim() === "") lines.pop();
+
+        const h = (def.h != null ? (def.h | 0) : lines.length);
+        const w = (def.w != null ? (def.w | 0) : Math.max(0, ...lines.map(l => l.length)));
+
+        if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
+            throw new Error("ASCII map has invalid dimensions.");
+        }
+        if (w > gridWidth || h > gridHeight) {
+            throw new Error(`ASCII map ${w}x${h} exceeds grid ${gridWidth}x${gridHeight}.`);
+        }
+
+        const ox = (def.offsetX != null ? (def.offsetX | 0) : Math.floor((gridWidth - w) / 2));
+        const oy = (def.offsetY != null ? (def.offsetY | 0) : Math.floor((gridHeight - h) / 2));
+
+        if (ox < 0 || oy < 0 || ox + w > gridWidth || oy + h > gridHeight) {
+            throw new Error("ASCII map offset places content out of bounds.");
+        }
+
+        // Default: everything is a wall, then carve the ASCII area.
+        grid = new Array(gridHeight).fill(null).map(() => new Array(gridWidth).fill(true));
+
+        let playerTile = null;
+        let heliTile = null;
+        let keyTile = null;
+
+        
+        let ammoTiles = [];
+        let boxTiles = [];
+
+        let zombieSpawnTiles = [];
+        let citizenSpawnTiles = [];
+
+        let policeSpawnTiles = [];
+        let soldierSpawnTiles = [];
+
+        for (let y = 0; y < h; y++) {
+            const line = lines[y] || "";
+            for (let x = 0; x < w; x++) {
+                const ch = line[x] || " ";
+                const gx = ox + x;
+                const gy = oy + y;
+
+                if (ch === "#") {
+                    grid[gy][gx] = true;
+                } else if (ch === "." || ch === "P" || ch === "H" || ch === "K" || ch === "D" || ch === "d" || ch === "A" || ch === "B" || ch === "Z" || ch === "C" || ch === "O" || ch === "M") {
+                    // Walkable cells + basic markers
+                    grid[gy][gx] = false;
+
+                    if (ch === "P") playerTile = { x: gx, y: gy };
+                    if (ch === "H") heliTile = { x: gx, y: gy };
+                    if (ch === "K") keyTile = { x: gx, y: gy };
+                    if (ch === "A") ammoTiles.push({ x: gx, y: gy });
+                    if (ch === "B") boxTiles.push({ x: gx, y: gy });
+                    if (ch === "Z") zombieSpawnTiles.push({ x: gx, y: gy });
+                    if (ch === "C") citizenSpawnTiles.push({ x: gx, y: gy });
+                    if (ch === "O") policeSpawnTiles.push({ x: gx, y: gy });
+                    if (ch === "M") soldierSpawnTiles.push({ x: gx, y: gy });
+
+                    // Doors (Phase 1.04): each 'D'/'d' creates a single-tile door group.
+                    if (ch === "D" || ch === "d") {
+                        crearPuerta([{ x: gx, y: gy }]);
+                        const g = getDoorGroupAtTile(gx, gy);
+                        if (g) g.open = (ch === "d"); // 'D' closed, 'd' open
+                    }
+                } else {
+                    // Safety default: unknown chars are treated as walls (future phases will add more tokens).
+                    grid[gy][gx] = true;
+                }
+            }
+        }
+
+        return { w, h, offsetX: ox, offsetY: oy, playerTile, heliTile, keyTile, ammoTiles, boxTiles, zombieSpawnTiles, citizenSpawnTiles, policeSpawnTiles, soldierSpawnTiles };
+    }
+
+
+    // ===========================
+    // Phase 1.05 — Map validation (anti-softlock)
+    // ===========================
+    function buildReachableMask(tiles) {
+        const mask = new Array(gridHeight).fill(null).map(() => new Array(gridWidth).fill(false));
+        if (!Array.isArray(tiles)) return mask;
+        for (const t of tiles) {
+            if (!t) continue;
+            const x = t.x | 0, y = t.y | 0;
+            if (y >= 0 && y < gridHeight && x >= 0 && x < gridWidth) mask[y][x] = true;
+        }
+        return mask;
+    }
+
+    function validateMapDef(def, parsed, playerTile, heliTile, keyTile) {
+        const errors = [];
+        const warnings = [];
+
+        const usingAscii = !!(def && (def.type === "ascii" || typeof def.data === "string"));
+
+        // Marker expectations for ASCII maps (campaign levels will normally include these)
+        if (usingAscii && parsed) {
+            if (!parsed.playerTile) errors.push("ASCII map missing 'P' (player start).");
+            if (!parsed.heliTile) errors.push("ASCII map missing 'H' (helicopter).");
+            if (!parsed.keyTile) warnings.push("ASCII map missing 'K' (key). Using fallback key position.");
+        }
+
+        if (!playerTile) errors.push("Missing player tile.");
+        if (!heliTile) errors.push("Missing helicopter tile.");
+
+        // Temporarily treat all doors as open for structural connectivity validation.
+        const doorStates = doorGroups.map(g => g ? { g, open: !!g.open, broken: !!g.broken } : null);
+        for (const g of doorGroups) {
+            if (g && !g.broken) g.open = true;
+        }
+
+        let reachable = [];
+        try {
+            reachable = floodFill(playerTile.x, playerTile.y);
+        } catch (e) {
+            errors.push("Flood fill failed: " + (e && e.message ? e.message : String(e)));
+        }
+        const mask = buildReachableMask(reachable);
+
+        // Restore original door open states
+        for (const s of doorStates) {
+            if (s && s.g) s.g.open = s.open;
+        }
+
+        if (heliTile && !(mask[heliTile.y] && mask[heliTile.y][heliTile.x])) {
+            errors.push("Helicopter is unreachable from player (even with doors open).");
+        }
+
+        const keyIsMeaningful = usingAscii ? !!(parsed && parsed.keyTile) : !!(def && (def.keyTile || def.key));
+        if (keyIsMeaningful && keyTile && !(mask[keyTile.y] && mask[keyTile.y][keyTile.x])) {
+            errors.push("Key is unreachable from player (even with doors open).");
+        }
+
+        if (Array.isArray(reachable) && reachable.length < 5) {
+            warnings.push("Very small reachable area from player (" + reachable.length + " tiles).");
+        }
+
+        return { ok: errors.length === 0, errors, warnings, reachableCount: Array.isArray(reachable) ? reachable.length : 0 };
+    }
+
+    
+
+    // ===========================
+    // Phase 1.08 — Field rect normalization / auto-derive around helicopter
+    // ===========================
+    function normalizeFieldRect(fr, heliTile) {
+        // Returns {x0,x1,y0,y1} (x1/y1 exclusive) or null.
+        let r = fr;
+
+        // Accept array [x0,y0,x1,y1]
+        if (Array.isArray(r) && r.length >= 4) {
+            r = { x0: r[0], y0: r[1], x1: r[2], y1: r[3] };
+        }
+
+        // Accept {x,y,w,h}
+        if (r && typeof r === "object" && r.x != null && r.y != null && r.w != null && r.h != null) {
+            r = { x0: r.x, y0: r.y, x1: r.x + r.w, y1: r.y + r.h };
+        }
+
+        // Accept {left,top,right,bottom}
+        if (r && typeof r === "object" && r.left != null && r.top != null && r.right != null && r.bottom != null) {
+            r = { x0: r.left, y0: r.top, x1: r.right, y1: r.bottom };
+        }
+
+        // If not provided, auto-derive a small "clear field" around heli
+        if (!r) {
+            if (!heliTile) return null;
+            const halfW = 6;
+            const halfH = 5;
+            r = {
+                x0: heliTile.x - halfW,
+                x1: heliTile.x + halfW + 1,
+                y0: heliTile.y - halfH,
+                y1: heliTile.y + halfH + 1
+            };
+        }
+
+        const x0 = Math.max(1, Math.min(gridWidth - 2, (r.x0 | 0)));
+        const y0 = Math.max(1, Math.min(gridHeight - 2, (r.y0 | 0)));
+        const x1 = Math.max(2, Math.min(gridWidth - 1, (r.x1 | 0)));
+        const y1 = Math.max(2, Math.min(gridHeight - 1, (r.y1 | 0)));
+
+        // Ensure proper ordering and minimum size
+        const nx0 = Math.min(x0, x1 - 1);
+        const ny0 = Math.min(y0, y1 - 1);
+        const nx1 = Math.max(nx0 + 1, x1);
+        const ny1 = Math.max(ny0 + 1, y1);
+
+        if (nx1 - nx0 < 2 || ny1 - ny0 < 2) return null;
+        return { x0: nx0, y0: ny0, x1: nx1, y1: ny1 };
+    }
+
+// ===========================
+    // Phase 1.02 — Minimal map loader (now supports ASCII walls + P/H/K)
+    // ===========================
+    function loadMap(mapDef) {
+        // Map loader: creates a deterministic grid. Phase 1.04: ASCII walls + P/H/K + doors (D/d).
+        const def = mapDef || {};
+
+        openPlazas = [];
+        houseRooms = [];
+        doorGroups = [];
+        doorIndex = Object.create(null);
+
+        // Optional: field rect (for subtle tint). Future phases will define it properly.
+        const rawFieldRect = (def.fieldRectTiles || def.fieldRect || null);
+        fieldRectTiles = null;
+        staticDirty = true;
+
+        // Detect ASCII payload
+        const ascii =
+            (typeof def.ascii === "string") ? def.ascii :
+            (typeof def.data === "string" && (def.type === "ascii" || def.data.indexOf("\n") !== -1)) ? def.data :
+            null;
+
+        let parsed = null;
+        if (ascii) {
+            parsed = parseAsciiMap(ascii, def);
+        } else {
+            // Empty walkable grid (legacy Phase 1.02 behavior)
+            grid = new Array(gridHeight).fill(null).map(() => new Array(gridWidth).fill(false));
+        }
+
+        function normPos(p, fallback) {
+            if (!p) return fallback;
+            if (Array.isArray(p) && p.length >= 2) return { x: (p[0] | 0), y: (p[1] | 0) };
+            if (typeof p === "object" && p.x != null && p.y != null) return { x: (p.x | 0), y: (p.y | 0) };
+            return fallback;
+        }
+        function clampTile(t) {
+            return {
+                x: Math.max(1, Math.min(gridWidth - 2, t.x | 0)),
+                y: Math.max(1, Math.min(gridHeight - 2, t.y | 0))
+            };
+        }
+
+        // Positions (tile coords)
+        const fallbackPlayer = { x: Math.floor(gridWidth * 0.12), y: Math.floor(gridHeight * 0.52) };
+        const fallbackHeli = { x: Math.floor(gridWidth * 0.82), y: Math.floor(gridHeight * 0.52) };
+        const fallbackKey = { x: Math.floor(gridWidth * 0.22), y: Math.floor(gridHeight * 0.52) };
+
+        const playerTile = clampTile(normPos(def.playerTile || def.player || def.startTile || (parsed && parsed.playerTile), fallbackPlayer));
+        const heliTile = clampTile(normPos(def.heliTile || def.heli || (parsed && parsed.heliTile), fallbackHeli));
+        const keyTile = clampTile(normPos(def.keyTile || def.key || (parsed && parsed.keyTile), fallbackKey));
+
+        // Phase 1.08 — define helipad/field rect (either provided or auto-derived around H)
+        fieldRectTiles = normalizeFieldRect(rawFieldRect, heliTile);
+        staticDirty = true;
+
+
+        // Ensure those tiles are walkable
+        if (grid[playerTile.y] && grid[playerTile.y][playerTile.x] != null) grid[playerTile.y][playerTile.x] = false;
+        if (grid[heliTile.y] && grid[heliTile.y][heliTile.x] != null) grid[heliTile.y][heliTile.x] = false;
+        if (grid[keyTile.y] && grid[keyTile.y][keyTile.x] != null) grid[keyTile.y][keyTile.x] = false;
+
+        // If any objective is placed over a door tile, force that door open to avoid soft-locks.
+        const dgP = getDoorGroupAtTile(playerTile.x, playerTile.y);
+        if (dgP && !dgP.broken) dgP.open = true;
+        const dgH = getDoorGroupAtTile(heliTile.x, heliTile.y);
+        if (dgH && !dgH.broken) dgH.open = true;
+        const dgK = getDoorGroupAtTile(keyTile.x, keyTile.y);
+        if (dgK && !dgK.broken) dgK.open = true;
+
+
+        // Ensure a small clear patch around player
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+            const x = playerTile.x + dx;
+            const y = playerTile.y + dy;
+            if (x >= 0 && y >= 0 && x < gridWidth && y < gridHeight) grid[y][x] = false;
+        }
+
+        // Phase 1.05 — validate the loaded predefined map (structural connectivity)
+        const v = validateMapDef(def, parsed, playerTile, heliTile, keyTile);
+        if (!v.ok) {
+            console.error("[Map] Invalid predefined map.", v.errors, { def, parsed, v });
+            throw new Error(v.errors.join(" "));
+        }
+        if (v.warnings.length) {
+            console.warn("[Map] Predefined map warnings:", v.warnings, { def, parsed, v });
+        }
+
+        jugador.x = playerTile.x * cellSize;
+        jugador.y = playerTile.y * cellSize;
+
+        helicoptero.x = heliTile.x * cellSize;
+        helicoptero.y = heliTile.y * cellSize;
+        helicoptero.visible = false;
+
+        const kPos = tileToEntityPixel(keyTile.x, keyTile.y);
+        llave.x = kPos.x; llave.y = kPos.y; llave.visible = true;
+
+        // Compute reachability
+        const alcanzables = floodFill(playerTile.x, playerTile.y);
+        reachableTiles = alcanzables;
+
+        return { startTile: playerTile, alcanzables, parsed };
+    }
+
+function generarMapa() {
+        grid = new Array(gridHeight).fill(null).map(() => new Array(gridWidth).fill(false));
+        openPlazas = [];
+        doorGroups = [];
+        doorIndex = Object.create(null);
+        houseRooms = [];
+
+        // Bordes
+        for (let x = 0; x < gridWidth; x++) { grid[0][x] = true; grid[gridHeight - 1][x] = true; }
+        for (let y = 0; y < gridHeight; y++) { grid[y][0] = true; grid[y][gridWidth - 1] = true; }
+
+        // --- Esplanada (descampado) para el helicóptero: lado derecho ---
+        const fieldX0 = Math.floor(gridWidth * 0.68);
+        const fieldX1 = gridWidth - 2;
+        const fieldY0 = 2;
+        const fieldY1 = gridHeight - 2;
+
+        for (let y = fieldY0; y < fieldY1; y++) {
+            for (let x = fieldX0; x < fieldX1; x++) {
+                grid[y][x] = false;
+            }
+        }
+
+        // Carreteras principales (para asegurar conectividad)
+        const roadY = Math.floor(gridHeight * 0.52);
+        for (let x = 1; x < gridWidth - 1; x++) {
+            grid[roadY][x] = false;
+            if (roadY + 1 < gridHeight - 1) grid[roadY + 1][x] = false;
+        }
+        const roadX = Math.floor(gridWidth * 0.33);
+        for (let y = 1; y < gridHeight - 1; y++) {
+            grid[y][roadX] = false;
+            if (roadX + 1 < gridWidth - 1) grid[y][roadX + 1] = false;
+        }
+        const roadToFieldX = Math.max(2, fieldX0 - 2);
+        for (let y = 1; y < gridHeight - 1; y++) {
+            grid[y][roadToFieldX] = false;
+            if (roadToFieldX + 1 < gridWidth - 1) grid[y][roadToFieldX + 1] = false;
+        }
+
+        // Helper: comprobar área vacía con margen
+        function areaLibre(x0, y0, w, h, margin = 1) {
+            const x1 = x0 + w - 1;
+            const y1 = y0 + h - 1;
+            if (x0 - margin < 1 || y0 - margin < 1 || x1 + margin >= gridWidth - 1 || y1 + margin >= gridHeight - 1) return false;
+            // no invadir descampado
+            if (x1 >= fieldX0) return false;
+            for (let y = y0 - margin; y <= y1 + margin; y++) {
+                for (let x = x0 - margin; x <= x1 + margin; x++) {
+                    if (grid[y][x]) return false;
+                    // evita carreteras (para que no se rompan)
+                    if ((y === roadY || y === roadY + 1) || (x === roadX || x === roadX + 1) || (x === roadToFieldX || x === roadToFieldX + 1)) {
+                        // permitir tocar borde de carretera pero no ocuparla
+                        if (x >= x0 && x <= x1 && y >= y0 && y <= y1) return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        // Crear casas (rectángulos con 1 puerta)
+        const desiredHouses = 10;
+        let tries = 240;
+        while (houseRooms.length < desiredHouses && tries-- > 0) {
+            const w = randInt(7, 13);
+            const h = randInt(7, 11);
+            const x0 = randInt(2, Math.max(3, fieldX0 - w - 3));
+            const y0 = randInt(2, gridHeight - h - 3);
+
+            if (!areaLibre(x0, y0, w, h, 1)) continue;
+
+            const x1 = x0 + w - 1;
+            const y1 = y0 + h - 1;
+
+            // paredes
+            for (let x = x0; x <= x1; x++) { grid[y0][x] = true; grid[y1][x] = true; }
+            for (let y = y0; y <= y1; y++) { grid[y][x0] = true; grid[y][x1] = true; }
+
+            // puerta (una única celda)
+            const side = randInt(0, 3); // 0 top,1 bottom,2 left,3 right
+            let dx = 0, dy = 0, doorX = x0 + Math.floor(w / 2), doorY = y0;
+
+            if (side === 0) { doorX = randInt(x0 + 2, x1 - 2); doorY = y0; dx = 0; dy = 1; }
+            if (side === 1) { doorX = randInt(x0 + 2, x1 - 2); doorY = y1; dx = 0; dy = -1; }
+            if (side === 2) { doorX = x0; doorY = randInt(y0 + 2, y1 - 2); dx = 1; dy = 0; }
+            if (side === 3) { doorX = x1; doorY = randInt(y0 + 2, y1 - 2); dx = -1; dy = 0; }
+
+            // abre hueco en la pared y crea puerta
+            grid[doorY][doorX] = false;
+            crearPuerta([{ x: doorX, y: doorY }]);
+
+            // algunos pilares internos para dar forma (sin bloquear del todo)
+            if (Math.random() < 0.55) {
+                const pillars = randInt(1, 3);
+                for (let i = 0; i < pillars; i++) {
+                    const px = randInt(x0 + 2, x1 - 2);
+                    const py = randInt(y0 + 2, y1 - 2);
+                    if (!grid[py][px] && !(px === doorX + dx && py === doorY + dy)) {
+                        grid[py][px] = true;
+                    }
+                }
+            }
+
+            houseRooms.push({ x0, y0, w, h, doorX, doorY, insideX: doorX + dx, insideY: doorY + dy });
+        }
+
+        // Algunas vallas/muros cortos para crear pasillos y embudos
+        for (let i = 0; i < 14; i++) {
+            const len = randInt(5, 12);
+            const horizontal = Math.random() < 0.55;
+            const x0 = randInt(2, Math.max(3, fieldX0 - 4));
+            const y0 = randInt(2, gridHeight - 3);
+
+            for (let k = 0; k < len; k++) {
+                const x = x0 + (horizontal ? k : 0);
+                const y = y0 + (horizontal ? 0 : k);
+                if (x < 1 || x >= fieldX0 - 1 || y < 1 || y >= gridHeight - 1) break;
+                // no cortar carreteras principales
+                if (y === roadY || y === roadY + 1) continue;
+                if (x === roadX || x === roadX + 1) continue;
+                if (x === roadToFieldX || x === roadToFieldX + 1) continue;
+                // no poner dentro de casas (solo exteriores)
+                if (!grid[y][x]) grid[y][x] = Math.random() < 0.75;
+            }
+        }
+
+        // Reforzar la esplanada otra vez (por seguridad)
+        for (let y = fieldY0; y < fieldY1; y++) {
+            for (let x = fieldX0; x < fieldX1; x++) {
+                grid[y][x] = false;
+            }
+        }
+    }
+
+    function floodFill(startTx, startTy) {
+        const visited = new Array(gridHeight).fill(null).map(() => new Array(gridWidth).fill(false));
+        const cola = [{ x: startTx, y: startTy }]; visited[startTy][startTx] = true;
+        const alcanzables = [];
+        while (cola.length > 0) {
+            const actual = cola.shift(); alcanzables.push(actual);
+            [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}].forEach(d => {
+                const nx = actual.x + d.x, ny = actual.y + d.y;
+                if (nx>0 && nx<gridWidth-1 && ny>0 && ny<gridHeight-1 && !visited[ny][nx] && !isTileBlocked(nx, ny)) {
+                    visited[ny][nx] = true; cola.push({ x: nx, y: ny });
+                }
+            });
+        }
+        return alcanzables;
+    }
+
+    function tileToEntityPixel(tx, ty) {
+        return { x: tx * cellSize + (cellSize - tamanoEntidad) / 2, y: ty * cellSize + (cellSize - tamanoEntidad) / 2 };
+    }
+
+    function activeBengala(x, y) {
+        bengalasActivas.push({ x: x, y: y, vida: 15 * 30, particles: [] }); 
+    }
+
+    function deployMilitarySquad() {
+        const inCampaign = (deterministicCampaign && isCampaignRun());
+        const milCount = inCampaign
+            ? ((currentRunDef && currentRunDef.settingsOverrides && currentRunDef.settingsOverrides.soldierCount !== undefined && currentRunDef.settingsOverrides.soldierCount !== null)
+                ? currentRunDef.settingsOverrides.soldierCount
+                : 0)
+            : getRunSetting("soldierCount", parseInt(soldierNum.value, 10));
+
+        if (!milCount || milCount <= 0) return;
+
+        let spawnedMil = 0;
+
+        // Helper: spawn one soldier at tile
+        function spawnSoldierAt(tx, ty) {
+            const p = tileToEntityPixel(tx, ty);
+            let ent = { x: p.x, y: p.y, angle: Math.PI * 1.2, balas: 9999, cooldown: 0, jamCount: soldierJamCount, isJammed: false, jamTimer: 0, direccion: normalizar(-1,-1) };
+            militares.push(ent);
+        }
+
+        if (inCampaign) {
+            // Prefer predefined 'M' tiles in reading order (deterministic)
+            const tiles = (Array.isArray(activeSoldierEventSpawnTiles) && activeSoldierEventSpawnTiles.length) ? activeSoldierEventSpawnTiles : null;
+            if (tiles) {
+                for (let i = 0; i < tiles.length && spawnedMil < milCount; i++) {
+                    const t = tiles[i];
+                    const tx = (t.x | 0), ty = (t.y | 0);
+                    if (tx <= 0 || ty <= 0 || tx >= gridWidth - 1 || ty >= gridHeight - 1) continue;
+                    if (grid[ty][tx]) continue; // wall
+                    if (getDoorGroupAtTile(tx, ty)) continue; // don't spawn on door tiles
+                    spawnSoldierAt(tx, ty);
+                    spawnedMil++;
+                }
+            }
+
+            // Deterministic fallback scan (bottom-right) if not enough 'M' tiles
+            if (spawnedMil < milCount) {
+                for (let ty = gridHeight - 2; ty >= 1 && spawnedMil < milCount; ty--) {
+                    for (let tx = gridWidth - 2; tx >= 1 && spawnedMil < milCount; tx--) {
+                        if (grid[ty][tx]) continue;
+                        if (getDoorGroupAtTile(tx, ty)) continue;
+                        spawnSoldierAt(tx, ty);
+                        spawnedMil++;
+                    }
+                }
+            }
+        } else {
+            // Free mode: keep the original random-ish spawn behavior
+            let attempts = 0;
+            while (spawnedMil < milCount && attempts < 2000) {
+                let tx = randInt(Math.floor(gridWidth * 0.85), gridWidth - 2);
+                let ty = randInt(Math.floor(gridHeight * 0.85), gridHeight - 2);
+                tx = Math.floor(tx); ty = Math.floor(ty);
+                if (tx > 0 && ty > 0 && tx < gridWidth && ty < gridHeight && !grid[ty][tx]) {
+                    if (getDoorGroupAtTile(tx, ty)) { attempts++; continue; }
+                    spawnSoldierAt(tx, ty);
+                    spawnedMil++;
+                }
+                attempts++;
+            }
+            if (spawnedMil < milCount) console.warn("Could not spawn all soldiers, spawned:", spawnedMil, "of", milCount);
+        }
+    }
+
+    function resetGame(runDef) {
+        estadoJuego = "STOPPED";
+        screenShake = 0;
+        introTimer = 0;
+        particles = [];
+        bloodStains = [];
+        floatingTexts = [];
+        staticDirty = true; 
+        if (postGameOverlay) postGameOverlay.classList.remove("visible");
+        postGameShown = false;
+        if (animationId) cancelAnimationFrame(animationId);
+
+        fieldRectTiles = null;
+
+        // Phase 0: resolve run definition (defaults to current Free/Random behavior)
+        if (isProbablyEvent(runDef)) runDef = null;
+        currentRunDef = runDef || { mode: "free" };
+
+        const uiSettings = getSettingsFromUI();
+        const mergedSettings = Object.assign({}, uiSettings, (currentRunDef.settingsOverrides || {}));
+        applySettings(mergedSettings);
+
+        soldiersDeployed = false;
+        // Stats Reset
+        gameStats = { startTime: Date.now(), zombiesKilled: 0, civsInfected: 0, soldiersLost: 0 };
+
+        ciudadanos = []; zombies = []; policias = []; militares = []; cadaveres = []; bengalasActivas = [];
+        
+        ciudadanosSalvados = 0;
+noises = [];
+        // Reset director to base defaults, then apply overrides per run
+        director.enabled = DIRECTOR_BASE.enabled;
+        director.waveInterval = DIRECTOR_BASE.waveInterval;
+        director.waveCountdown = DIRECTOR_BASE.waveCountdown;
+        director.shelterInterval = DIRECTOR_BASE.shelterInterval;
+        director.shelterHoldNeed = DIRECTOR_BASE.shelterHoldNeed;
+
+        if (currentRunDef && currentRunDef.directorOverrides) {
+            Object.assign(director, currentRunDef.directorOverrides);
+        }
+
+        director.waveTimer = director.waveInterval;
+        director.countdownLeft = 0;
+        director.shelterTimer = director.shelterInterval;
+        director.shelter = null;
+        director.message = "-";
+        
+        const isPredefMap = !!(currentRunDef && currentRunDef.mapDef);
+        let startTile = { x: Math.floor(gridWidth/2), y: Math.floor(gridHeight/2) };
+        let alcanzables = [];
+
+        let predefParsed = null;
+        let predefMapDef = (isPredefMap && currentRunDef) ? (currentRunDef.mapDef || null) : null;
+
+        if (!isPredefMap) {
+        let mapValid = false;
+                let intentos = 0;
+                startTile = {x:2, y:2};
+                alcanzables = [];
+                startTile = { x: Math.floor(gridWidth/2), y: Math.floor(gridHeight/2) };
+
+                do {
+
+        buildMapFromRunDef(currentRunDef);
+
+        // --- DESCAMPADO para el helicóptero (zona despejada en la derecha) ---
+        const fieldX0 = Math.floor(gridWidth * 0.68);
+        const fieldX1 = gridWidth - 2;
+        const fieldY0 = 2;
+        const fieldY1 = gridHeight - 2;
+        for (let y = fieldY0; y < fieldY1; y++) {
+            for (let x = fieldX0; x < fieldX1; x++) {
+                grid[y][x] = false;
+            }
+        }
+        // Rompe puertas dentro del descampado para que no bloqueen ni se dibujen
+        for (const g of doorGroups) {
+            if (!g || g.broken) continue;
+            for (const t of g.tiles) {
+                if (t.x >= fieldX0 && t.x < fieldX1 && t.y >= fieldY0 && t.y < fieldY1) {
+                    g.broken = true;
+                    g.open = true;
+                    g.barricaded = false;
+                    break;
+                }
+            }
+        }
+                    for(let dy=-1; dy<=1; dy++) {
+                        for(let dx=-1; dx<=1; dx++) {
+                            grid[startTile.y+dy][startTile.x+dx] = false; 
+                        }
+                    }
+                    alcanzables = floodFill(startTile.x, startTile.y);
+                    if(alcanzables.length >= 100) { mapValid = true; }
+                    intentos++;
+                } while(!mapValid && intentos < 10);
+        
+                reachableTiles = alcanzables;
+        } else {
+            const res = buildMapFromRunDef(currentRunDef) || {};
+            predefParsed = res.parsed || null;
+            predefMapDef = predefMapDef || (currentRunDef ? (currentRunDef.mapDef || null) : null);
+            startTile = res.startTile || startTile;
+            alcanzables = res.alcanzables || floodFill(startTile.x, startTile.y);
+            reachableTiles = alcanzables;
+        }
+
+        deterministicCampaign = (isCampaignRun() && isPredefMap && predefMapDef && (
+            (predefMapDef.type === "ascii" && typeof predefMapDef.data === "string") ||
+            (typeof predefMapDef.ascii === "string") ||
+            (typeof predefMapDef.data === "string" && predefMapDef.data.indexOf("\n") !== -1)
+        ));
+
+        
+        // Phase 3: campaign soldier event settings are deterministic and do NOT inherit UI defaults
+        activeSoldierEventSpawnTiles = null;
+        if (deterministicCampaign) {
+            // Force director OFF for deterministic campaign runs (no random waves/shelters)
+            director.enabled = false;
+
+            const delaySec = (currentRunDef && currentRunDef.settingsOverrides && currentRunDef.settingsOverrides.soldierSpawnDelaySec !== undefined && currentRunDef.settingsOverrides.soldierSpawnDelaySec !== null)
+                ? currentRunDef.settingsOverrides.soldierSpawnDelaySec
+                : 0;
+            soldierSpawnDelayFrames = delaySec * 30;
+
+            const tiles =
+                (predefParsed && Array.isArray(predefParsed.soldierSpawnTiles) && predefParsed.soldierSpawnTiles.length) ? predefParsed.soldierSpawnTiles :
+                ((predefMapDef && Array.isArray(predefMapDef.soldierSpawnTiles) && predefMapDef.soldierSpawnTiles.length) ? predefMapDef.soldierSpawnTiles : null);
+            activeSoldierEventSpawnTiles = tiles ? tiles.slice() : null;
+        }
+if(alcanzables.length === 0) {
+            startTile = {x:10, y:10};
+            for(let y=5; y<15; y++) for(let x=5; x<15; x++) grid[y][x] = false;
+            alcanzables = floodFill(startTile.x, startTile.y);
+            reachableTiles = alcanzables;
+        }
+
+        for(let dy=-1; dy<=1; dy++) {
+            for(let dx=-1; dx<=1; dx++) {
+                if(startTile.y+dy >= 0 && startTile.y+dy < gridHeight && startTile.x+dx >= 0 && startTile.x+dx < gridWidth) {
+                    grid[startTile.y+dy][startTile.x+dx] = false; 
+                }
+            }
+        }
+
+        const pPos = tileToEntityPixel(startTile.x, startTile.y);
+        jugador.x = pPos.x; jugador.y = pPos.y;
+
+        
+        let fieldX0p, fieldX1p, fieldY0p, fieldY1p;
+        if (!isPredefMap) {
+            // --- Llave a un lado (izquierda) y helicóptero en descampado (derecha) ---
+            fieldX0p = Math.floor(gridWidth * 0.68);
+            fieldX1p = gridWidth - 2;
+            fieldY0p = 2;
+            fieldY1p = gridHeight - 2;
+
+            fieldRectTiles = { x0: fieldX0p, x1: fieldX1p, y0: fieldY0p, y1: fieldY1p };
+            staticDirty = true;
+
+
+            const fieldTiles = alcanzables.filter(t => t.x >= fieldX0p && t.x < fieldX1p && t.y >= fieldY0p && t.y < fieldY1p);
+
+            const heliCenter = { x: Math.floor((fieldX0p + fieldX1p) / 2), y: Math.floor((fieldY0p + fieldY1p) / 2) };
+            let bestHeliTile = heliCenter;
+
+            // si por lo que sea el centro no es alcanzable, cae a un tile del descampado
+            if (!alcanzables.some(t => t.x === heliCenter.x && t.y === heliCenter.y)) {
+                bestHeliTile = fieldTiles.length ? fieldTiles[0] : alcanzables[0];
+            }
+
+            helicoptero.x = bestHeliTile.x * cellSize;
+            helicoptero.y = bestHeliTile.y * cellSize;
+            helicoptero.visible = false;
+
+            // Llave en el lado opuesto (izquierda) y lejos del helicóptero
+            const leftLimit = Math.floor(gridWidth * 0.32);
+            const leftTiles = alcanzables.filter(t => t.x <= leftLimit);
+
+            let bestKeyTile = (leftTiles.length ? leftTiles[0] : alcanzables[0]);
+            let bestKeyScore = -1;
+            const keyPool = leftTiles.length ? leftTiles : alcanzables;
+            for (const t of keyPool) {
+                const d = distancia(t.x, t.y, bestHeliTile.x, bestHeliTile.y);
+                const dp = distancia(t.x, t.y, startTile.x, startTile.y);
+                if (d > bestKeyScore && dp > 8) { bestKeyScore = d; bestKeyTile = t; }
+            }
+            const kPos = tileToEntityPixel(bestKeyTile.x, bestKeyTile.y);
+            llave.x = kPos.x; llave.y = kPos.y; llave.visible = true;
+        } else {
+            // Predefined map: loadMap() already positioned player/key/heli. Keep optional field tint.
+            const fr = currentRunDef && currentRunDef.mapDef && (currentRunDef.mapDef.fieldRectTiles || currentRunDef.mapDef.fieldRect);
+            if (fr) fieldRectTiles = fr;
+            staticDirty = true;
+            if (fieldRectTiles && Number.isFinite(fieldRectTiles.x0) && Number.isFinite(fieldRectTiles.x1)) {
+                fieldX0p = fieldRectTiles.x0; fieldX1p = fieldRectTiles.x1;
+                fieldY0p = fieldRectTiles.y0; fieldY1p = fieldRectTiles.y1;
+            } else {
+                // No field rect for this map: treat as "no field" for placement rules
+                fieldX0p = gridWidth + 999; fieldX1p = gridWidth + 999;
+                fieldY0p = gridHeight + 999; fieldY1p = gridHeight + 999;
+            }
+        }
+
+function normTilePos(t0) {
+    if (!t0) return null;
+    if (Array.isArray(t0) && t0.length >= 2) return { x: (t0[0] | 0), y: (t0[1] | 0) };
+    if (typeof t0 === "object" && t0.x != null && t0.y != null) return { x: (t0.x | 0), y: (t0.y | 0) };
+    return null;
+}
+
+const predefAmmoTiles =
+    (isPredefMap && predefParsed && Array.isArray(predefParsed.ammoTiles) && predefParsed.ammoTiles.length) ? predefParsed.ammoTiles :
+    ((isPredefMap && predefMapDef && Array.isArray(predefMapDef.ammoTiles) && predefMapDef.ammoTiles.length) ? predefMapDef.ammoTiles : null);
+
+const usePredefAmmo = !!(predefAmmoTiles && predefAmmoTiles.length);
+
+cajasMunicion.length = 0;
+if (usePredefAmmo) {
+    const seen = new Set();
+    for (const t0 of predefAmmoTiles) {
+        const t = normTilePos(t0);
+        if (!t) continue;
+        const tx = t.x, ty = t.y;
+        if (tx < 1 || ty < 1 || tx >= gridWidth - 1 || ty >= gridHeight - 1) continue;
+        if (!grid[ty] || grid[ty][tx]) continue;            // must be floor
+        if (getDoorGroupAtTile(tx, ty)) continue;          // don't place on door tiles
+        if (tx === startTile.x && ty === startTile.y) continue;
+        const key = tx + "," + ty;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const p = tileToEntityPixel(tx, ty);
+        cajasMunicion.push({ x: p.x, y: p.y });
+    }
+} else if (!deterministicCampaign) {
+    const ammoPool0 = alcanzables.filter(t => !isInFieldRect(t.x, t.y));
+    const ammoPool = ammoPool0.length ? ammoPool0 : alcanzables;
+    for (let i = 0; i < 8; i++) {
+        const t = ammoPool[randInt(0, ammoPool.length - 1)];
+    const p = tileToEntityPixel(t.x, t.y);
+    cajasMunicion.push({ x: p.x, y: p.y });
+}
+
+
+}
+// Muebles (cajas empujables) para montar barricadas (bloques de 1 celda)
+muebles.length = 0;
+
+const predefBoxTiles =
+    (isPredefMap && predefParsed && Array.isArray(predefParsed.boxTiles) && predefParsed.boxTiles.length) ? predefParsed.boxTiles :
+    ((isPredefMap && predefMapDef && Array.isArray(predefMapDef.boxTiles) && predefMapDef.boxTiles.length) ? predefMapDef.boxTiles : null);
+
+const usePredefBoxes = !!(predefBoxTiles && predefBoxTiles.length);
+
+if (usePredefBoxes) {
+    const seen = new Set();
+    for (const t0 of predefBoxTiles) {
+        const t = normTilePos(t0);
+        if (!t) continue;
+        const tx = t.x, ty = t.y;
+        if (tx < 1 || ty < 1 || tx >= gridWidth - 1 || ty >= gridHeight - 1) continue;
+        if (!grid[ty] || grid[ty][tx]) continue;            // must be floor
+        if (getDoorGroupAtTile(tx, ty)) continue;          // don't place on door tiles
+        if (!deterministicCampaign && tx >= fieldX0p && tx < fieldX1p && ty >= fieldY0p && ty < fieldY1p) continue; // keep heli field clear (free mode only)
+        if (tx === startTile.x && ty === startTile.y) continue;
+
+        const key = tx + "," + ty;
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        const x = tx * cellSize;
+        const y = ty * cellSize;
+        if (colisionConMuebles(x, y, cellSize, cellSize)) continue;
+        muebles.push({ x, y, size: cellSize, hp: BOX_MAX_HP, maxHp: BOX_MAX_HP, lastHitFrame: -9999 });
+    }
+} else if (!deterministicCampaign) {
+const desiredBoxes = Math.max(0, Math.min(200, Number.isFinite(mergedSettings.boxCount) ? mergedSettings.boxCount : 32));
+
+// candidatos cerca de casas (para poder encerrarte / montar barricadas)
+const candidates = [];
+if (houseRooms && houseRooms.length) {
+    for (const r of houseRooms) {
+        // dentro de la casa, cerca de la puerta
+        const baseX = r.insideX, baseY = r.insideY;
+        for (let i = 0; i < 7; i++) {
+            candidates.push({ x: baseX + randInt(-2, 2), y: baseY + randInt(-2, 2) });
+        }
+        // un par fuera de la puerta
+        const outX = r.doorX - (r.insideX - r.doorX);
+        const outY = r.doorY - (r.insideY - r.doorY);
+        candidates.push({ x: outX, y: outY });
+        candidates.push({ x: outX + randInt(-1, 1), y: outY + randInt(-1, 1) });
+    }
+}
+
+// + candidatos aleatorios (sin tocar el descampado)
+for (let i = 0; i < 220; i++) {
+    const t = alcanzables[randInt(0, alcanzables.length - 1)];
+    candidates.push({ x: t.x, y: t.y });
+}
+
+function tryPlaceBoxAtTile(tx, ty) {
+    if (tx < 1 || ty < 1 || tx >= gridWidth - 1 || ty >= gridHeight - 1) return false;
+    // no en el descampado del helicóptero
+    if (tx >= fieldX0p && tx < fieldX1p && ty >= fieldY0p && ty < fieldY1p) return false;
+    // no encima de puertas
+    if (getDoorGroupAtTile(tx, ty)) return false;
+    // no encima de paredes/bloqueos
+    if (isTileBlocked(tx, ty)) return false;
+
+    // Evita cajas pegadas a paredes/puertas y evita cajas juntas (8-neighborhood)
+    for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const nx = tx + dx, ny = ty + dy;
+            if (nx < 0 || ny < 0 || nx >= gridWidth || ny >= gridHeight) return false;
+            if (isTileBlocked(nx, ny)) return false;
+            if (getDoorGroupAtTile(nx, ny)) return false;
+            // No junto a otra caja ya colocada
+            for (const b of muebles) {
+                const bx = (b.x / cellSize) | 0;
+                const by = (b.y / cellSize) | 0;
+                if (bx === nx && by === ny) return false;
+            }
+        }
+    }
+
+    const x = tx * cellSize;
+    const y = ty * cellSize;
+    if (colisionConMuebles(x, y, cellSize, cellSize)) return false;
+
+    muebles.push({ x, y, size: cellSize, hp: BOX_MAX_HP, maxHp: BOX_MAX_HP, lastHitFrame: -9999 });
+    return true;
+}
+
+let safety = 0;
+for (const c of candidates) {
+    if (muebles.length >= desiredBoxes) break;
+    if (safety++ > desiredBoxes * 120) break;
+    // evita demasiado cerca del spawn
+    if (manhattan(c, startTile) < 5) continue;
+    tryPlaceBoxAtTile(c.x, c.y);
+}
+
+        
+}
+const reachableMask = buildReachableMask(alcanzables);
+
+// Deterministic spawns (Phase 1.07): ASCII markers can define exact spawn tiles.
+const usedSpawnKeys = new Set();
+const _k = (x, y) => (x + "," + y);
+const markUsed = (x, y) => usedSpawnKeys.add(_k(x, y));
+const isUsed = (x, y) => usedSpawnKeys.has(_k(x, y));
+
+function spawnFromTiles(arr, tiles, type) {
+    if (!Array.isArray(tiles) || !tiles.length) return 0;
+    let placed = 0;
+    for (const t0 of tiles) {
+        const t = normTilePos(t0);
+        if (!t) continue;
+        const tx = t.x | 0, ty = t.y | 0;
+        if (tx < 1 || ty < 1 || tx >= gridWidth - 1 || ty >= gridHeight - 1) continue;
+        if (!deterministicCampaign && (!reachableMask[ty] || !reachableMask[ty][tx])) continue; // avoid unreachable spawns (free mode only)
+        if (grid[ty][tx]) continue;                                 // must be floor
+        if (getDoorGroupAtTile(tx, ty)) continue;                   // not on door tiles
+        if (!deterministicCampaign && isInFieldRect(tx, ty)) continue; // keep helipad field clear (free mode only)
+        if (tx === startTile.x && ty === startTile.y) continue;
+        if (isUsed(tx, ty)) continue;
+
+        markUsed(tx, ty);
+        const p = tileToEntityPixel(tx, ty);
+        let ent = { x: p.x, y: p.y, direccion: direccionAleatoria(), boarding: 0, _saved: false };
+        if (type === 'poli') { ent.balas = policeInitialBullets; ent.cooldown = 0; }
+        arr.push(ent);
+        placed++;
+    }
+    return placed;
+}
+
+const predefCitizenSpawnTiles =
+    (isPredefMap && predefParsed && Array.isArray(predefParsed.citizenSpawnTiles) && predefParsed.citizenSpawnTiles.length) ? predefParsed.citizenSpawnTiles :
+    ((isPredefMap && predefMapDef && Array.isArray(predefMapDef.citizenSpawnTiles) && predefMapDef.citizenSpawnTiles.length) ? predefMapDef.citizenSpawnTiles : null);
+
+const predefZombieSpawnTiles =
+    (isPredefMap && predefParsed && Array.isArray(predefParsed.zombieSpawnTiles) && predefParsed.zombieSpawnTiles.length) ? predefParsed.zombieSpawnTiles :
+    ((isPredefMap && predefMapDef && Array.isArray(predefMapDef.zombieSpawnTiles) && predefMapDef.zombieSpawnTiles.length) ? predefMapDef.zombieSpawnTiles : null);
+
+const predefPoliceSpawnTiles =
+    (isPredefMap && predefParsed && Array.isArray(predefParsed.policeSpawnTiles) && predefParsed.policeSpawnTiles.length) ? predefParsed.policeSpawnTiles :
+    ((isPredefMap && predefMapDef && Array.isArray(predefMapDef.policeSpawnTiles) && predefMapDef.policeSpawnTiles.length) ? predefMapDef.policeSpawnTiles : null);
+
+const usePredefCitizenSpawns = !!(predefCitizenSpawnTiles && predefCitizenSpawnTiles.length);
+const usePredefZombieSpawns = !!(predefZombieSpawnTiles && predefZombieSpawnTiles.length);
+const usePredefPoliceSpawns = !!(predefPoliceSpawnTiles && predefPoliceSpawnTiles.length);
+
+// Random spawn pool (unchanged behavior) — avoid tiles already used by deterministic spawns.
+const safeTiles = alcanzables.filter(t => manhattan(t, startTile) > 20 && !isInFieldRect(t.x, t.y) && !getDoorGroupAtTile(t.x, t.y));
+
+const spawn = (arr, count, type) => {
+    for (let i = 0; i < count && safeTiles.length > 0; i++) {
+        let t = null;
+        let triesPick = 0;
+
+        if (type === 'zomb') {
+            // Zombies: prefer far from player
+            while (triesPick < 60) {
+                const cand = safeTiles[randInt(0, safeTiles.length - 1)];
+                if (!cand) { triesPick++; continue; }
+                const dist = manhattan(cand, startTile);
+                if (dist < 40) { triesPick++; continue; }
+                if (isUsed(cand.x, cand.y)) { triesPick++; continue; }
+                if (isInFieldRect(cand.x, cand.y)) { triesPick++; continue; }
+                if (getDoorGroupAtTile(cand.x, cand.y)) { triesPick++; continue; }
+                t = cand; break;
+            }
+        } else {
+            while (triesPick < 60) {
+                const cand = safeTiles[randInt(0, safeTiles.length - 1)];
+                if (!cand) { triesPick++; continue; }
+                if (isUsed(cand.x, cand.y)) { triesPick++; continue; }
+                if (isInFieldRect(cand.x, cand.y)) { triesPick++; continue; }
+                if (getDoorGroupAtTile(cand.x, cand.y)) { triesPick++; continue; }
+                t = cand; break;
+            }
+        }
+
+        if (!t) break;
+
+        markUsed(t.x, t.y);
+        const p = tileToEntityPixel(t.x, t.y);
+        let ent = { x: p.x, y: p.y, direccion: direccionAleatoria(), boarding: 0, _saved: false };
+        if (type === 'poli') { ent.balas = policeInitialBullets; ent.cooldown = 0; }
+        arr.push(ent);
+    }
+};
+
+// Citizens / Zombies: if map provides markers, use them (deterministic).
+if (usePredefCitizenSpawns) spawnFromTiles(ciudadanos, predefCitizenSpawnTiles, 'cit');
+else if (!deterministicCampaign) spawn(ciudadanos, mergedSettings.citizenCount, 'cit');
+
+// Police remain count-based for now (deterministic markers can be added in a future phase if needed).
+if (usePredefPoliceSpawns) spawnFromTiles(policias, predefPoliceSpawnTiles, 'poli');
+else if (!deterministicCampaign) spawn(policias, mergedSettings.policeCount, 'poli');
+
+if (usePredefZombieSpawns) spawnFromTiles(zombies, predefZombieSpawnTiles, 'zomb');
+else if (!deterministicCampaign) spawn(zombies, mergedSettings.zombieCount, 'zomb');
+
+        estadoJuego = "PLAYING";
+        lastFrameTime = 0;
+        actualizarStatsUI();
+        animationId = requestAnimationFrame(animacion);
+    }
+
+    function actualizarStatsUI() {
+        numZombiesElem.textContent = zombies.length;
+        numCiudadanosElem.textContent = ciudadanos.length;
+        numPoliciasElem.textContent = policias.length;
+        numMilitaresElem.textContent = militares.length;
+        numBalasElem.textContent = balasRestantes;
+        numBengalasElem.textContent = bengalasRestantes;
+        if (numSalvadosElem) numSalvadosElem.textContent = ciudadanosSalvados;
+if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? director.message : "-";
+    }
+
+
+    function obtenerFuerzaSeparacion(yo, grupo, radio) {
+        let fx = 0, fy = 0, count = 0;
+        const step = grupo.length > 500 ? Math.ceil(grupo.length / 50) : 1;
+        for (let i=0; i<grupo.length; i+=step) {
+            const otro = grupo[i];
+            if (otro === yo) continue;
+            const dx = yo.x - otro.x, dy = yo.y - otro.y, dist = Math.hypot(dx, dy);
+            if (dist < radio && dist > 0) { fx += dx / dist; fy += dy / dist; count++; }
+        }
+        return count > 0 ? normalizar(fx, fy) : { x: 0, y: 0 };
+    }
+
+    function animacion(timestamp) {
+        if (estadoJuego === "STOPPED") return;
+
+        if (!lastFrameTime) lastFrameTime = timestamp;
+        const dtMs = Math.min(90, timestamp - lastFrameTime);
+        lastFrameTime = timestamp;
+
+        // simulation step relative to BASE_FPS
+        const simStep = Math.min(2.5, dtMs / FRAME_MS);
+
+        if (!soldiersDeployed && estadoJuego === "PLAYING") {
+            const inCampaign = (deterministicCampaign && isCampaignRun());
+            const milCount = inCampaign
+                ? ((currentRunDef && currentRunDef.settingsOverrides && currentRunDef.settingsOverrides.soldierCount !== undefined && currentRunDef.settingsOverrides.soldierCount !== null)
+                    ? currentRunDef.settingsOverrides.soldierCount
+                    : 0)
+                : getRunSetting("soldierCount", parseInt(soldierNum.value, 10));
+
+            // In campaign: soldier event is OFF by default unless both delay>0 and soldierCount>0 are explicitly set
+            if (inCampaign) {
+                if (!milCount || milCount <= 0 || soldierSpawnDelayFrames <= 0) {
+                    soldiersDeployed = true;
+                } else {
+                    soldierSpawnDelayFrames -= simStep;
+                    if (soldierSpawnDelayFrames <= 0) { deployMilitarySquad(); soldiersDeployed = true; }
+                }
+            } else {
+                soldierSpawnDelayFrames -= simStep;
+                if (soldierSpawnDelayFrames <= 0) { deployMilitarySquad(); soldiersDeployed = true; }
+            }
+        }
+
+        frameCount += simStep;
+        if (footstepCooldown > 0) footstepCooldown -= simStep;
+
+        updateNoises(simStep);
+        directorTick(simStep);
+        updateParticles(simStep);
+
+        let timeScale = simStep; 
+        let zoom = 1.0;
+        if (introTimer < INTRO_DURATION) {
+            introTimer += simStep;
+            const progress = Math.min(1, introTimer / INTRO_DURATION);
+            const ease = 1 - Math.pow(1 - progress, 3); 
+            zoom = 4.0 - (3.0 * ease); 
+            timeScale = simStep * (0.12 + (0.88 * ease)); 
+        }
+
+        const cx = canvas.width / 2; const cy = canvas.height / 2;
+        const px = jugador.x + 1.5; const py = jugador.y + 1.5;
+        let focusX = px; let focusY = py;
+        
+        if (introTimer < INTRO_DURATION) {
+             const progress = introTimer / INTRO_DURATION;
+             const ease = 1 - Math.pow(1 - progress, 3);
+             focusX = px * ease + (canvas.width/2) * (1-ease); 
+             focusY = py * ease + (canvas.height/2) * (1-ease);
+        }
+
+        ctx.save();
+        ctx.fillStyle = PALETA.fondo; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        if (introTimer < INTRO_DURATION) {
+             ctx.translate(cx, cy); ctx.scale(zoom, zoom); ctx.translate(-focusX, -focusY);
+        }
+
+        if (screenShake > 0) {
+            const mag = screenShake;
+            ctx.translate((Math.random()*2-1) * mag, (Math.random()*2-1) * mag);
+            screenShake = Math.max(0, screenShake - 0.9 * simStep);
+        }
+
+
+        if (staticDirty) buildStaticLayer();
+        ctx.drawImage(staticLayer, 0, 0);
+        drawBloodStains();
+
+drawDoorsWorld();
+
+        drawMueblesWorld();
+
+        drawShelterWorld();
+
+        for(let i = bengalasActivas.length - 1; i >= 0; i--) {
+            const b = bengalasActivas[i]; b.vida--;
+            if (b.vida <= 0) { bengalasActivas.splice(i, 1); continue; }
+            const cx = b.x + 1.5, cy = b.y + 1.5;
+            const gradient = ctx.createRadialGradient(cx, cy, 2, cx, cy, 60 * (Math.random()*0.1+0.9));
+            gradient.addColorStop(0, "rgba(255, 112, 67, 0.8)"); gradient.addColorStop(1, "rgba(255, 112, 67, 0)");
+            ctx.fillStyle = gradient; ctx.beginPath(); ctx.arc(cx, cy, 60, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(cx, cy, 2, 0, Math.PI*2); ctx.fill();
+        }
+
+        cajasMunicion.forEach((b,i) => {
+            const pulse = (Math.sin(timestamp/300+i)+1)/2;
+            ctx.fillStyle = `rgba(255, 204, 128, ${0.3+0.2*pulse})`; ctx.beginPath(); ctx.arc(b.x+1.5, b.y+1.5, 6+2*pulse, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "#ffb74d"; ctx.fillRect(b.x-1, b.y-1, 5, 5);
+            if(distancia(jugador.x,jugador.y,b.x,b.y)<10) { cajasMunicion.splice(i,1); balasRestantes+=5; actualizarStatsUI(); }
+        });
+
+        const drawEnt = (e, color, radius, kind = "generic") => {
+            const cx = e.x + 1.5, cy = e.y + 1.5;
+
+            ctx.save();
+            ctx.shadowColor = "rgba(0,0,0,0.22)";
+            ctx.shadowBlur = 6;
+            ctx.shadowOffsetY = 3;
+
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.shadowBlur = 0;
+            ctx.shadowOffsetY = 0;
+
+            // highlight
+            ctx.fillStyle = "rgba(255,255,255,0.22)";
+            ctx.beginPath();
+            ctx.arc(cx - radius * 0.25, cy - radius * 0.25, Math.max(1.0, radius * 0.55), 0, Math.PI * 2);
+            ctx.fill();
+
+            // outline
+            ctx.strokeStyle = "rgba(62,39,35,0.22)";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius - 0.5, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // tiny face cues for zombies (subtle)
+            if (kind === "zombie" && radius >= 3) {
+                ctx.fillStyle = "rgba(38,50,56,0.55)";
+                ctx.beginPath();
+                ctx.arc(cx - 1.0, cy - 0.3, 0.6, 0, Math.PI * 2);
+                ctx.arc(cx + 0.8, cy - 0.3, 0.6, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.restore();
+        };
+
+        const hx = helicoptero.x + helicoptero.ancho/2, hy = helicoptero.y + helicoptero.alto/2;
+        
+        ciudadanos.forEach(cit => {
+            if(Math.random()<0.05) cit.direccion = normalizar(cit.direccion.x + (Math.random()-0.5), cit.direccion.y + (Math.random()-0.5));
+            let threatVec = {x:0, y:0}; let threatFound = false;
+            const checkThreat = (list) => {
+                for(const t of list) {
+                    const d = distancia(cit.x, cit.y, t.x, t.y);
+                    if (d < distanciaHuida) {
+                        if (d < 20 || tieneLineaDeVision(cit.x, cit.y, t.x, t.y)) {
+                            const rep = normalizar(cit.x - t.x, cit.y - t.y);
+                            threatVec.x += rep.x; threatVec.y += rep.y; threatFound = true;
+                        }
+                    }
+                }
+            };
+            checkThreat(zombies); checkThreat(militares);
+            if (threatFound) { cit.direccion = normalizar(threatVec.x, threatVec.y); } 
+            else { if(helicoptero.visible) { const dh = distancia(cit.x, cit.y, hx, hy); if (dh < 150) cit.direccion = normalizar(hx - cit.x, hy - cit.y); } }
+            if(Math.random() < 0.2) { const sep = obtenerFuerzaSeparacion(cit, ciudadanos, radioSeparacion); cit.direccion.x += sep.x * 0.5; cit.direccion.y += sep.y * 0.5; }
+            const choco = aplicarFuerzas(cit, velocidadCiudadano, timeScale);
+            if(choco) cit.direccion = direccionAleatoria();
+            // Salvado: si toca el helicóptero y aguanta 5s "subiendo"
+if (helicoptero.visible) {
+    const dh = distancia(cit.x, cit.y, helicoptero.x, helicoptero.y);
+    if (dh < cellSize * 1.1) {
+        cit.boarding = (cit.boarding || 0) + 1 * timeScale;
+        if (cit.boarding >= 150 && !cit._saved) {
+            cit._saved = true;
+            ciudadanosSalvados += 1;
+            addNoise(helicoptero.x + cellSize / 2, helicoptero.y + cellSize / 2, 140, 18);
+            actualizarStatsUI();
+        }
+    } else {
+        cit.boarding = 0;
+    }
+} else {
+    cit.boarding = 0;
+}
+            drawEnt(cit, PALETA.ciudadano, radioVisual);
+        });
+        // elimina los ciudadanos ya salvados
+        if (ciudadanos.some(c => c._saved)) ciudadanos = ciudadanos.filter(c => !c._saved);
+
+        policias.forEach(poli => {
+            if(poli.cooldown > 0) poli.cooldown -= 1 * timeScale;
+            if(Math.random()<0.05) poli.direccion = normalizar(poli.direccion.x+(Math.random()-0.5), poli.direccion.y+(Math.random()-0.5));
+            let target = null; let minDist = Infinity;
+            for(const z of zombies) {
+                const d = distancia(poli.x, poli.y, z.x, z.y);
+                if(d < 120 && tieneLineaDeVision(poli.x, poli.y, z.x, z.y)) { if(d < minDist) { minDist = d; target = z; } }
+            }
+            if(target) {
+                if(minDist < 60) { 
+                    if(minDist < 30) { const away = normalizar(poli.x - target.x, poli.y - target.y); poli.direccion = away; }
+                    if(poli.balas > 0 && poli.cooldown <= 0) {
+                        zombies = zombies.filter(z => z !== target); cadaveres.push({x:target.x, y:target.y});
+                        gameStats.zombiesKilled++; // STAT
+                        addBlood(target.x + 1.5, target.y + 1.5, 2);
+                        addFloatText('+1', target.x + 1.5, target.y - 3, 'rgba(229,57,53,0.9)');
+                        poli.balas--; poli.cooldown = policeReloadFrames;
+                        addNoise(poli.x, poli.y, 190, 18);
+                        ctx.strokeStyle = "rgba(121, 134, 203, 0.8)"; ctx.lineWidth = 1;
+                        ctx.beginPath(); ctx.moveTo(poli.x+1.5, poli.y+1.5); ctx.lineTo(target.x+1.5, target.y+1.5); ctx.stroke();
+                    }
+                } else { poli.direccion = normalizar(target.x - poli.x, target.y - poli.y); }
+            }
+            const choco = aplicarFuerzas(poli, velocidadCiudadano, timeScale);
+            if(choco) poli.direccion = direccionAleatoria();
+            drawEnt(poli, PALETA.policia, radioVisual);
+        });
+
+        militares.forEach(mil => {
+            if(mil.cooldown > 0) mil.cooldown -= 1 * timeScale;
+            if(mil.isJammed) { 
+                mil.jamTimer -= 1 * timeScale; 
+                if(mil.jamTimer <= 0) { mil.isJammed = false; mil.shotsFired = 0; } 
+                // Panic Shake
+                if(Math.random() < 0.3) { mil.direccion.x += (Math.random()-0.5)*2; mil.direccion.y += (Math.random()-0.5)*2; }
+            }
+            
+            if(Math.random()<0.05) mil.direccion = normalizar(mil.direccion.x+(Math.random()-0.5), mil.direccion.y+(Math.random()-0.5));
+            let potentialTargets = [];
+            zombies.forEach(z => potentialTargets.push({e:z, type:'zom', p:1})); 
+            if(fuegoAmigo) {
+                if(!modoFantasma) potentialTargets.push({e:jugador, type:'ply', p:2}); 
+                policias.forEach(p => potentialTargets.push({e:p, type:'pol', p:3})); 
+                ciudadanos.forEach(c => potentialTargets.push({e:c, type:'cit', p:4})); 
+            }
+            let detected = potentialTargets.filter(item => {
+                const dist = distancia(mil.x, mil.y, item.e.x, item.e.y);
+                return dist < rangoDeteccionMilitar && tieneLineaDeVision(mil.x, mil.y, item.e.x, item.e.y);
+            });
+            detected.sort((a, b) => { if(a.p !== b.p) return a.p - b.p; return distancia(mil.x,mil.y,a.e.x,a.e.y) - distancia(mil.x,mil.y,b.e.x,b.e.y); });
+            let target = detected.length > 0 ? detected[0] : null;
+            ctx.save(); ctx.translate(mil.x+1.5, mil.y+1.5); ctx.beginPath(); ctx.moveTo(0,0);
+            const ang = Math.atan2(mil.direccion.y, mil.direccion.x);
+            ctx.arc(0, 0, rangoVisionMilitar, ang - anguloVisionMilitar/2, ang + anguloVisionMilitar/2);
+            ctx.lineTo(0,0); ctx.fillStyle = "rgba(156, 204, 101, 0.15)"; ctx.fill(); ctx.restore();
+
+            if(mil.isJammed) { 
+                ctx.fillStyle = "#000"; ctx.font = "12px Arial"; ctx.textAlign="center"; ctx.fillText("😓", mil.x, mil.y - 6); 
+            }
+
+            if (target) {
+                const t = target.e;
+                const dToTarget = distancia(mil.x, mil.y, t.x, t.y);
+                if (target.type === 'zom' && dToTarget < 40) { const away = normalizar(mil.x - t.x, mil.y - t.y); mil.direccion = away; } 
+                else { const towards = normalizar(t.x - mil.x, t.y - mil.y); mil.direccion = towards; }
+                const targetAngle = Math.atan2(t.y - mil.y, t.x - mil.x);
+                const facingAngle = Math.atan2(mil.direccion.y, mil.direccion.x);
+                const diff = Math.atan2(Math.sin(targetAngle - facingAngle), Math.cos(targetAngle - facingAngle));
+                mil.angle += diff * 0.2 * timeScale;
+                const canShoot = dToTarget < rangoVisionMilitar && Math.abs(diff) < anguloVisionMilitar/2;
+                if (canShoot && mil.cooldown <= 0 && !mil.isJammed) {
+                    mil.shotsFired++;
+                    if(mil.shotsFired >= soldierJamCount) { mil.isJammed = true; mil.jamTimer = soldierJamDurationFrames; }
+                    if(!mil.isJammed) { 
+                         if(target.type === 'zom') { zombies = zombies.filter(z => z !== t); cadaveres.push({x:t.x,y:t.y}); gameStats.zombiesKilled++; addBlood(t.x + 1.5, t.y + 1.5, 2); addFloatText('+1', t.x + 1.5, t.y - 3, 'rgba(229,57,53,0.9)'); }
+                         else if(target.type === 'ply') { estadoJuego = "GAME OVER"; }
+                         else if(target.type === 'pol') { policias = policias.filter(p => p !== t); cadaveres.push({x:t.x,y:t.y}); }
+                         else if(target.type === 'cit') { ciudadanos = ciudadanos.filter(c => c !== t); cadaveres.push({x:t.x,y:t.y}); }
+                         addNoise(mil.x, mil.y, 210, 20);
+                         actualizarStatsUI(); mil.cooldown = soldierReloadFrames;
+                         ctx.strokeStyle = "#cddc39"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(mil.x+1.5, mil.y+1.5); ctx.lineTo(t.x+1.5, t.y+1.5); ctx.stroke();
+                    }
+                }
+            }
+            aplicarFuerzas(mil, velocidadMilitar, timeScale);
+            drawEnt(mil, PALETA.militar, radioVisual);
+        });
+
+        zombies.forEach(zombie => {
+            let target = null; let minDist = Infinity;
+            for(const b of bengalasActivas) {
+                const d = distancia(zombie.x, zombie.y, b.x, b.y);
+                if(d < 250) { if(d < minDist) { minDist=d; target=b; } }
+            }
+            if(!target) {
+                const check = (e) => {
+                    const d = distancia(zombie.x, zombie.y, e.x, e.y);
+                    if(d < 120 && (d<35 || tieneLineaDeVision(zombie.x, zombie.y, e.x, e.y))) { if(d < minDist) { minDist=d; target=e; } }
+                };
+                if(!modoFantasma) check(jugador);
+                policias.forEach(check); militares.forEach(check); ciudadanos.forEach(check);
+            }
+            if(!target) {
+                const n = bestNoiseFor(zombie.x, zombie.y);
+                if (n) target = n;
+            }
+            if(target) {
+                zombie.direccion = normalizar(target.x - zombie.x, target.y - zombie.y);
+                if(!(target.vida !== undefined)) { 
+                     if(minDist < 3) {
+                         if(target === jugador) estadoJuego = "GAME OVER";
+                         else {
+                            if (ciudadanos.includes(target)) { ciudadanos = ciudadanos.filter(c => c!==target); gameStats.civsInfected++; }
+                            else if (policias.includes(target)) policias = policias.filter(p => p!==target); 
+                            else if (militares.includes(target)) { militares = militares.filter(m => m!==target); gameStats.soldiersLost++; }
+                            zombies.push({x:target.x, y:target.y, direccion:direccionAleatoria()}); 
+                            actualizarStatsUI();
+                         }
+                     }
+                }
+            } else {
+                if(Math.random() < 0.05) zombie.direccion = normalizar(zombie.direccion.x + (Math.random()-0.5), zombie.direccion.y + (Math.random()-0.5));
+            }
+            if(Math.random() < 0.15) { const sep = obtenerFuerzaSeparacion(zombie, zombies, radioSeparacion); zombie.direccion.x += sep.x * 0.8; zombie.direccion.y += sep.y * 0.8; }
+            
+            const choco = aplicarFuerzas(zombie, velocidadZombie, timeScale);
+            if(choco) {
+                const hitBox = zombieTryHitMueble(zombie);
+                const hitDoor = (!hitBox) ? zombieTryHitDoor(zombie) : false;
+                if(!hitBox && !hitDoor && !target) zombie.direccion = direccionAleatoria();
+            }
+            drawEnt(zombie, PALETA.zombie, radioVisual);
+        });
+
+        cadaveres.forEach(c => { ctx.fillStyle="#d7ccc8"; ctx.beginPath(); ctx.arc(c.x+1.5,c.y+1.5,1.5,0,Math.PI*2); ctx.fill(); });
+
+        if(helicoptero.visible) {
+            const hx=helicoptero.x+helicoptero.ancho/2, hy=helicoptero.y+helicoptero.alto/2;
+            const pulseHeli = (Math.sin(timestamp / 100) + 1) / 2;
+            ctx.beginPath(); ctx.ellipse(hx, hy + 10, cellSize * 2, cellSize * 1.5, 0, 0, Math.PI*2); ctx.fillStyle = "rgba(0,0,0,0.1)"; ctx.fill();
+            ctx.beginPath(); ctx.arc(hx, hy, cellSize * 2 + (pulseHeli * 5), 0, Math.PI*2); ctx.fillStyle = "rgba(129, 199, 132, 0.3)"; ctx.fill(); 
+            ctx.strokeStyle = PALETA.heliOn; ctx.lineWidth = 3; ctx.stroke();
+            ctx.save(); ctx.translate(hx, hy); ctx.rotate(timestamp / 20); 
+            ctx.fillStyle = "rgba(62, 39, 35, 0.8)"; ctx.fillRect(-16, -2, 32, 4); ctx.fillRect(-2, -16, 4, 32); ctx.restore();
+            ctx.fillStyle = "#fff"; ctx.font = "800 10px Nunito"; ctx.textAlign="center"; ctx.fillText("ESCAPE", hx, hy+4);
+            if(distancia(jugador.x,jugador.y,helicoptero.x,helicoptero.y)<cellSize*1.5) estadoJuego = "VICTORY";
+        }
+
+        let jx = 0, jy = 0;
+        if (introTimer >= INTRO_DURATION) {
+            if(teclas.ArrowUp) jy -= 1; if(teclas.ArrowDown) jy += 1;
+            if(teclas.ArrowLeft) jx -= 1; if(teclas.ArrowRight) jx += 1;
+        }
+        if(jx!==0 || jy!==0) {
+            const d = normalizar(jx, jy);
+            const sprinting = teclas.ShiftLeft || teclas.ShiftRight;
+            const speedMult = sprinting ? 1.6 : 1.0;
+            moverJugadorConMuebles( d.x, d.y, velocidadJugador * speedMult * timeScale);
+            if (footstepCooldown <= 0) {
+                addNoise(jugador.x, jugador.y, sprinting ? 95 : 60, 14);
+                footstepCooldown = sprinting ? 6 : 10;
+            }
+        }
+
+        if (teclas.Space && balasRestantes > 0 && introTimer >= INTRO_DURATION) {
+            ctx.beginPath(); ctx.arc(jugador.x+1.5, jugador.y+1.5, diametroDisparo, 0, Math.PI*2);
+            ctx.fillStyle = "rgba(255, 204, 128, 0.15)"; ctx.fill();
+            ctx.strokeStyle = "rgba(255, 171, 145, 0.5)"; ctx.lineWidth = 1; ctx.stroke();
+        }
+
+        if (teclas.Space && !disparoEnFotograma && balasRestantes > 0 && introTimer >= INTRO_DURATION) {
+            balasRestantes--; 
+            addNoise(jugador.x, jugador.y, 220, 22);
+            spawnParticles(jugador.x + 1.5, jugador.y + 1.5, 'rgba(255,204,128,0.95)', 10, 2.2, Math.PI * 2, 14, 1.4, 0.9);
+            actualizarStatsUI();
+            disparoEnFotograma = true;
+
+            let candidates = [];
+            zombies.forEach(z => candidates.push({e:z, type:'zom'}));
+            militares.forEach(m => candidates.push({e:m, type:'mil'}));
+            let nearest = null, dMin = diametroDisparo;
+            candidates.forEach(c => { const d = distancia(jugador.x, jugador.y, c.e.x, c.e.y); if(d < dMin) { dMin = d; nearest = c; } });
+
+            if(nearest) {
+                const target = nearest.e;
+                if(nearest.type === 'zom') { zombies = zombies.filter(z => z !== target); cadaveres.push({x:target.x, y:target.y}); gameStats.zombiesKilled++; addBlood(target.x + 1.5, target.y + 1.5, 2); addFloatText('+1', target.x + 1.5, target.y - 3, 'rgba(229,57,53,0.9)'); }
+                else if(nearest.type === 'mil') { militares = militares.filter(m => m !== target); cadaveres.push({x:target.x, y:target.y}); }
+                screenShake = 6; 
+                ctx.strokeStyle = "#ffcc80"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(jugador.x+1.5, jugador.y+1.5); ctx.lineTo(target.x+1.5, target.y+1.5); ctx.stroke();
+            } else { screenShake = 3; }
+        } else if (!teclas.Space) disparoEnFotograma = false;
+
+        drawEnt(jugador, modoFantasma ? "rgba(255, 171, 145, 0.5)" : PALETA.jugador, radioVisual+1);
+
+        if (introTimer < INTRO_DURATION) {
+            ctx.beginPath();
+            ctx.arc(jugador.x+1.5, jugador.y+1.5, 20 + Math.sin(introTimer/5)*5, 0, Math.PI*2);
+            ctx.strokeStyle = `rgba(255, 171, 145, ${1 - (introTimer/INTRO_DURATION)})`;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        if(llave.visible) {
+            const cx = llave.x + 1.5, cy = llave.y + 1.5; const pulse = (Math.sin(timestamp / 150) + 1) / 2; 
+            ctx.save(); ctx.translate(cx, cy); ctx.beginPath(); ctx.arc(0, 0, 10 + (5 * pulse), 0, Math.PI*2); ctx.fillStyle = "rgba(229, 115, 115, 0.2)"; ctx.fill();
+            ctx.rotate(Math.PI / 4); ctx.fillStyle = PALETA.llave; ctx.fillRect(-3, -3, 6, 6); ctx.restore();
+            if(distancia(jugador.x,jugador.y,llave.x,llave.y)<12) { llave.visible=false; helicoptero.visible=true; helicoptero.energia=true; }
+        }
+
+        drawParticles();
+        drawFloatingTexts();
+
+        ctx.restore();
+        drawGrainAndVignette();
+
+        if (estadoJuego !== "PLAYING") {
+            // Stats Calc
+            const totalTime = ((Date.now() - gameStats.startTime) / 1000).toFixed(1);
+            
+            ctx.fillStyle = "rgba(255, 252, 245, 0.9)"; ctx.fillRect(0,0,canvas.width,canvas.height);
+            ctx.save(); ctx.shadowColor = "rgba(0,0,0,0.1)"; ctx.shadowBlur = 10; ctx.shadowOffsetY = 5;
+            ctx.fillStyle = estadoJuego === "VICTORY" ? "#81c784" : "#ef5350";
+            ctx.textAlign = "center"; ctx.font = "900 48px Nunito";
+            ctx.fillText(estadoJuego === "VICTORY" ? "¡EVACUACIÓN EXITOSA!" : "GAME OVER", canvas.width/2, canvas.height/2 - 50);
+            ctx.restore();
+
+            // Stats Display
+            ctx.fillStyle = "#5d4037"; ctx.font = "700 16px Nunito";
+            ctx.textAlign = "center";
+            const yStart = canvas.height/2 + 20;
+            ctx.fillText(`⏱️ Tiempo: ${totalTime}s`, canvas.width/2, yStart);
+            ctx.fillText(`🧟 Zombies Eliminados: ${gameStats.zombiesKilled}`, canvas.width/2, yStart + 25);
+            ctx.fillText(`💀 Civiles Infectados: ${gameStats.civsInfected}`, canvas.width/2, yStart + 50);
+            ctx.fillText(`🛟 Civiles Salvados: ${ciudadanosSalvados}`, canvas.width/2, yStart + 100);
+            if(gameStats.soldiersLost > 0) ctx.fillText(`🎖️ Bajas Militares: ${gameStats.soldiersLost}`, canvas.width/2, yStart + 75);
+
+            ctx.fillStyle = "#8d6e63"; ctx.font = "800 18px Nunito";
+            ctx.fillText(getEndHintText(), canvas.width/2, canvas.height/2 + 130);
+
+            if (!postGameShown) {
+                postGameShown = true;
+                showPostGameOverlay(estadoJuego);
+            }
+        } else {
+            animationId = requestAnimationFrame(animacion);
+        }
+    }
+
+    restartBtn.addEventListener("click", () => restartCurrentRun());
+    showMainMenu();
+
+</script>
+</body>
+</html>
