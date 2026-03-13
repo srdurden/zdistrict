@@ -146,6 +146,63 @@
         #homeBtn:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(0,0,0,0.12); }
         #homeBtn:active { transform: translateY(0px) scale(0.98); }
 
+        #spawnZombieBtn {
+            position: fixed;
+            top: 25px;
+            right: 145px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: #fff;
+            color: var(--text-main);
+            border: 2px solid #efebe9;
+            font-size: 22px;
+            cursor: pointer;
+            box-shadow: var(--shadow-float);
+            z-index: 999;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+        #spawnZombieBtn:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(0,0,0,0.12); }
+        #spawnZombieBtn:active { transform: translateY(0px) scale(0.98); }
+        #spawnZombieBtn.armed {
+            border-color: var(--c-zombie);
+            color: var(--c-zombie);
+            box-shadow: 0 0 0 3px rgba(239,83,80,0.2), var(--shadow-float);
+        }
+
+        .deploy-popup {
+            position: fixed;
+            top: 88px;
+            right: 25px;
+            width: min(320px, calc(100vw - 32px));
+            background: var(--panel-bg);
+            border: 1px solid #efe7e3;
+            border-radius: 16px;
+            box-shadow: 0 18px 60px rgba(0,0,0,0.1);
+            z-index: 1900;
+            padding: 14px;
+            display: none;
+        }
+        .deploy-popup.visible { display: block; }
+        .deploy-title { font-weight: 900; font-size: 14px; margin: 0 0 10px; color: var(--text-main); }
+        .deploy-btn {
+            width: 100%;
+            margin-top: 10px;
+            border: none;
+            border-radius: 12px;
+            padding: 10px 12px;
+            font-weight: 800;
+            color: white;
+            background: linear-gradient(120deg, #ef5350, #e53935);
+            cursor: pointer;
+        }
+        .deploy-note {
+            margin-top: 8px;
+            font-size: 11px;
+            color: #8d6e63;
+            text-align: center;
+        }
+
         .menu-overlay {
             position: fixed;
             inset: 0;
@@ -343,6 +400,21 @@
 
 <button id="settingsToggle" title="Configuración">⚙️</button>
 <button id="homeBtn" title="Menú">🏠</button>
+<button id="spawnZombieBtn" title="Añadir zombie">🧟</button>
+
+<div id="deployPopup" class="deploy-popup">
+    <div class="deploy-title">Tipo de zombie</div>
+    <div class="slider-group" style="margin:0">
+        <div class="slider-header"><span class="slider-label">Velocidad</span><input type="number" id="deployZSpeedNum" min="0.2" max="3" step="0.1" value="1.5"></div>
+        <input type="range" id="deployZSpeedSlider" min="0.2" max="3" step="0.1" value="1.5">
+    </div>
+    <div class="slider-group" style="margin:8px 0 0">
+        <div class="slider-header"><span class="slider-label">Propagación (s)</span><input type="number" id="deployInfectNum" min="1" max="30" step="0.5" value="5"></div>
+        <input type="range" id="deployInfectSlider" min="1" max="30" step="0.5" value="5">
+    </div>
+    <button id="deployZombieBtn" class="deploy-btn">Desplegar</button>
+    <div class="deploy-note">Tras pulsar, toca el escenario para soltar un zombie.</div>
+</div>
 
 <div id="mainMenuOverlay" class="menu-overlay">
   <div class="menu-card">
@@ -471,7 +543,7 @@
     </div>
 
     <button id="restartBtn">Reiniciar Simulación</button>
-    <div class="hint">CLICK: Desplegar zombie rápido • Simulación automática sin movimiento del jugador.</div>
+    <div class="hint">Usa el botón 🧟 para elegir tipo y desplegar zombies en el escenario.</div>
 </div>
 
 <div id="gameContainer">
@@ -824,6 +896,13 @@ const txtEventoElem = document.getElementById("txtEvento");
     const restartBtn = document.getElementById("restartBtn");
     const settingsToggle = document.getElementById("settingsToggle");
     const homeBtn = document.getElementById("homeBtn");
+    const spawnZombieBtn = document.getElementById("spawnZombieBtn");
+    const deployPopup = document.getElementById("deployPopup");
+    const deployZombieBtn = document.getElementById("deployZombieBtn");
+    const deployZSpeedSlider = document.getElementById("deployZSpeedSlider");
+    const deployZSpeedNum = document.getElementById("deployZSpeedNum");
+    const deployInfectSlider = document.getElementById("deployInfectSlider");
+    const deployInfectNum = document.getElementById("deployInfectNum");
     const mainMenuOverlay = document.getElementById("mainMenuOverlay");
     const menuCampaignBtn = document.getElementById("menuCampaignBtn");
     const menuFreeBtn = document.getElementById("menuFreeBtn");
@@ -856,8 +935,47 @@ const txtEventoElem = document.getElementById("txtEvento");
     linkInput(playerSpeedSlider, playerSpeedNum);
     linkInput(playerRangeSlider, playerRangeNum);
     linkInput(milDelaySlider, milDelayNum);
+    linkInput(deployZSpeedSlider, deployZSpeedNum);
+    linkInput(deployInfectSlider, deployInfectNum);
 
     settingsToggle.addEventListener("click", () => configPanel.classList.toggle("visible"));
+
+    let deployZombieArmed = false;
+
+    function setDeployArmed(armed) {
+        deployZombieArmed = armed;
+        if (spawnZombieBtn) spawnZombieBtn.classList.toggle("armed", armed);
+    }
+
+    function closeDeployPopup() {
+        if (deployPopup) deployPopup.classList.remove("visible");
+    }
+
+    if (spawnZombieBtn) {
+        spawnZombieBtn.addEventListener("click", () => {
+            if (!deployPopup) return;
+            const isVisible = deployPopup.classList.contains("visible");
+            if (isVisible) {
+                closeDeployPopup();
+                return;
+            }
+            setDeployArmed(false);
+            deployPopup.classList.add("visible");
+        });
+    }
+
+    if (deployZombieBtn) {
+        deployZombieBtn.addEventListener("click", () => {
+            setDeployArmed(true);
+            closeDeployPopup();
+        });
+    }
+
+    document.addEventListener("pointerdown", (e) => {
+        if (!deployPopup || !deployPopup.classList.contains("visible")) return;
+        if (deployPopup.contains(e.target) || (spawnZombieBtn && spawnZombieBtn.contains(e.target))) return;
+        closeDeployPopup();
+    });
 
     // Main Menu wiring
     if (homeBtn) homeBtn.addEventListener("click", () => showMainMenu());
@@ -1345,6 +1463,7 @@ const txtEventoElem = document.getElementById("txtEvento");
         jugador: "#ffab91",  
         zombie: "#ef5350",   
         ciudadano: "#cfd8dc",
+        ciudadanoEnfermo: "#66bb6a",
         policia: "#7986cb",
         militar: "#9ccc65",
         bala: "#ffcc80",     
@@ -1528,14 +1647,24 @@ const DOOR_BASE_HP = 70;
     ghostToggle.addEventListener('change', (e) => modoFantasma = e.target.checked);
     friendlyFireToggle.addEventListener('change', (e) => fuegoAmigo = e.target.checked);
 
-    function spawnZombieAtWorld(worldX, worldY) {
+    function createZombieEntity(x, y, custom = {}) {
+        return {
+            x,
+            y,
+            direccion: direccionAleatoria(),
+            speed: Number.isFinite(custom.speed) ? custom.speed : velocidadZombie,
+            propagationSec: Number.isFinite(custom.propagationSec) ? custom.propagationSec : 5
+        };
+    }
+
+    function spawnZombieAtWorld(worldX, worldY, custom = null) {
         if (estadoJuego !== "PLAYING") return;
         const tx = Math.floor(worldX / cellSize);
         const ty = Math.floor(worldY / cellSize);
         if (isTileBlocked(tx, ty)) return;
         const x = Math.max(0, Math.min(canvas.width - tamanoEntidad, worldX - tamanoEntidad / 2));
         const y = Math.max(0, Math.min(canvas.height - tamanoEntidad, worldY - tamanoEntidad / 2));
-        zombies.push({x, y, direccion: direccionAleatoria()});
+        zombies.push(createZombieEntity(x, y, custom || undefined));
         addNoise(x, y, 160, 26);
         actualizarStatsUI();
     }
@@ -1606,9 +1735,14 @@ const DOOR_BASE_HP = 70;
         const p = pointerState.get(e.pointerId);
         if (!p) return;
 
-        if (!wasPinching && !p.moved) {
+        if (!wasPinching && !p.moved && deployZombieArmed) {
             const world = screenToWorld(e.clientX, e.clientY);
-            spawnZombieAtWorld(world.x, world.y);
+            const zombieType = {
+                speed: Number(deployZSpeedNum.value) || 1.5,
+                propagationSec: Number(deployInfectNum.value) || 5
+            };
+            spawnZombieAtWorld(world.x, world.y, zombieType);
+            setDeployArmed(false);
         }
 
         pointerState.delete(e.pointerId);
@@ -2178,7 +2312,7 @@ director.message = "REFUGIO ✅";
             const t = pickFarTile(20);
             if (!t) break;
             const p = tileToEntityPixel(t.x, t.y);
-            zombies.push({ x: p.x, y: p.y, direccion: direccionAleatoria() });
+            zombies.push(createZombieEntity(p.x, p.y));
             addNoise(p.x, p.y, 160, 30);
         }
         actualizarStatsUI();
@@ -3125,6 +3259,7 @@ function spawnFromTiles(arr, tiles, type) {
         markUsed(tx, ty);
         const p = tileToEntityPixel(tx, ty);
         let ent = { x: p.x, y: p.y, direccion: direccionAleatoria(), boarding: 0, _saved: false };
+        if (type === 'zomb') ent = createZombieEntity(p.x, p.y);
         if (type === 'poli') { ent.balas = policeInitialBullets; ent.cooldown = 0; }
         arr.push(ent);
         placed++;
@@ -3184,6 +3319,7 @@ const spawn = (arr, count, type) => {
         markUsed(t.x, t.y);
         const p = tileToEntityPixel(t.x, t.y);
         let ent = { x: p.x, y: p.y, direccion: direccionAleatoria(), boarding: 0, _saved: false };
+        if (type === 'zomb') ent = createZombieEntity(p.x, p.y);
         if (type === 'poli') { ent.balas = policeInitialBullets; ent.cooldown = 0; }
         arr.push(ent);
     }
@@ -3379,7 +3515,17 @@ drawDoorsWorld();
 
         const hx = helicoptero.x + helicoptero.ancho/2, hy = helicoptero.y + helicoptero.alto/2;
         
+        const pendingZombieTransforms = [];
+
         ciudadanos.forEach(cit => {
+            if (cit.infectionFramesLeft && cit.infectionFramesLeft > 0) {
+                cit.infectionFramesLeft = Math.max(0, cit.infectionFramesLeft - (1 * timeScale));
+                if (cit.infectionFramesLeft <= 0 && cit.infectedBy) {
+                    pendingZombieTransforms.push({ cit, infectedBy: cit.infectedBy });
+                    return;
+                }
+            }
+
             if(Math.random()<0.05) cit.direccion = normalizar(cit.direccion.x + (Math.random()-0.5), cit.direccion.y + (Math.random()-0.5));
             let threatVec = {x:0, y:0}; let threatFound = false;
             const checkThreat = (list) => {
@@ -3416,8 +3562,25 @@ if (helicoptero.visible) {
 } else {
     cit.boarding = 0;
 }
-            drawEnt(cit, PALETA.ciudadano, radioVisual);
+            const citizenColor = (cit.infectionFramesLeft && cit.infectionFramesLeft > 0) ? PALETA.ciudadanoEnfermo : PALETA.ciudadano;
+            drawEnt(cit, citizenColor, radioVisual);
         });
+
+        if (pendingZombieTransforms.length) {
+            for (const entry of pendingZombieTransforms) {
+                const idx = ciudadanos.indexOf(entry.cit);
+                if (idx === -1) continue;
+                const newZombie = createZombieEntity(entry.cit.x, entry.cit.y, {
+                    speed: entry.infectedBy.speed,
+                    propagationSec: entry.infectedBy.propagationSec
+                });
+                zombies.push(newZombie);
+                ciudadanos.splice(idx, 1);
+                gameStats.civsInfected++;
+            }
+            actualizarStatsUI();
+        }
+
         // elimina los ciudadanos ya salvados
         if (ciudadanos.some(c => c._saved)) ciudadanos = ciudadanos.filter(c => !c._saved);
 
@@ -3528,10 +3691,18 @@ if (helicoptero.visible) {
                 zombie.direccion = normalizar(target.x - zombie.x, target.y - zombie.y);
                 if(!(target.vida !== undefined)) { 
                      if(minDist < 3) {
-                            if (ciudadanos.includes(target)) { ciudadanos = ciudadanos.filter(c => c!==target); gameStats.civsInfected++; }
+                            if (ciudadanos.includes(target)) {
+                                if (!target.infectionFramesLeft || target.infectionFramesLeft <= 0) {
+                                    const propagationSec = Number.isFinite(zombie.propagationSec) ? zombie.propagationSec : 5;
+                                    target.infectionFramesLeft = Math.max(1, propagationSec * BASE_FPS);
+                                    target.infectedBy = {
+                                        speed: Number.isFinite(zombie.speed) ? zombie.speed : velocidadZombie,
+                                        propagationSec
+                                    };
+                                }
+                            }
                             else if (policias.includes(target)) policias = policias.filter(p => p!==target); 
                             else if (militares.includes(target)) { militares = militares.filter(m => m!==target); gameStats.soldiersLost++; }
-                            zombies.push({x:target.x, y:target.y, direccion:direccionAleatoria()}); 
                             actualizarStatsUI();
                      }
                 }
@@ -3540,7 +3711,7 @@ if (helicoptero.visible) {
             }
             if(Math.random() < 0.15) { const sep = obtenerFuerzaSeparacion(zombie, zombies, radioSeparacion); zombie.direccion.x += sep.x * 0.8; zombie.direccion.y += sep.y * 0.8; }
             
-            const choco = aplicarFuerzas(zombie, velocidadZombie, timeScale);
+            const choco = aplicarFuerzas(zombie, Number.isFinite(zombie.speed) ? zombie.speed : velocidadZombie, timeScale);
             if(choco) {
                 const hitBox = zombieTryHitMueble(zombie);
                 const hitDoor = (!hitBox) ? zombieTryHitDoor(zombie) : false;
