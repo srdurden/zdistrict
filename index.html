@@ -266,9 +266,9 @@
 
             canvas {
                 width: 100vw;
-                height: calc(var(--app-height) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-                max-height: none;
-                aspect-ratio: auto;
+                height: auto;
+                max-height: calc(var(--app-height) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+                aspect-ratio: 5 / 3;
                 border-radius: 0;
                 border-left: 0;
                 border-right: 0;
@@ -377,8 +377,8 @@
     </div>
     
     <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Civiles</span><input type="number" id="citizenNum" value="1500"></div>
-        <input type="range" id="citizenSlider" min="0" max="3000" value="1500">
+        <div class="slider-header"><span class="slider-label">Civiles</span><input type="number" id="citizenNum" value="750"></div>
+        <input type="range" id="citizenSlider" min="0" max="3000" value="750">
     </div>
     
     <div class="slider-group">
@@ -388,8 +388,8 @@
 
     <!-- Militares -->
     <div class="slider-group">
-        <div class="slider-header"><span class="slider-label" style="color:var(--c-soldier)">Militares (Pelotón)</span><input type="number" id="soldierNum" value="10"></div>
-        <input type="range" id="soldierSlider" min="0" max="50" value="10">
+        <div class="slider-header"><span class="slider-label" style="color:var(--c-soldier)">Militares (Pelotón)</span><input type="number" id="soldierNum" value="0"></div>
+        <input type="range" id="soldierSlider" min="0" max="50" value="0">
     </div>
 
     <!-- Retraso militar -->
@@ -474,7 +474,7 @@
 </div>
 
 <div id="gameContainer">
-    <canvas id="myCanvas" width="900" height="540"></canvas>
+    <canvas id="myCanvas" width="4500" height="2700"></canvas>
 
     
 </div>
@@ -1622,7 +1622,7 @@ const DOOR_BASE_HP = 70;
 
     canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
-        const factor = Math.exp(-e.deltaY * 0.0015);
+        const factor = Math.exp(-e.deltaY * 0.004);
         setZoomAtPoint(camera.zoom * factor, e.clientX, e.clientY);
     }, { passive: false });
 
@@ -2585,8 +2585,8 @@ function generarMapa() {
         }
 
         // Crear casas (rectángulos con 1 puerta)
-        const desiredHouses = 10;
-        let tries = 240;
+        const desiredHouses = 50;
+        let tries = 1200;
         while (houseRooms.length < desiredHouses && tries-- > 0) {
             const w = randInt(7, 13);
             const h = randInt(7, 11);
