@@ -501,26 +501,14 @@
         <input type="range" id="zombieSpeedSlider" min="0.2" max="3" step="0.1" value="1.5">
     </div>
 
-    <!-- Rango Disparo Jugador -->
     <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Rango acción zombie (px)</span><input type="number" id="playerRangeNum" min="30" max="300" value="60"></div>
-        <input type="range" id="playerRangeSlider" min="30" max="300" value="60">
-    </div>
-
-    <!-- Velocidad Jugador -->
-    <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Velocidad operador (sin uso)</span><input type="number" id="playerSpeedNum" step="0.1" value="2.5"></div>
-        <input type="range" id="playerSpeedSlider" min="1.0" max="4.0" step="0.1" value="2.5">
+        <div class="slider-header"><span class="slider-label">Bengalas</span><input type="number" id="bengalaNum" value="0"></div>
+        <input type="range" id="bengalaSlider" min="0" max="10" value="0">
     </div>
 
     <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Bengalas</span><input type="number" id="bengalaNum" value="1"></div>
-        <input type="range" id="bengalaSlider" min="0" max="10" value="1">
-    </div>
-
-    <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">📦 Cajas</span><input type="number" id="boxNum" min="0" max="200" value="32"></div>
-        <input type="range" id="boxSlider" min="0" max="200" step="1" value="32">
+        <div class="slider-header"><span class="slider-label">📦 Cajas</span><input type="number" id="boxNum" min="0" max="200" value="0"></div>
+        <input type="range" id="boxSlider" min="0" max="200" step="1" value="0">
     </div>
 
     <div class="slider-group">
@@ -903,8 +891,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     const soldierSpeedSlider = document.getElementById("soldierSpeedSlider"); const soldierSpeedNum = document.getElementById("soldierSpeedNum");
     const jamCountSlider = document.getElementById("jamCountSlider"); const jamCountNum = document.getElementById("jamCountNum");
     const jamDurSlider = document.getElementById("jamDurSlider"); const jamDurNum = document.getElementById("jamDurNum");
-    const playerSpeedSlider = document.getElementById("playerSpeedSlider"); const playerSpeedNum = document.getElementById("playerSpeedNum");
-    const playerRangeSlider = document.getElementById("playerRangeSlider"); const playerRangeNum = document.getElementById("playerRangeNum");
     const milDelaySlider = document.getElementById("milDelaySlider"); const milDelayNum = document.getElementById("milDelayNum");
 
     const friendlyFireToggle = document.getElementById("friendlyFireToggle");
@@ -953,8 +939,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     linkInput(soldierSpeedSlider, soldierSpeedNum);
     linkInput(jamCountSlider, jamCountNum);
     linkInput(jamDurSlider, jamDurNum);
-    linkInput(playerSpeedSlider, playerSpeedNum);
-    linkInput(playerRangeSlider, playerRangeNum);
     linkInput(milDelaySlider, milDelayNum);
     linkInput(deployZSpeedSlider, deployZSpeedNum);
     linkInput(deployInfectSlider, deployInfectNum);
@@ -1042,9 +1026,8 @@ const txtEventoElem = document.getElementById("txtEvento");
                 soldierCount: 0,
                 boxCount: 1,
                 zombieSpeed: 1,
-                playerSpeed: 2.7,
                 balas: 0,
-                bengalas: 1,
+                bengalas: 0,
                 soldierSpawnDelaySec: 0
             },
             mapDef: {
@@ -1093,8 +1076,6 @@ const txtEventoElem = document.getElementById("txtEvento");
             name: "Barrio Cortado",
             directorOverrides: {
                 enabled: true,
-                waveInterval: 22 * 30,
-                waveCountdown: 3 * 30,
                 shelterInterval: 33 * 30,
                 shelterHoldNeed: 2 * 30
             },
@@ -1105,9 +1086,8 @@ const txtEventoElem = document.getElementById("txtEvento");
                 soldierCount: 2,
                 boxCount: 30,
                 zombieSpeed: 1.55,
-                playerSpeed: 2.65,
                 balas: 17,
-                bengalas: 1,
+                bengalas: 0,
                 soldierSpawnDelaySec: 10,
                 soldierCooldownSec: 1.0
             },
@@ -1145,8 +1125,6 @@ const txtEventoElem = document.getElementById("txtEvento");
             name: "El Laberinto",
             directorOverrides: {
                 enabled: true,
-                waveInterval: 17 * 30,
-                waveCountdown: 3 * 30,
                 shelterInterval: 28 * 30,
                 shelterHoldNeed: 2 * 30
             },
@@ -1157,9 +1135,8 @@ const txtEventoElem = document.getElementById("txtEvento");
                 soldierCount: 3,
                 boxCount: 34,
                 zombieSpeed: 1.65,
-                playerSpeed: 2.6,
                 balas: 14,
-                bengalas: 1,
+                bengalas: 0,
                 soldierSpawnDelaySec: 7,
                 soldierCooldownSec: 0.9
             },
@@ -1277,7 +1254,7 @@ const txtEventoElem = document.getElementById("txtEvento");
         const lvl = isCampaignRun() ? getActiveCampaignLevel() : null;
         const idx = isCampaignRun() ? getActiveCampaignIndex() : 0;
 
-        let titleText = victory ? "¡EVACUACIÓN EXITOSA!" : "GAME OVER";
+        let titleText = victory ? "¡HUMANOS ELIMINADOS!" : "GAME OVER";
         if (isCampaignRun() && victory && isLastCampaignLevel()) titleText = "¡CAMPAÑA COMPLETADA!";
 
         let subtitleText = isCampaignRun()
@@ -1406,7 +1383,7 @@ const txtEventoElem = document.getElementById("txtEvento");
             citizenCount: toInt(citizenNum, 15),
             policeCount: toInt(policeNum, 1),
             soldierCount: toInt(soldierNum, 0),
-            boxCount: toInt(boxNum, 32),
+            boxCount: toInt(boxNum, 0),
             mapWidthTiles: toInt(mapWidthTilesNum, 50),
             mapHeightTiles: toInt(mapHeightTilesNum, 50),
             structureAttempts: toInt(structureAttemptsNum, 1),
@@ -1414,13 +1391,11 @@ const txtEventoElem = document.getElementById("txtEvento");
             // Speeds
             zombieSpeed: toFloat(zSpeedNum, 1.5),
             citizenSpeed: toFloat(citizenSpeedSlider, 1.0),
-            playerSpeed: toFloat(playerSpeedNum, 2.6),
             soldierSpeed: toFloat(soldierSpeedNum, 1.1),
 
             // Player
             balas: toInt(balasNum, 5),
-            bengalas: toInt(bengalaNum, 1),
-            playerRange: toInt(playerRangeNum, 60),
+            bengalas: toInt(bengalaNum, 0),
 
             // Toggles
             ghostMode: !!(ghostToggle && ghostToggle.checked),
@@ -1440,7 +1415,6 @@ const txtEventoElem = document.getElementById("txtEvento");
 
         velocidadZombie = settings.zombieSpeed;
         velocidadCiudadano = settings.citizenSpeed;
-        velocidadJugador = settings.playerSpeed;
         velocidadMilitar = settings.soldierSpeed;
 
         balasRestantes = settings.balas;
@@ -1457,7 +1431,6 @@ const txtEventoElem = document.getElementById("txtEvento");
 
         soldierSpawnDelayFrames = settings.soldierSpawnDelaySec * 30;
 
-        diametroDisparo = settings.playerRange;
     }
 
 
@@ -1527,7 +1500,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     let distanciaPersecucion = 120; 
     let distanciaHuida = 60; 
     let radioSeparacion = 5; 
-    let diametroDisparo = 60; 
     let distanciaAtaque = 3; 
     let radioAtraccionBengala = 250; 
     let rangoVisionMilitar = 60; 
@@ -1546,7 +1518,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     // Variables de Juego
     let velocidadZombie = 1.5; // Default
     let velocidadCiudadano = 1.0;
-    let velocidadJugador = 2.5; 
     let velocidadMilitar = 1.1; 
     
     let balasRestantes = 0;
@@ -1658,10 +1629,6 @@ const DOOR_BASE_HP = 70;
 
     const director = {
         enabled: true,
-        waveInterval: 25 * 30,
-        waveCountdown: 3 * 30,
-        waveTimer: 25 * 30,
-        countdownLeft: 0,
         shelterInterval: 35 * 30,
         shelterTimer: 35 * 30,
         shelter: null, // {x,y,radius,ttl,hold,claimed}
@@ -1671,8 +1638,6 @@ const DOOR_BASE_HP = 70;
 
     const DIRECTOR_BASE = {
         enabled: director.enabled,
-        waveInterval: director.waveInterval,
-        waveCountdown: director.waveCountdown,
         shelterInterval: director.shelterInterval,
         shelterHoldNeed: director.shelterHoldNeed
     };
@@ -2329,24 +2294,7 @@ director.message = "REFUGIO ✅";
             }
         }
 
-        // wave logic
-        if (director.countdownLeft > 0) {
-            director.countdownLeft -= step;
-            const secs = Math.ceil(director.countdownLeft / BASE_FPS);
-            director.message = "OLEADA EN " + secs;
-            if (director.countdownLeft <= 0) {
-                spawnWave();
-                director.waveTimer = director.waveInterval;
-                director.message = "OLEADA 💥";
-            }
-        } else {
-            director.waveTimer -= step;
-            if (director.waveTimer <= director.waveCountdown) {
-                director.countdownLeft = director.waveCountdown;
-            } else {
-                director.message = director.shelter ? "REFUGIO" : "-";
-            }
-        }
+        director.message = director.shelter ? "REFUGIO" : "-";
 
         if (txtEventoElem) txtEventoElem.textContent = director.message;
     }
@@ -2357,20 +2305,6 @@ director.message = "REFUGIO ✅";
         const candidates = reachableTiles.filter(t => distancia(t.x, t.y, pt.x, pt.y) >= minDistTiles);
         const arr = candidates.length ? candidates : reachableTiles;
         return arr[randInt(0, arr.length - 1)];
-    }
-
-    function spawnWave() {
-        const base = 6;
-        const extra = Math.min(10, Math.floor((Date.now() - gameStats.startTime) / 60000)); // +1 per minute, cap 10
-        const n = base + extra;
-        for (let i = 0; i < n; i++) {
-            const t = pickFarTile(20);
-            if (!t) break;
-            const p = tileToEntityPixel(t.x, t.y);
-            zombies.push(createZombieEntity(p.x, p.y));
-            addNoise(p.x, p.y, 160, 30);
-        }
-        actualizarStatsUI();
     }
 
     function spawnShelter() {
@@ -2970,8 +2904,6 @@ function generarMapa() {
 noises = [];
         // Reset director to base defaults, then apply overrides per run
         director.enabled = DIRECTOR_BASE.enabled;
-        director.waveInterval = DIRECTOR_BASE.waveInterval;
-        director.waveCountdown = DIRECTOR_BASE.waveCountdown;
         director.shelterInterval = DIRECTOR_BASE.shelterInterval;
         director.shelterHoldNeed = DIRECTOR_BASE.shelterHoldNeed;
 
@@ -2979,8 +2911,6 @@ noises = [];
             Object.assign(director, currentRunDef.directorOverrides);
         }
 
-        director.waveTimer = director.waveInterval;
-        director.countdownLeft = 0;
         director.shelterTimer = director.shelterInterval;
         director.shelter = null;
         director.message = "-";
