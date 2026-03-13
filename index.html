@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=yes" />
     <title>Z-District: Pastel Panic v7.0 (Director's Cut)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap');
@@ -34,9 +35,10 @@
             color: var(--text-main);
             display: flex;
             justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            overflow: hidden;
+            align-items: flex-start;
+            min-height: 100svh;
+            overflow: auto;
+            touch-action: pan-x pan-y pinch-zoom;
             user-select: none;
         }
 
@@ -44,9 +46,12 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-start;
             position: relative;
             z-index: 1;
+            min-height: 100svh;
+            padding: 16px 8px 24px;
+            box-sizing: border-box;
         }
 
         canvas {
@@ -58,9 +63,10 @@
             border: 4px solid rgba(255,255,255,0.92);
 
             /* Responsive without looking pixelated */
-            width: min(920px, 92vw);
+            width: min(920px, 98vw);
+            max-width: none;
+            height: min(100svh - 40px, calc(98vw * 0.6));
             aspect-ratio: 5 / 3;
-            height: auto;
             image-rendering: auto;
             will-change: transform;
         }
@@ -307,12 +313,11 @@
 <div id="mainMenuOverlay" class="menu-overlay">
   <div class="menu-card">
     <div class="menu-title">Z-District: Pastel Panic</div>
-    <div class="menu-subtitle">Elige un modo</div>
+    <div class="menu-subtitle">Simulación de planificación zombie</div>
     <div class="menu-actions">
-      <button id="menuCampaignBtn" class="menu-btn primary">🎯 Campaña</button>
-      <button id="menuFreeBtn" class="menu-btn">🎲 Modo libre</button>
+      <button id="menuFreeBtn" class="menu-btn primary">🧟 Nueva simulación</button>
     </div>
-    <div class="menu-hint">En campaña la configuración está bloqueada.</div>
+    <div class="menu-hint">Despliega zombies tocando el escenario. Sin control directo del jugador.</div>
   </div>
 </div>
 
@@ -334,8 +339,8 @@
     <h1>Configuración</h1>
     
     <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Zombies</span><input type="number" id="zombieNum" value="5"></div>
-        <input type="range" id="zombieSlider" min="0" max="500" value="5">
+        <div class="slider-header"><span class="slider-label">Zombies iniciales</span><input type="number" id="zombieNum" value="0"></div>
+        <input type="range" id="zombieSlider" min="0" max="500" value="0">
     </div>
     
     <div class="slider-group">
@@ -392,13 +397,13 @@
 
     <!-- Rango Disparo Jugador -->
     <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Rango Disparo (px)</span><input type="number" id="playerRangeNum" min="30" max="300" value="60"></div>
+        <div class="slider-header"><span class="slider-label">Rango acción zombie (px)</span><input type="number" id="playerRangeNum" min="30" max="300" value="60"></div>
         <input type="range" id="playerRangeSlider" min="30" max="300" value="60">
     </div>
 
     <!-- Velocidad Jugador -->
     <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Velocidad Jugador</span><input type="number" id="playerSpeedNum" step="0.1" value="2.5"></div>
+        <div class="slider-header"><span class="slider-label">Velocidad operador (sin uso)</span><input type="number" id="playerSpeedNum" step="0.1" value="2.5"></div>
         <input type="range" id="playerSpeedSlider" min="1.0" max="4.0" step="0.1" value="2.5">
     </div>
 
@@ -432,23 +437,13 @@
     </div>
 
     <button id="restartBtn">Reiniciar Simulación</button>
-    <div class="hint">CLICK: Infectar • B: Bengala • SPACE: Disparar • C: Puertas • Empuja cajas chocando</div>
+    <div class="hint">CLICK: Desplegar zombie rápido • Simulación automática sin movimiento del jugador.</div>
 </div>
 
 <div id="gameContainer">
     <canvas id="myCanvas" width="900" height="540"></canvas>
 
-    <div id="statusBar">
-        <div class="status-item"><div class="dot player"></div> TÚ</div>
-        <div class="status-item"><div class="dot zombie"></div> ZOMBIES <span class="status-count" id="numZombies">0</span></div>
-        <div class="status-item"><div class="dot citizen"></div> CIVILES <span class="status-count" id="numCiudadanos">0</span></div>
-        <div class="status-item"><div class="dot police"></div> POLICÍA <span class="status-count" id="numPolicias">0</span></div>
-        <div class="status-item"><div class="dot soldier"></div> MILITAR <span class="status-count" id="numMilitares">0</span></div>
-        <div class="status-item"><div class="dot ammo"></div> BALAS <span class="status-count" id="numBalas">0</span></div>
-        <div class="status-item"><div class="dot flare"></div> BENG. <span class="status-count" id="numBengalas">0</span></div>
-<div class="status-item"><div class="dot saved"></div> SALV. <span class="status-count" id="numSalvados">0</span></div>
-        <div class="status-item"><div class="dot event"></div> EVENTO <span class="status-count" id="txtEvento">-</span></div>
-    </div>
+    
 </div>
 
 <script>
@@ -780,7 +775,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     // Main Menu wiring
     if (homeBtn) homeBtn.addEventListener("click", () => showMainMenu());
     if (menuFreeBtn) menuFreeBtn.addEventListener("click", () => startFreeMode());
-    if (menuCampaignBtn) menuCampaignBtn.addEventListener("click", () => startCampaignMode(0));
+    if (menuCampaignBtn) menuCampaignBtn.style.display = "none";
 
 
 
@@ -1436,10 +1431,8 @@ const DOOR_BASE_HP = 70;
     document.addEventListener("keydown", (e) => {
         if (e.code === "KeyM") { e.preventDefault(); showMainMenu(); return; }
         if (estadoJuego !== "PLAYING" && e.code === "Space") { e.preventDefault(); handlePostgamePrimaryAction(); return; }
-        if (estadoJuego === "PLAYING" && e.code === "KeyB" && bengalasRestantes > 0) {
-            bengalasRestantes--; activeBengala(jugador.x, jugador.y); actualizarStatsUI();
-        }        if (estadoJuego === "PLAYING" && e.code === "KeyC") { toggleAllDoors(); e.preventDefault(); return; }
-        if (e.code in teclas) { teclas[e.code] = true; e.preventDefault(); } 
+        if (estadoJuego === "PLAYING" && e.code === "KeyC") { toggleAllDoors(); e.preventDefault(); return; }
+        if (e.code in teclas) { teclas[e.code] = false; e.preventDefault(); } 
     });
     document.addEventListener("keyup", (e) => { 
         if (e.code in teclas) { teclas[e.code] = false; e.preventDefault(); } 
@@ -1451,17 +1444,18 @@ const DOOR_BASE_HP = 70;
     canvas.addEventListener('mousedown', (e) => {
         if(estadoJuego !== "PLAYING") return;
         const rect = canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-        const infectar = (arr, i) => {
-            const e = arr[i]; arr.splice(i, 1);
-            zombies.push({x: e.x, y: e.y, direccion: direccionAleatoria()});
-            actualizarStatsUI();
-        };
-        [ciudadanos, policias, militares].forEach(arr => {
-            for(let i=0; i<arr.length; i++) {
-                if(distancia(mx, my, arr[i].x+1.5, arr[i].y+1.5) < 15) { infectar(arr, i); return; }
-            }
-        });
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const mx = (e.clientX - rect.left) * scaleX;
+        const my = (e.clientY - rect.top) * scaleY;
+        const tx = Math.floor(mx / cellSize);
+        const ty = Math.floor(my / cellSize);
+        if (isTileBlocked(tx, ty)) return;
+        const x = Math.max(0, Math.min(canvas.width - tamanoEntidad, mx - tamanoEntidad / 2));
+        const y = Math.max(0, Math.min(canvas.height - tamanoEntidad, my - tamanoEntidad / 2));
+        zombies.push({x, y, direccion: direccionAleatoria()});
+        addNoise(x, y, 160, 26);
+        actualizarStatsUI();
     });
 
     function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
@@ -3037,12 +3031,12 @@ else if (!deterministicCampaign) spawn(zombies, mergedSettings.zombieCount, 'zom
     }
 
     function actualizarStatsUI() {
-        numZombiesElem.textContent = zombies.length;
-        numCiudadanosElem.textContent = ciudadanos.length;
-        numPoliciasElem.textContent = policias.length;
-        numMilitaresElem.textContent = militares.length;
-        numBalasElem.textContent = balasRestantes;
-        numBengalasElem.textContent = bengalasRestantes;
+        if (numZombiesElem) numZombiesElem.textContent = zombies.length;
+        if (numCiudadanosElem) numCiudadanosElem.textContent = ciudadanos.length;
+        if (numPoliciasElem) numPoliciasElem.textContent = policias.length;
+        if (numMilitaresElem) numMilitaresElem.textContent = militares.length;
+        if (numBalasElem) numBalasElem.textContent = balasRestantes;
+        if (numBengalasElem) numBengalasElem.textContent = bengalasRestantes;
         if (numSalvadosElem) numSalvadosElem.textContent = ciudadanosSalvados;
 if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? director.message : "-";
     }
@@ -3287,7 +3281,6 @@ if (helicoptero.visible) {
             let potentialTargets = [];
             zombies.forEach(z => potentialTargets.push({e:z, type:'zom', p:1})); 
             if(fuegoAmigo) {
-                if(!modoFantasma) potentialTargets.push({e:jugador, type:'ply', p:2}); 
                 policias.forEach(p => potentialTargets.push({e:p, type:'pol', p:3})); 
                 ciudadanos.forEach(c => potentialTargets.push({e:c, type:'cit', p:4})); 
             }
@@ -3321,7 +3314,6 @@ if (helicoptero.visible) {
                     if(mil.shotsFired >= soldierJamCount) { mil.isJammed = true; mil.jamTimer = soldierJamDurationFrames; }
                     if(!mil.isJammed) { 
                          if(target.type === 'zom') { zombies = zombies.filter(z => z !== t); cadaveres.push({x:t.x,y:t.y}); gameStats.zombiesKilled++; addBlood(t.x + 1.5, t.y + 1.5, 2); addFloatText('+1', t.x + 1.5, t.y - 3, 'rgba(229,57,53,0.9)'); }
-                         else if(target.type === 'ply') { estadoJuego = "GAME OVER"; }
                          else if(target.type === 'pol') { policias = policias.filter(p => p !== t); cadaveres.push({x:t.x,y:t.y}); }
                          else if(target.type === 'cit') { ciudadanos = ciudadanos.filter(c => c !== t); cadaveres.push({x:t.x,y:t.y}); }
                          addNoise(mil.x, mil.y, 210, 20);
@@ -3345,7 +3337,6 @@ if (helicoptero.visible) {
                     const d = distancia(zombie.x, zombie.y, e.x, e.y);
                     if(d < 120 && (d<35 || tieneLineaDeVision(zombie.x, zombie.y, e.x, e.y))) { if(d < minDist) { minDist=d; target=e; } }
                 };
-                if(!modoFantasma) check(jugador);
                 policias.forEach(check); militares.forEach(check); ciudadanos.forEach(check);
             }
             if(!target) {
@@ -3356,14 +3347,11 @@ if (helicoptero.visible) {
                 zombie.direccion = normalizar(target.x - zombie.x, target.y - zombie.y);
                 if(!(target.vida !== undefined)) { 
                      if(minDist < 3) {
-                         if(target === jugador) estadoJuego = "GAME OVER";
-                         else {
                             if (ciudadanos.includes(target)) { ciudadanos = ciudadanos.filter(c => c!==target); gameStats.civsInfected++; }
                             else if (policias.includes(target)) policias = policias.filter(p => p!==target); 
                             else if (militares.includes(target)) { militares = militares.filter(m => m!==target); gameStats.soldiersLost++; }
                             zombies.push({x:target.x, y:target.y, direccion:direccionAleatoria()}); 
                             actualizarStatsUI();
-                         }
                      }
                 }
             } else {
@@ -3391,68 +3379,13 @@ if (helicoptero.visible) {
             ctx.save(); ctx.translate(hx, hy); ctx.rotate(timestamp / 20); 
             ctx.fillStyle = "rgba(62, 39, 35, 0.8)"; ctx.fillRect(-16, -2, 32, 4); ctx.fillRect(-2, -16, 4, 32); ctx.restore();
             ctx.fillStyle = "#fff"; ctx.font = "800 10px Nunito"; ctx.textAlign="center"; ctx.fillText("ESCAPE", hx, hy+4);
-            if(distancia(jugador.x,jugador.y,helicoptero.x,helicoptero.y)<cellSize*1.5) estadoJuego = "VICTORY";
         }
 
-        let jx = 0, jy = 0;
-        if (introTimer >= INTRO_DURATION) {
-            if(teclas.ArrowUp) jy -= 1; if(teclas.ArrowDown) jy += 1;
-            if(teclas.ArrowLeft) jx -= 1; if(teclas.ArrowRight) jx += 1;
-        }
-        if(jx!==0 || jy!==0) {
-            const d = normalizar(jx, jy);
-            const sprinting = teclas.ShiftLeft || teclas.ShiftRight;
-            const speedMult = sprinting ? 1.6 : 1.0;
-            moverJugadorConMuebles( d.x, d.y, velocidadJugador * speedMult * timeScale);
-            if (footstepCooldown <= 0) {
-                addNoise(jugador.x, jugador.y, sprinting ? 95 : 60, 14);
-                footstepCooldown = sprinting ? 6 : 10;
-            }
-        }
+        disparoEnFotograma = false;
 
-        if (teclas.Space && balasRestantes > 0 && introTimer >= INTRO_DURATION) {
-            ctx.beginPath(); ctx.arc(jugador.x+1.5, jugador.y+1.5, diametroDisparo, 0, Math.PI*2);
-            ctx.fillStyle = "rgba(255, 204, 128, 0.15)"; ctx.fill();
-            ctx.strokeStyle = "rgba(255, 171, 145, 0.5)"; ctx.lineWidth = 1; ctx.stroke();
-        }
 
-        if (teclas.Space && !disparoEnFotograma && balasRestantes > 0 && introTimer >= INTRO_DURATION) {
-            balasRestantes--; 
-            addNoise(jugador.x, jugador.y, 220, 22);
-            spawnParticles(jugador.x + 1.5, jugador.y + 1.5, 'rgba(255,204,128,0.95)', 10, 2.2, Math.PI * 2, 14, 1.4, 0.9);
-            actualizarStatsUI();
-            disparoEnFotograma = true;
-
-            let candidates = [];
-            zombies.forEach(z => candidates.push({e:z, type:'zom'}));
-            militares.forEach(m => candidates.push({e:m, type:'mil'}));
-            let nearest = null, dMin = diametroDisparo;
-            candidates.forEach(c => { const d = distancia(jugador.x, jugador.y, c.e.x, c.e.y); if(d < dMin) { dMin = d; nearest = c; } });
-
-            if(nearest) {
-                const target = nearest.e;
-                if(nearest.type === 'zom') { zombies = zombies.filter(z => z !== target); cadaveres.push({x:target.x, y:target.y}); gameStats.zombiesKilled++; addBlood(target.x + 1.5, target.y + 1.5, 2); addFloatText('+1', target.x + 1.5, target.y - 3, 'rgba(229,57,53,0.9)'); }
-                else if(nearest.type === 'mil') { militares = militares.filter(m => m !== target); cadaveres.push({x:target.x, y:target.y}); }
-                screenShake = 6; 
-                ctx.strokeStyle = "#ffcc80"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(jugador.x+1.5, jugador.y+1.5); ctx.lineTo(target.x+1.5, target.y+1.5); ctx.stroke();
-            } else { screenShake = 3; }
-        } else if (!teclas.Space) disparoEnFotograma = false;
-
-        drawEnt(jugador, modoFantasma ? "rgba(255, 171, 145, 0.5)" : PALETA.jugador, radioVisual+1);
-
-        if (introTimer < INTRO_DURATION) {
-            ctx.beginPath();
-            ctx.arc(jugador.x+1.5, jugador.y+1.5, 20 + Math.sin(introTimer/5)*5, 0, Math.PI*2);
-            ctx.strokeStyle = `rgba(255, 171, 145, ${1 - (introTimer/INTRO_DURATION)})`;
-            ctx.lineWidth = 2;
-            ctx.stroke();
-        }
-
-        if(llave.visible) {
-            const cx = llave.x + 1.5, cy = llave.y + 1.5; const pulse = (Math.sin(timestamp / 150) + 1) / 2; 
-            ctx.save(); ctx.translate(cx, cy); ctx.beginPath(); ctx.arc(0, 0, 10 + (5 * pulse), 0, Math.PI*2); ctx.fillStyle = "rgba(229, 115, 115, 0.2)"; ctx.fill();
-            ctx.rotate(Math.PI / 4); ctx.fillStyle = PALETA.llave; ctx.fillRect(-3, -3, 6, 6); ctx.restore();
-            if(distancia(jugador.x,jugador.y,llave.x,llave.y)<12) { llave.visible=false; helicoptero.visible=true; helicoptero.energia=true; }
+        if ((ciudadanos.length + policias.length + militares.length) === 0 && estadoJuego === "PLAYING") {
+            estadoJuego = "VICTORY";
         }
 
         drawParticles();
@@ -3469,7 +3402,7 @@ if (helicoptero.visible) {
             ctx.save(); ctx.shadowColor = "rgba(0,0,0,0.1)"; ctx.shadowBlur = 10; ctx.shadowOffsetY = 5;
             ctx.fillStyle = estadoJuego === "VICTORY" ? "#81c784" : "#ef5350";
             ctx.textAlign = "center"; ctx.font = "900 48px Nunito";
-            ctx.fillText(estadoJuego === "VICTORY" ? "¡EVACUACIÓN EXITOSA!" : "GAME OVER", canvas.width/2, canvas.height/2 - 50);
+            ctx.fillText(estadoJuego === "VICTORY" ? "¡HUMANOS ELIMINADOS!" : "SIMULACIÓN INTERRUMPIDA", canvas.width/2, canvas.height/2 - 50);
             ctx.restore();
 
             // Stats Display
