@@ -660,16 +660,41 @@
         return Math.max(camera.minZoom, Math.min(camera.maxZoom, fitZoom));
     }
 
-    function clampCamera() {
+    function getCameraBounds(allowOverscroll = false) {
         const world = getWorldPixelSize();
         const halfViewW = canvas.width / (2 * camera.zoom);
         const halfViewH = canvas.height / (2 * camera.zoom);
+        const overscrollX = allowOverscroll ? halfViewW * 0.28 : 0;
+        const overscrollY = allowOverscroll ? halfViewH * 0.28 : 0;
 
-        if (halfViewW * 2 >= world.width) camera.x = world.width / 2;
-        else camera.x = Math.max(halfViewW, Math.min(world.width - halfViewW, camera.x));
+        let minX, maxX, minY, maxY;
 
-        if (halfViewH * 2 >= world.height) camera.y = world.height / 2;
-        else camera.y = Math.max(halfViewH, Math.min(world.height - halfViewH, camera.y));
+        if (halfViewW * 2 >= world.width) {
+            const centerX = world.width / 2;
+            minX = centerX - overscrollX;
+            maxX = centerX + overscrollX;
+        } else {
+            minX = halfViewW - overscrollX;
+            maxX = world.width - halfViewW + overscrollX;
+        }
+
+        if (halfViewH * 2 >= world.height) {
+            const centerY = world.height / 2;
+            minY = centerY - overscrollY;
+            maxY = centerY + overscrollY;
+        } else {
+            minY = halfViewH - overscrollY;
+            maxY = world.height - halfViewH + overscrollY;
+        }
+
+        return { minX, maxX, minY, maxY };
+    }
+
+    function clampCamera(allowOverscroll = false) {
+        const bounds = getCameraBounds(allowOverscroll);
+
+        camera.x = Math.max(bounds.minX, Math.min(bounds.maxX, camera.x));
+        camera.y = Math.max(bounds.minY, Math.min(bounds.maxY, camera.y));
     }
 
     function screenToWorld(clientX, clientY) {
@@ -2033,13 +2058,42 @@ const DOOR_BASE_HP = 70;
     let wasPinching = false;
     let lastPinchDist = 0;
     const TAP_MOVE_THRESHOLD = 8;
-    const PAN_SENSITIVITY_X = 1.9;
-    const PAN_SENSITIVITY_Y = 1.35;
+    const PAN_SENSITIVITY_X = 1;
+    const PAN_SENSITIVITY_Y = 1;
+    const PAN_INERTIA_DAMPING = 0.86;
+    let panVelocityX = 0;
+    let panVelocityY = 0;
 
     function panCameraByScreenDelta(dx, dy) {
-        camera.x -= (dx * PAN_SENSITIVITY_X) / camera.zoom;
-        camera.y -= (dy * PAN_SENSITIVITY_Y) / camera.zoom;
-        clampCamera();
+        const worldDx = (dx * PAN_SENSITIVITY_X) / camera.zoom;
+        const worldDy = (dy * PAN_SENSITIVITY_Y) / camera.zoom;
+        camera.x -= worldDx;
+        camera.y -= worldDy;
+        panVelocityX = -worldDx;
+        panVelocityY = -worldDy;
+        clampCamera(true);
+    }
+
+    function isCameraInteracting() {
+        return pointerState.size > 0 || !!mouseDragPan || !!touchDragPan || touchLastPinchDist > 0;
+    }
+
+    function updateCameraInertia(simStep) {
+        if (isCameraInteracting()) return;
+
+        const velocityMagnitude = Math.hypot(panVelocityX, panVelocityY);
+        if (velocityMagnitude > 0.01) {
+            camera.x += panVelocityX * simStep;
+            camera.y += panVelocityY * simStep;
+            const damping = Math.pow(PAN_INERTIA_DAMPING, simStep);
+            panVelocityX *= damping;
+            panVelocityY *= damping;
+        } else {
+            panVelocityX = 0;
+            panVelocityY = 0;
+        }
+
+        clampCamera(false);
     }
 
     function getActivePointers() {
@@ -2221,6 +2275,8 @@ const DOOR_BASE_HP = 70;
             lastPinchDist = 0;
             wasPinching = false;
         }
+
+        if (pointerState.size === 0) clampCamera(false);
     }
 
     canvas.addEventListener('pointerup', endPointer);
@@ -3702,6 +3758,7 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
         updateNoises(simStep);
         directorTick(simStep);
         updateParticles(simStep);
+        updateCameraInertia(simStep);
 
         let timeScale = simStep;
         let introZoom = 1.0;
