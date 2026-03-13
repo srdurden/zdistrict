@@ -617,24 +617,33 @@
         x: canvas.width / 2,
         y: canvas.height / 2,
         zoom: 1,
-        minZoom: 0.75,
+        minZoom: 0.05,
         maxZoom: 18
     };
 
+    function getWorldPixelSize() {
+        return {
+            width: Math.max(cellSize, gridWidth * cellSize),
+            height: Math.max(cellSize, gridHeight * cellSize)
+        };
+    }
+
     function getDefaultCameraZoom() {
-        const shortestSide = Math.min(window.innerWidth || 0, window.innerHeight || 0);
-        return shortestSide <= 430 ? 2.35 : 1.9;
+        const world = getWorldPixelSize();
+        const fitZoom = Math.min(canvas.width / world.width, canvas.height / world.height);
+        return Math.max(camera.minZoom, Math.min(camera.maxZoom, fitZoom));
     }
 
     function clampCamera() {
+        const world = getWorldPixelSize();
         const halfViewW = canvas.width / (2 * camera.zoom);
         const halfViewH = canvas.height / (2 * camera.zoom);
 
-        if (halfViewW * 2 >= canvas.width) camera.x = canvas.width / 2;
-        else camera.x = Math.max(halfViewW, Math.min(canvas.width - halfViewW, camera.x));
+        if (halfViewW * 2 >= world.width) camera.x = world.width / 2;
+        else camera.x = Math.max(halfViewW, Math.min(world.width - halfViewW, camera.x));
 
-        if (halfViewH * 2 >= canvas.height) camera.y = canvas.height / 2;
-        else camera.y = Math.max(halfViewH, Math.min(canvas.height - halfViewH, camera.y));
+        if (halfViewH * 2 >= world.height) camera.y = world.height / 2;
+        else camera.y = Math.max(halfViewH, Math.min(world.height - halfViewH, camera.y));
     }
 
     function screenToWorld(clientX, clientY) {
@@ -874,6 +883,17 @@
                 staticCtx.fillStyle = "rgba(0,0,0,0.12)";
                 staticCtx.fillRect(x, y + cellSize - 2, cellSize, 2);
                 staticCtx.fillRect(x + cellSize - 2, y, 2, cellSize);
+            }
+        }
+
+
+        if (editorState.active) {
+            staticCtx.strokeStyle = "rgba(120, 120, 120, 0.45)";
+            staticCtx.lineWidth = 0.8;
+            for (let ty = 0; ty < gridHeight; ty++) {
+                for (let tx = 0; tx < gridWidth; tx++) {
+                    staticCtx.strokeRect(tx * cellSize + 0.4, ty * cellSize + 0.4, cellSize - 0.8, cellSize - 0.8);
+                }
             }
         }
 
@@ -1202,6 +1222,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     function showEditorOverlay(show) {
         if (!editorOverlay) return;
         editorOverlay.classList.toggle("visible", !!show);
+        staticDirty = true;
     }
 
 
@@ -1856,7 +1877,7 @@ const txtEventoElem = document.getElementById("txtEvento");
 
     // --- INTRO CINEMATIC VARS ---
     let introTimer = 0;
-    const INTRO_DURATION = 90; // 3 segundos
+    const INTRO_DURATION = 0;
 
     const jugador = { x: 0, y: 0, direccion: { x: 0, y: 0 } };
     const helicoptero = { x: 0, y: 0, ancho: cellSize - 2, alto: cellSize - 2, visible: false };
@@ -1969,11 +1990,12 @@ const DOOR_BASE_HP = 70;
 
     function spawnZombieAtWorld(worldX, worldY, custom = null) {
         if (estadoJuego !== "PLAYING") return;
+        const world = getWorldPixelSize();
         const tx = Math.floor(worldX / cellSize);
         const ty = Math.floor(worldY / cellSize);
         if (isTileBlocked(tx, ty)) return;
-        const x = Math.max(0, Math.min(canvas.width - tamanoEntidad, worldX - tamanoEntidad / 2));
-        const y = Math.max(0, Math.min(canvas.height - tamanoEntidad, worldY - tamanoEntidad / 2));
+        const x = Math.max(0, Math.min(world.width - tamanoEntidad, worldX - tamanoEntidad / 2));
+        const y = Math.max(0, Math.min(world.height - tamanoEntidad, worldY - tamanoEntidad / 2));
         zombies.push(createZombieEntity(x, y, custom || undefined));
         addNoise(x, y, 160, 26);
         actualizarStatsUI();
@@ -3260,8 +3282,10 @@ if(alcanzables.length === 0) {
 
         const pPos = tileToEntityPixel(startTile.x, startTile.y);
         jugador.x = pPos.x; jugador.y = pPos.y;
-        camera.x = jugador.x + tamanoEntidad / 2;
-        camera.y = jugador.y + tamanoEntidad / 2;
+        const world = getWorldPixelSize();
+        camera.x = world.width / 2;
+        camera.y = world.height / 2;
+        camera.minZoom = Math.max(0.05, getDefaultCameraZoom() * 0.35);
         camera.zoom = getDefaultCameraZoom();
         clampCamera();
         pointerState.clear();
