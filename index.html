@@ -524,13 +524,13 @@
     </div>
 
     <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Ancho escenario (tiles)</span><input type="number" id="mapWidthTilesNum" min="80" max="1000" value="500"></div>
-        <input type="range" id="mapWidthTilesSlider" min="80" max="1000" step="10" value="500">
+        <div class="slider-header"><span class="slider-label">Ancho escenario (tiles)</span><input type="number" id="mapWidthTilesNum" min="15" max="1000" value="500"></div>
+        <input type="range" id="mapWidthTilesSlider" min="15" max="1000" step="1" value="500">
     </div>
 
     <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Alto escenario (tiles)</span><input type="number" id="mapHeightTilesNum" min="60" max="700" value="300"></div>
-        <input type="range" id="mapHeightTilesSlider" min="60" max="700" step="10" value="300">
+        <div class="slider-header"><span class="slider-label">Alto escenario (tiles)</span><input type="number" id="mapHeightTilesNum" min="15" max="700" value="300"></div>
+        <input type="range" id="mapHeightTilesSlider" min="15" max="700" step="1" value="300">
     </div>
 
     <div class="slider-group">
@@ -1366,8 +1366,8 @@ const txtEventoElem = document.getElementById("txtEvento");
     let runSettings = null;     // resolved settings for the current run (UI merged with overrides)
 
     function applyWorldSizeSettings(settings) {
-        const nextWidthTiles = Math.max(80, Math.min(1000, Number.isFinite(settings.mapWidthTiles) ? settings.mapWidthTiles : 500));
-        const nextHeightTiles = Math.max(60, Math.min(700, Number.isFinite(settings.mapHeightTiles) ? settings.mapHeightTiles : 300));
+        const nextWidthTiles = Math.max(15, Math.min(1000, Number.isFinite(settings.mapWidthTiles) ? settings.mapWidthTiles : 500));
+        const nextHeightTiles = Math.max(15, Math.min(700, Number.isFinite(settings.mapHeightTiles) ? settings.mapHeightTiles : 300));
         const nextStructureAttempts = Math.max(0, Math.min(600, Number.isFinite(settings.structureAttempts) ? settings.structureAttempts : 194));
 
         const nextCanvasWidth = nextWidthTiles * cellSize;
