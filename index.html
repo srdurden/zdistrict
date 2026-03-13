@@ -1990,7 +1990,7 @@ director.message = "REFUGIO ✅";
             }
         }
 
-        txtEventoElem.textContent = director.message;
+        if (txtEventoElem) txtEventoElem.textContent = director.message;
     }
 
     function pickFarTile(minDistTiles = 18) {
