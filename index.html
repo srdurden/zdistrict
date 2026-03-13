@@ -2113,6 +2113,83 @@ const DOOR_BASE_HP = 70;
     });
     canvas.addEventListener('mouseup', () => { mouseDragPan = null; });
 
+    // Fallback táctil para navegadores móviles que priorizan gestos del sistema
+    // y no emiten Pointer Events de forma consistente durante el arrastre lateral.
+    let touchDragPan = null;
+    let touchLastPinchDist = 0;
+
+    function getCanvasTouchMidpoint(touchA, touchB) {
+        return {
+            x: (touchA.clientX + touchB.clientX) / 2,
+            y: (touchA.clientY + touchB.clientY) / 2
+        };
+    }
+
+    canvas.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+            touchDragPan = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            touchLastPinchDist = 0;
+            return;
+        }
+
+        if (e.touches.length >= 2) {
+            const t0 = e.touches[0];
+            const t1 = e.touches[1];
+            touchLastPinchDist = Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY);
+            touchDragPan = null;
+        }
+    }, { passive: true });
+
+    canvas.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 1) {
+            const touch = e.touches[0];
+            if (!touchDragPan) {
+                touchDragPan = { x: touch.clientX, y: touch.clientY };
+                return;
+            }
+
+            const dx = touch.clientX - touchDragPan.x;
+            const dy = touch.clientY - touchDragPan.y;
+            touchDragPan.x = touch.clientX;
+            touchDragPan.y = touch.clientY;
+            panCameraByScreenDelta(dx, dy);
+            e.preventDefault();
+            return;
+        }
+
+        if (e.touches.length >= 2) {
+            const t0 = e.touches[0];
+            const t1 = e.touches[1];
+            const pinchDist = Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY);
+
+            if (touchLastPinchDist > 0) {
+                const ratio = pinchDist / touchLastPinchDist;
+                const mid = getCanvasTouchMidpoint(t0, t1);
+                setZoomAtPoint(camera.zoom * ratio, mid.x, mid.y);
+            }
+
+            touchLastPinchDist = pinchDist;
+            touchDragPan = null;
+            e.preventDefault();
+        }
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', (e) => {
+        if (e.touches.length === 1) {
+            touchDragPan = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            touchLastPinchDist = 0;
+            return;
+        }
+
+        touchDragPan = null;
+        touchLastPinchDist = 0;
+    }, { passive: true });
+
+    canvas.addEventListener('touchcancel', () => {
+        touchDragPan = null;
+        touchLastPinchDist = 0;
+    }, { passive: true });
+
     function endPointer(e) {
         const p = pointerState.get(e.pointerId);
         if (!p) return;
