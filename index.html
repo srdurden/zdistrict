@@ -59,7 +59,7 @@
             border-radius: 24px;
             background: var(--bg-canvas);
             box-shadow: var(--shadow-card);
-            cursor: crosshair;
+            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M12 1v22M1 12h22' stroke='%23424242' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") 12 12, crosshair;
             display: block;
             border: 4px solid rgba(255,255,255,0.92);
 
@@ -154,7 +154,7 @@
             height: 50px;
             border-radius: 50%;
             background: #fff;
-            color: var(--text-main);
+            color: #424242;
             border: 2px solid #efebe9;
             font-size: 22px;
             cursor: pointer;
@@ -162,7 +162,7 @@
             z-index: 999;
             transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
         }
-        #spawnZombieBtn:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(0,0,0,0.12); }
+        #spawnZombieBtn:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(0,0,0,0.12); color: #424242; }
         #spawnZombieBtn:active { transform: translateY(0px) scale(0.98); }
         #spawnZombieBtn.armed {
             border-color: var(--c-zombie);
@@ -450,13 +450,13 @@
     </div>
     
     <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Civiles</span><input type="number" id="citizenNum" value="750"></div>
-        <input type="range" id="citizenSlider" min="0" max="3000" value="750">
+        <div class="slider-header"><span class="slider-label">Civiles</span><input type="number" id="citizenNum" value="15"></div>
+        <input type="range" id="citizenSlider" min="0" max="3000" value="15">
     </div>
     
     <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Policía</span><input type="number" id="policeNum" value="5"></div>
-        <input type="range" id="policeSlider" min="0" max="100" value="5">
+        <div class="slider-header"><span class="slider-label">Policía</span><input type="number" id="policeNum" value="1"></div>
+        <input type="range" id="policeSlider" min="0" max="100" value="1">
     </div>
 
     <!-- Militares -->
@@ -524,18 +524,18 @@
     </div>
 
     <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Ancho escenario (tiles)</span><input type="number" id="mapWidthTilesNum" min="15" max="1000" value="500"></div>
-        <input type="range" id="mapWidthTilesSlider" min="15" max="1000" step="1" value="500">
+        <div class="slider-header"><span class="slider-label">Ancho escenario (tiles)</span><input type="number" id="mapWidthTilesNum" min="15" max="1000" value="50"></div>
+        <input type="range" id="mapWidthTilesSlider" min="15" max="1000" step="1" value="50">
     </div>
 
     <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Alto escenario (tiles)</span><input type="number" id="mapHeightTilesNum" min="15" max="700" value="300"></div>
-        <input type="range" id="mapHeightTilesSlider" min="15" max="700" step="1" value="300">
+        <div class="slider-header"><span class="slider-label">Alto escenario (tiles)</span><input type="number" id="mapHeightTilesNum" min="15" max="700" value="50"></div>
+        <input type="range" id="mapHeightTilesSlider" min="15" max="700" step="1" value="50">
     </div>
 
     <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Estructuras a intentar</span><input type="number" id="structureAttemptsNum" min="0" max="600" value="194"></div>
-        <input type="range" id="structureAttemptsSlider" min="0" max="600" step="1" value="194">
+        <div class="slider-header"><span class="slider-label">Estructuras a intentar</span><input type="number" id="structureAttemptsNum" min="0" max="600" value="1"></div>
+        <input type="range" id="structureAttemptsSlider" min="0" max="600" step="1" value="1">
     </div>
 
 
@@ -1366,9 +1366,9 @@ const txtEventoElem = document.getElementById("txtEvento");
     let runSettings = null;     // resolved settings for the current run (UI merged with overrides)
 
     function applyWorldSizeSettings(settings) {
-        const nextWidthTiles = Math.max(15, Math.min(1000, Number.isFinite(settings.mapWidthTiles) ? settings.mapWidthTiles : 500));
-        const nextHeightTiles = Math.max(15, Math.min(700, Number.isFinite(settings.mapHeightTiles) ? settings.mapHeightTiles : 300));
-        const nextStructureAttempts = Math.max(0, Math.min(600, Number.isFinite(settings.structureAttempts) ? settings.structureAttempts : 194));
+        const nextWidthTiles = Math.max(15, Math.min(1000, Number.isFinite(settings.mapWidthTiles) ? settings.mapWidthTiles : 50));
+        const nextHeightTiles = Math.max(15, Math.min(700, Number.isFinite(settings.mapHeightTiles) ? settings.mapHeightTiles : 50));
+        const nextStructureAttempts = Math.max(0, Math.min(600, Number.isFinite(settings.structureAttempts) ? settings.structureAttempts : 1));
 
         const nextCanvasWidth = nextWidthTiles * cellSize;
         const nextCanvasHeight = nextHeightTiles * cellSize;
@@ -1402,14 +1402,14 @@ const txtEventoElem = document.getElementById("txtEvento");
 
         return {
             // Counts
-            zombieCount: toInt(zombieNum, 10),
-            citizenCount: toInt(citizenNum, 120),
-            policeCount: toInt(policeNum, 2),
+            zombieCount: toInt(zombieNum, 0),
+            citizenCount: toInt(citizenNum, 15),
+            policeCount: toInt(policeNum, 1),
             soldierCount: toInt(soldierNum, 0),
             boxCount: toInt(boxNum, 32),
-            mapWidthTiles: toInt(mapWidthTilesNum, 500),
-            mapHeightTiles: toInt(mapHeightTilesNum, 300),
-            structureAttempts: toInt(structureAttemptsNum, 194),
+            mapWidthTiles: toInt(mapWidthTilesNum, 50),
+            mapHeightTiles: toInt(mapHeightTilesNum, 50),
+            structureAttempts: toInt(structureAttemptsNum, 1),
 
             // Speeds
             zombieSpeed: toFloat(zSpeedNum, 1.5),
@@ -1538,7 +1538,7 @@ const txtEventoElem = document.getElementById("txtEvento");
 
     let gridWidth = Math.floor(canvas.width / cellSize);
     let gridHeight = Math.floor(canvas.height / cellSize);
-    let structureAttemptsTarget = 194;
+    let structureAttemptsTarget = 1;
     let grid = [];
     let openPlazas = []; 
     let houseRooms = [];
@@ -1716,6 +1716,7 @@ const DOOR_BASE_HP = 70;
     }
 
     const pointerState = new Map();
+    let hoverTile = null;
     let wasPinching = false;
     let lastPinchDist = 0;
     const TAP_MOVE_THRESHOLD = 8;
@@ -1744,6 +1745,11 @@ const DOOR_BASE_HP = 70;
     });
 
     canvas.addEventListener('pointermove', (e) => {
+        const world = screenToWorld(e.clientX, e.clientY);
+        const tx = Math.floor(world.x / cellSize);
+        const ty = Math.floor(world.y / cellSize);
+        hoverTile = (deployZombieArmed && tx >= 0 && tx < gridWidth && ty >= 0 && ty < gridHeight) ? { x: tx, y: ty } : null;
+
         if (!pointerState.has(e.pointerId)) return;
         e.preventDefault();
 
@@ -1800,6 +1806,9 @@ const DOOR_BASE_HP = 70;
 
     canvas.addEventListener('pointerup', endPointer);
     canvas.addEventListener('pointercancel', endPointer);
+    canvas.addEventListener('pointerleave', () => {
+        hoverTile = null;
+    });
 
     canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
@@ -2766,7 +2775,7 @@ function generarMapa() {
         }
 
         // Crear casas (rectángulos con 1 puerta)
-        const structureCount = Math.max(0, Number.isFinite(structureAttemptsTarget) ? structureAttemptsTarget : 194);
+        const structureCount = Math.max(0, Number.isFinite(structureAttemptsTarget) ? structureAttemptsTarget : 1);
         const desiredHouses = Math.max(0, Math.round(structureCount * 0.9));
         const wallSegments = Math.max(0, structureCount - desiredHouses);
         let tries = Math.max(800, desiredHouses * 34);
@@ -3771,6 +3780,16 @@ if (helicoptero.visible) {
         });
 
         cadaveres.forEach(c => { ctx.fillStyle="#d7ccc8"; ctx.beginPath(); ctx.arc(c.x+1.5,c.y+1.5,1.5,0,Math.PI*2); ctx.fill(); });
+
+        if (deployZombieArmed && hoverTile) {
+            const hx = hoverTile.x * cellSize;
+            const hy = hoverTile.y * cellSize;
+            ctx.fillStyle = "rgba(229, 57, 53, 0.45)";
+            ctx.fillRect(hx, hy, cellSize, cellSize);
+            ctx.strokeStyle = "rgba(198, 40, 40, 0.95)";
+            ctx.lineWidth = 1;
+            ctx.strokeRect(hx + 0.5, hy + 0.5, cellSize - 1, cellSize - 1);
+        }
 
         if(helicoptero.visible) {
             const hx=helicoptero.x+helicoptero.ancho/2, hy=helicoptero.y+helicoptero.alto/2;
