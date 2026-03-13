@@ -1651,6 +1651,25 @@ const txtEventoElem = document.getElementById("txtEvento");
         }
     }
 
+    function inferAsciiMapSize(mapDef) {
+        if (!mapDef || typeof mapDef !== "object") return null;
+        const fromDefW = parseInt(mapDef.w, 10);
+        const fromDefH = parseInt(mapDef.h, 10);
+        const hasWH = Number.isFinite(fromDefW) && Number.isFinite(fromDefH) && fromDefW > 0 && fromDefH > 0;
+        if (hasWH) return { w: fromDefW, h: fromDefH };
+
+        const ascii = (typeof mapDef.ascii === "string") ? mapDef.ascii : (typeof mapDef.data === "string" ? mapDef.data : "");
+        if (!ascii) return null;
+        const lines = ascii.replace(/\r/g, "").split("\n");
+        while (lines.length && lines[0].trim() === "") lines.shift();
+        while (lines.length && lines[lines.length - 1].trim() === "") lines.pop();
+        if (!lines.length) return null;
+        let w = 0;
+        for (const line of lines) w = Math.max(w, line.length);
+        if (!w) return null;
+        return { w, h: lines.length };
+    }
+
     function isProbablyEvent(v) {
         return v && typeof v === "object" && ("type" in v) && ("target" in v);
     }
@@ -1967,7 +1986,7 @@ const DOOR_BASE_HP = 70;
         const token = tool.token;
         const rows = editorState.mapRows.map(r => r.split(""));
 
-        if (token === "P" || token === "K" || token === "H") {
+        if (token === "P" || token === "K" || token === "H" || token === "C" || token === "Z" || token === "O" || token === "M") {
             for (let y = 0; y < rows.length; y++) {
                 for (let x = 0; x < rows[y].length; x++) {
                     if (rows[y][x] === token) rows[y][x] = ".";
@@ -3117,6 +3136,11 @@ function generarMapa() {
 
         const uiSettings = getSettingsFromUI();
         const mergedSettings = Object.assign({}, uiSettings, (currentRunDef.settingsOverrides || {}));
+        const inferredMapSize = inferAsciiMapSize(currentRunDef && currentRunDef.mapDef);
+        if (inferredMapSize) {
+            mergedSettings.mapWidthTiles = Math.max(Number(mergedSettings.mapWidthTiles) || 0, inferredMapSize.w);
+            mergedSettings.mapHeightTiles = Math.max(Number(mergedSettings.mapHeightTiles) || 0, inferredMapSize.h);
+        }
         applySettings(mergedSettings);
         applyWorldSizeSettings(mergedSettings);
 
