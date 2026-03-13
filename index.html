@@ -532,11 +532,6 @@
         <input type="checkbox" id="friendlyFireToggle" checked>
     </div>
 
-    <div class="toggle-row">
-        <span class="toggle-label">🛡️ Modo Inmortal</span>
-        <input type="checkbox" id="ghostToggle">
-    </div>
-
     <!-- Ocultos -->
     <div style="display:none">
         <input type="range" id="citizenSpeedSlider" value="1.0">
@@ -896,7 +891,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     const friendlyFireToggle = document.getElementById("friendlyFireToggle");
     const citizenSpeedSlider = document.getElementById("citizenSpeedSlider");
     const balasSlider = document.getElementById("balasSlider"); const balasNum = document.getElementById("balasNum");
-    const ghostToggle = document.getElementById("ghostToggle");
     const restartBtn = document.getElementById("restartBtn");
     const settingsToggle = document.getElementById("settingsToggle");
     const homeBtn = document.getElementById("homeBtn");
@@ -1394,7 +1388,6 @@ const txtEventoElem = document.getElementById("txtEvento");
             bengalas: toInt(bengalaNum, 0),
 
             // Toggles
-            ghostMode: !!(ghostToggle && ghostToggle.checked),
             friendlyFire: !!(friendlyFireToggle && friendlyFireToggle.checked),
 
             // Timings (seconds in UI)
@@ -1416,7 +1409,7 @@ const txtEventoElem = document.getElementById("txtEvento");
         balasRestantes = settings.balas;
         bengalasRestantes = settings.bengalas;
 
-        modoFantasma = settings.ghostMode;
+        modoFantasma = false;
         fuegoAmigo = settings.friendlyFire;
 
         policeReloadFrames = settings.policeCooldownSec * 30;
@@ -1645,7 +1638,6 @@ const DOOR_BASE_HP = 70;
         if (e.code in teclas) { teclas[e.code] = false; e.preventDefault(); } 
     });
 
-    ghostToggle.addEventListener('change', (e) => modoFantasma = e.target.checked);
     friendlyFireToggle.addEventListener('change', (e) => fuegoAmigo = e.target.checked);
 
     function createZombieEntity(x, y, custom = {}) {
