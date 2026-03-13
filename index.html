@@ -70,6 +70,7 @@
             aspect-ratio: 5 / 3;
             image-rendering: auto;
             will-change: transform;
+            touch-action: none;
         }
 
         #statusBar {
@@ -265,8 +266,9 @@
 
             canvas {
                 width: 100vw;
-                height: calc(var(--app-height) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-                min-height: -webkit-fill-available;
+                height: auto;
+                max-height: calc(var(--app-height) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+                aspect-ratio: 5 / 3;
                 border-radius: 0;
                 border-left: 0;
                 border-right: 0;
@@ -491,6 +493,49 @@
 
     const canvas = document.getElementById("myCanvas");
     const ctx = canvas.getContext("2d");
+
+    const camera = {
+        x: canvas.width / 2,
+        y: canvas.height / 2,
+        zoom: 1,
+        minZoom: 0.75,
+        maxZoom: 4.5
+    };
+
+    function getDefaultCameraZoom() {
+        const shortestSide = Math.min(window.innerWidth || 0, window.innerHeight || 0);
+        return shortestSide <= 430 ? 2.35 : 1.9;
+    }
+
+    function clampCamera() {
+        const halfViewW = canvas.width / (2 * camera.zoom);
+        const halfViewH = canvas.height / (2 * camera.zoom);
+
+        if (halfViewW * 2 >= canvas.width) camera.x = canvas.width / 2;
+        else camera.x = Math.max(halfViewW, Math.min(canvas.width - halfViewW, camera.x));
+
+        if (halfViewH * 2 >= canvas.height) camera.y = canvas.height / 2;
+        else camera.y = Math.max(halfViewH, Math.min(canvas.height - halfViewH, camera.y));
+    }
+
+    function screenToWorld(clientX, clientY) {
+        const rect = canvas.getBoundingClientRect();
+        const sx = (clientX - rect.left) * (canvas.width / rect.width);
+        const sy = (clientY - rect.top) * (canvas.height / rect.height);
+        const wx = camera.x + (sx - canvas.width / 2) / camera.zoom;
+        const wy = camera.y + (sy - canvas.height / 2) / camera.zoom;
+        return { x: wx, y: wy };
+    }
+
+    function setZoomAtPoint(nextZoom, anchorScreenX, anchorScreenY) {
+        const clampedZoom = Math.max(camera.minZoom, Math.min(camera.maxZoom, nextZoom));
+        const before = screenToWorld(anchorScreenX, anchorScreenY);
+        camera.zoom = clampedZoom;
+        const after = screenToWorld(anchorScreenX, anchorScreenY);
+        camera.x += before.x - after.x;
+        camera.y += before.y - after.y;
+        clampCamera();
+    }
 
     // --- Visual polish: pre-rendered static layer + particles (no sprites) ---
     ctx.imageSmoothingEnabled = true;
@@ -1482,22 +1527,102 @@ const DOOR_BASE_HP = 70;
     ghostToggle.addEventListener('change', (e) => modoFantasma = e.target.checked);
     friendlyFireToggle.addEventListener('change', (e) => fuegoAmigo = e.target.checked);
 
-    canvas.addEventListener('mousedown', (e) => {
-        if(estadoJuego !== "PLAYING") return;
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-        const mx = (e.clientX - rect.left) * scaleX;
-        const my = (e.clientY - rect.top) * scaleY;
-        const tx = Math.floor(mx / cellSize);
-        const ty = Math.floor(my / cellSize);
+    function spawnZombieAtWorld(worldX, worldY) {
+        if (estadoJuego !== "PLAYING") return;
+        const tx = Math.floor(worldX / cellSize);
+        const ty = Math.floor(worldY / cellSize);
         if (isTileBlocked(tx, ty)) return;
-        const x = Math.max(0, Math.min(canvas.width - tamanoEntidad, mx - tamanoEntidad / 2));
-        const y = Math.max(0, Math.min(canvas.height - tamanoEntidad, my - tamanoEntidad / 2));
+        const x = Math.max(0, Math.min(canvas.width - tamanoEntidad, worldX - tamanoEntidad / 2));
+        const y = Math.max(0, Math.min(canvas.height - tamanoEntidad, worldY - tamanoEntidad / 2));
         zombies.push({x, y, direccion: direccionAleatoria()});
         addNoise(x, y, 160, 26);
         actualizarStatsUI();
+    }
+
+    const pointerState = new Map();
+    let wasPinching = false;
+    let lastPinchDist = 0;
+    const TAP_MOVE_THRESHOLD = 8;
+
+    function getActivePointers() {
+        return Array.from(pointerState.values());
+    }
+
+    canvas.addEventListener('pointerdown', (e) => {
+        canvas.setPointerCapture(e.pointerId);
+        pointerState.set(e.pointerId, {
+            id: e.pointerId,
+            x: e.clientX,
+            y: e.clientY,
+            startX: e.clientX,
+            startY: e.clientY,
+            moved: false
+        });
+        if (pointerState.size >= 2) {
+            wasPinching = true;
+            const pts = getActivePointers();
+            lastPinchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        }
     });
+
+    canvas.addEventListener('pointermove', (e) => {
+        if (!pointerState.has(e.pointerId)) return;
+        e.preventDefault();
+
+        const p = pointerState.get(e.pointerId);
+        const dx = e.clientX - p.x;
+        const dy = e.clientY - p.y;
+        p.x = e.clientX;
+        p.y = e.clientY;
+
+        const movedFromStart = Math.hypot(p.x - p.startX, p.y - p.startY);
+        if (movedFromStart > TAP_MOVE_THRESHOLD) p.moved = true;
+
+        const pts = getActivePointers();
+        if (pts.length >= 2) {
+            wasPinching = true;
+            const pinchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+            if (lastPinchDist > 0) {
+                const ratio = pinchDist / lastPinchDist;
+                const midX = (pts[0].x + pts[1].x) / 2;
+                const midY = (pts[0].y + pts[1].y) / 2;
+                setZoomAtPoint(camera.zoom * ratio, midX, midY);
+            }
+            lastPinchDist = pinchDist;
+            return;
+        }
+
+        if (pts.length === 1) {
+            camera.x -= dx / camera.zoom;
+            camera.y -= dy / camera.zoom;
+            clampCamera();
+        }
+    }, { passive: false });
+
+    function endPointer(e) {
+        const p = pointerState.get(e.pointerId);
+        if (!p) return;
+
+        if (!wasPinching && !p.moved) {
+            const world = screenToWorld(e.clientX, e.clientY);
+            spawnZombieAtWorld(world.x, world.y);
+        }
+
+        pointerState.delete(e.pointerId);
+        if (pointerState.size < 2) {
+            lastPinchDist = 0;
+            wasPinching = false;
+        }
+    }
+
+    canvas.addEventListener('pointerup', endPointer);
+    canvas.addEventListener('pointercancel', endPointer);
+
+    canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const factor = Math.exp(-e.deltaY * 0.0015);
+        setZoomAtPoint(camera.zoom * factor, e.clientX, e.clientY);
+    }, { passive: false });
 
     function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
     function distancia(x1, y1, x2, y2) { return Math.hypot(x2 - x1, y2 - y1); }
@@ -2765,6 +2890,13 @@ if(alcanzables.length === 0) {
 
         const pPos = tileToEntityPixel(startTile.x, startTile.y);
         jugador.x = pPos.x; jugador.y = pPos.y;
+        camera.x = jugador.x + tamanoEntidad / 2;
+        camera.y = jugador.y + tamanoEntidad / 2;
+        camera.zoom = getDefaultCameraZoom();
+        clampCamera();
+        pointerState.clear();
+        lastPinchDist = 0;
+        wasPinching = false;
 
         
         let fieldX0p, fieldX1p, fieldY0p, fieldY1p;
@@ -3134,33 +3266,38 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
         directorTick(simStep);
         updateParticles(simStep);
 
-        let timeScale = simStep; 
-        let zoom = 1.0;
+        let timeScale = simStep;
+        let introZoom = 1.0;
+        let introEase = 1;
         if (introTimer < INTRO_DURATION) {
             introTimer += simStep;
             const progress = Math.min(1, introTimer / INTRO_DURATION);
-            const ease = 1 - Math.pow(1 - progress, 3); 
-            zoom = 4.0 - (3.0 * ease); 
-            timeScale = simStep * (0.12 + (0.88 * ease)); 
+            introEase = 1 - Math.pow(1 - progress, 3);
+            introZoom = 4.0 - (3.0 * introEase);
+            timeScale = simStep * (0.12 + (0.88 * introEase));
         }
 
-        const cx = canvas.width / 2; const cy = canvas.height / 2;
-        const px = jugador.x + 1.5; const py = jugador.y + 1.5;
-        let focusX = px; let focusY = py;
-        
+        const cx = canvas.width / 2;
+        const cy = canvas.height / 2;
+        const px = jugador.x + 1.5;
+        const py = jugador.y + 1.5;
+        const baseFocusX = camera.x;
+        const baseFocusY = camera.y;
+        let focusX = baseFocusX;
+        let focusY = baseFocusY;
+
         if (introTimer < INTRO_DURATION) {
-             const progress = introTimer / INTRO_DURATION;
-             const ease = 1 - Math.pow(1 - progress, 3);
-             focusX = px * ease + (canvas.width/2) * (1-ease); 
-             focusY = py * ease + (canvas.height/2) * (1-ease);
+             focusX = px * introEase + (baseFocusX) * (1 - introEase);
+             focusY = py * introEase + (baseFocusY) * (1 - introEase);
         }
+
+        const renderZoom = camera.zoom * introZoom;
 
         ctx.save();
         ctx.fillStyle = PALETA.fondo; ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        if (introTimer < INTRO_DURATION) {
-             ctx.translate(cx, cy); ctx.scale(zoom, zoom); ctx.translate(-focusX, -focusY);
-        }
+        ctx.translate(cx, cy);
+        ctx.scale(renderZoom, renderZoom);
+        ctx.translate(-focusX, -focusY);
 
         if (screenShake > 0) {
             const mag = screenShake;
