@@ -374,6 +374,14 @@
                 width: auto;
                 max-height: calc(100dvh - 96px - env(safe-area-inset-bottom));
             }
+
+            #editCampaignBtn {
+                top: calc(max(8px, env(safe-area-inset-top)) + 54px);
+                left: max(8px, env(safe-area-inset-left));
+                right: max(8px, env(safe-area-inset-right));
+                width: auto;
+                max-width: none;
+            }
         }
 
         #configPanel h1 {
@@ -416,6 +424,26 @@
         }
         #restartBtn:hover { transform: translateY(-2px); }
 
+        #editCampaignBtn {
+            position: fixed;
+            top: 36px;
+            right: 25px;
+            width: 340px;
+            max-width: calc(100vw - 50px);
+            padding: 12px;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #ffab91, #ffcc80);
+            color: #fff;
+            font-weight: 900;
+            font-size: 14px;
+            cursor: pointer;
+            text-transform: uppercase;
+            box-shadow: 0 4px 10px rgba(255, 171, 145, 0.4);
+            z-index: 1001;
+        }
+        #editCampaignBtn:hover { transform: translateY(-2px); }
+
         .hint { font-size: 10px; color: #a1887f; text-align: center; margin-top: 10px; font-weight: 600; }
 
         .dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: 2px solid #fff; }
@@ -436,6 +464,7 @@
 <button id="settingsToggle" title="Configuración">⚙️</button>
 <button id="homeBtn" title="Menú">🏠</button>
 <button id="spawnZombieBtn" title="Añadir zombie">🧟</button>
+<button id="editCampaignBtn" style="display:none;">Editar nivel</button>
 
 <div id="deployPopup" class="deploy-popup">
     <div class="deploy-title">Tipo de zombie</div>
@@ -572,7 +601,6 @@
     </div>
 
     <button id="restartBtn">Reiniciar Simulación</button>
-    <button id="editCampaignBtn" style="margin-top:8px; display:none;">Editar</button>
     <div class="hint">Usa el botón 🧟 para elegir tipo y desplegar zombies en el escenario.</div>
 </div>
 
@@ -585,8 +613,6 @@
         <input id="editorHeightInput" class="editor-mini-input" type="number" min="15" max="200" value="40">
         <button id="editorResizeBtn" class="editor-chip">Aplicar tamaño</button>
         <button id="editorSaveBtn" class="editor-chip">Guardar nivel</button>
-        <button id="editorExportBtn" class="editor-chip">Exportar nivel</button>
-        <button id="editorImportBtn" class="editor-chip">Importar nivel</button>
         <button id="editorExitBtn" class="editor-chip">Salir editor</button>
     </div>
     <div style="font:700 12px Nunito;color:#6d4c41">Rueda para zoom, arrastra para mover cámara, clic para pintar.</div>
@@ -955,8 +981,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     const editorHeightInput = document.getElementById("editorHeightInput");
     const editorResizeBtn = document.getElementById("editorResizeBtn");
     const editorSaveBtn = document.getElementById("editorSaveBtn");
-    const editorExportBtn = document.getElementById("editorExportBtn");
-    const editorImportBtn = document.getElementById("editorImportBtn");
     const editorExitBtn = document.getElementById("editorExitBtn");
 
     const postGameOverlay = document.getElementById("postGameOverlay");
@@ -1039,60 +1063,28 @@ const txtEventoElem = document.getElementById("txtEvento");
     if (postPrimaryBtn) postPrimaryBtn.addEventListener("click", () => handlePostgamePrimaryAction());
     if (postSecondaryBtn) postSecondaryBtn.addEventListener("click", () => handlePostgameSecondaryAction());
     if (postMenuBtn) postMenuBtn.addEventListener("click", () => showMainMenu());
-    if (editCampaignBtn) editCampaignBtn.addEventListener("click", () => startCampaignEditor());
+    if (editCampaignBtn) editCampaignBtn.addEventListener("click", () => {
+        if (configPanel) configPanel.classList.remove("visible");
+        startCampaignEditor();
+    });
     if (editorExitBtn) editorExitBtn.addEventListener("click", () => {
         showEditorOverlay(false);
         editorState.active = false;
-        if (currentRunDef && currentRunDef.mode === "campaign") startCampaignMode(getActiveCampaignIndex());
-        else showMainMenu();
+        startCampaignMode(getActiveCampaignIndex());
     });
     if (editorResizeBtn) editorResizeBtn.addEventListener("click", () => {
         const w = Math.max(15, Math.min(200, parseInt(editorWidthInput && editorWidthInput.value, 10) || editorState.mapWidthTiles || 100));
         const h = Math.max(15, Math.min(200, parseInt(editorHeightInput && editorHeightInput.value, 10) || editorState.mapHeightTiles || 100));
         editorState.mapWidthTiles = w;
         editorState.mapHeightTiles = h;
-        editorState.mapRows = createEditorRows(w, h);
-        editorState.mapRows = ensureEditorMarkers(editorState.mapRows);
-        const lvl = buildCampaignLevelFromEditor();
-        resetGame({ mode: "campaign", campaignIndex: getActiveCampaignIndex(), levelId: lvl.id, levelName: lvl.name, directorOverrides: lvl.directorOverrides, settingsOverrides: lvl.settingsOverrides, mapDef: lvl.mapDef });
+        editorState.mapRows = ensureEditorMarkers(createEditorRows(w, h));
     });
     if (editorSaveBtn) editorSaveBtn.addEventListener("click", () => {
         campaignCustomLevel = buildCampaignLevelFromEditor();
         alert("Nivel de campaña guardado. Se añadirá al final de la campaña.");
-    });
-    if (editorExportBtn) editorExportBtn.addEventListener("click", async () => {
-        const payload = JSON.stringify(buildCampaignLevelFromEditor(), null, 2);
-        try {
-            if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(payload);
-            else throw new Error("clipboard unavailable");
-            alert("Definición de nivel copiada al portapapeles.");
-        } catch {
-            prompt("Copia manualmente la definición:", payload);
-        }
-    });
-    if (editorImportBtn) editorImportBtn.addEventListener("click", () => {
-        const txt = prompt("Pega la definición del nivel (JSON):", "");
-        if (!txt) return;
-        try {
-            const lvl = JSON.parse(txt);
-            const rows = parseRowsFromMapDef(lvl.mapDef || {});
-            if (!rows.length) throw new Error("El nivel importado no contiene mapa ASCII.");
-            editorState.mapRows = ensureEditorMarkers(rows);
-            editorState.mapWidthTiles = rows[0].length;
-            editorState.mapHeightTiles = rows.length;
-            if (editorWidthInput) editorWidthInput.value = String(editorState.mapWidthTiles);
-            if (editorHeightInput) editorHeightInput.value = String(editorState.mapHeightTiles);
-            editorState.settingsOverrides = Object.assign({}, lvl.settingsOverrides || {}, {
-                mapWidthTiles: editorState.mapWidthTiles,
-                mapHeightTiles: editorState.mapHeightTiles,
-                structureAttempts: 0
-            });
-            const previewLevel = buildCampaignLevelFromEditor();
-            resetGame({ mode: "campaign", campaignIndex: getActiveCampaignIndex(), levelId: previewLevel.id, levelName: previewLevel.name, directorOverrides: previewLevel.directorOverrides, settingsOverrides: previewLevel.settingsOverrides, mapDef: previewLevel.mapDef });
-            alert("Nivel importado en el editor.");
-        } catch (e) {
-            alert("Importación inválida: " + (e && e.message ? e.message : e));
-        }
+        showEditorOverlay(false);
+        editorState.active = false;
+        startCampaignMode(getActiveCampaignIndex());
     });
 
     // ===========================
@@ -1439,6 +1431,16 @@ const txtEventoElem = document.getElementById("txtEvento");
 
     ];
 
+
+    function setTopControlsForEditor(isEditor) {
+        if (settingsToggle) settingsToggle.style.display = isEditor ? "none" : "";
+        if (spawnZombieBtn) spawnZombieBtn.style.display = isEditor ? "none" : "";
+        if (!isEditor) return;
+        if (configPanel) configPanel.classList.remove("visible");
+        closeDeployPopup();
+        setDeployArmed(false);
+    }
+
     function stopToMenu() {
         estadoJuego = "STOPPED";
         if (animationId) cancelAnimationFrame(animationId);
@@ -1450,6 +1452,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     function showMainMenu() {
         appState = "MENU";
         editorState.active = false;
+        setTopControlsForEditor(false);
         showEditorOverlay(false);
         stopToMenu();
         if (postGameOverlay) postGameOverlay.classList.remove("visible");
@@ -1463,6 +1466,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     function startFreeMode() {
         appState = "GAME";
         editorState.active = false;
+        setTopControlsForEditor(false);
         showEditorOverlay(false);
         if (mainMenuOverlay) mainMenuOverlay.classList.remove("visible");
         if (postGameOverlay) postGameOverlay.classList.remove("visible");
@@ -1475,6 +1479,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     function startCampaignMode(index = 0) {
         appState = "GAME";
         editorState.active = false;
+        setTopControlsForEditor(false);
         showEditorOverlay(false);
         if (mainMenuOverlay) mainMenuOverlay.classList.remove("visible");
         if (postGameOverlay) postGameOverlay.classList.remove("visible");
@@ -1498,6 +1503,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     function startCampaignEditor() {
         appState = "EDITOR";
         editorState.active = true;
+        setTopControlsForEditor(true);
         if (mainMenuOverlay) mainMenuOverlay.classList.remove("visible");
         if (postGameOverlay) postGameOverlay.classList.remove("visible");
         hidePostGameOverlay();
