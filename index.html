@@ -523,6 +523,21 @@
         <input type="range" id="boxSlider" min="0" max="200" step="1" value="32">
     </div>
 
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Ancho escenario (tiles)</span><input type="number" id="mapWidthTilesNum" min="80" max="1000" value="500"></div>
+        <input type="range" id="mapWidthTilesSlider" min="80" max="1000" step="10" value="500">
+    </div>
+
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Alto escenario (tiles)</span><input type="number" id="mapHeightTilesNum" min="60" max="700" value="300"></div>
+        <input type="range" id="mapHeightTilesSlider" min="60" max="700" step="10" value="300">
+    </div>
+
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Estructuras a intentar</span><input type="number" id="structureAttemptsNum" min="0" max="600" value="194"></div>
+        <input type="range" id="structureAttemptsSlider" min="0" max="600" step="1" value="194">
+    </div>
+
 
     <div class="toggle-row">
         <span class="toggle-label" style="color:var(--c-soldier)">⚠️ Fuego Amigo Militar</span>
@@ -878,6 +893,9 @@ const txtEventoElem = document.getElementById("txtEvento");
     const zSpeedSlider = document.getElementById("zombieSpeedSlider"); const zSpeedNum = document.getElementById("zSpeedNum");
     const bengalaSlider = document.getElementById("bengalaSlider"); const bengalaNum = document.getElementById("bengalaNum");
     const boxSlider = document.getElementById("boxSlider"); const boxNum = document.getElementById("boxNum");
+    const mapWidthTilesSlider = document.getElementById("mapWidthTilesSlider"); const mapWidthTilesNum = document.getElementById("mapWidthTilesNum");
+    const mapHeightTilesSlider = document.getElementById("mapHeightTilesSlider"); const mapHeightTilesNum = document.getElementById("mapHeightTilesNum");
+    const structureAttemptsSlider = document.getElementById("structureAttemptsSlider"); const structureAttemptsNum = document.getElementById("structureAttemptsNum");
     
     // Config Inputs
     const policeCoolSlider = document.getElementById("policeCoolSlider"); const policeCoolNum = document.getElementById("policeCoolNum");
@@ -927,6 +945,9 @@ const txtEventoElem = document.getElementById("txtEvento");
     linkInput(zSpeedSlider, zSpeedNum);
     linkInput(bengalaSlider, bengalaNum);
     linkInput(boxSlider, boxNum);
+    linkInput(mapWidthTilesSlider, mapWidthTilesNum);
+    linkInput(mapHeightTilesSlider, mapHeightTilesNum);
+    linkInput(structureAttemptsSlider, structureAttemptsNum);
     linkInput(policeCoolSlider, policeCoolNum);
     linkInput(soldierCoolSlider, soldierCoolNum);
     linkInput(soldierSpeedSlider, soldierSpeedNum);
@@ -1344,6 +1365,27 @@ const txtEventoElem = document.getElementById("txtEvento");
 
     let runSettings = null;     // resolved settings for the current run (UI merged with overrides)
 
+    function applyWorldSizeSettings(settings) {
+        const nextWidthTiles = Math.max(80, Math.min(1000, Number.isFinite(settings.mapWidthTiles) ? settings.mapWidthTiles : 500));
+        const nextHeightTiles = Math.max(60, Math.min(700, Number.isFinite(settings.mapHeightTiles) ? settings.mapHeightTiles : 300));
+        const nextStructureAttempts = Math.max(0, Math.min(600, Number.isFinite(settings.structureAttempts) ? settings.structureAttempts : 194));
+
+        const nextCanvasWidth = nextWidthTiles * cellSize;
+        const nextCanvasHeight = nextHeightTiles * cellSize;
+        const sizeChanged = (canvas.width !== nextCanvasWidth) || (canvas.height !== nextCanvasHeight);
+
+        canvas.width = nextCanvasWidth;
+        canvas.height = nextCanvasHeight;
+        gridWidth = nextWidthTiles;
+        gridHeight = nextHeightTiles;
+        structureAttemptsTarget = nextStructureAttempts;
+
+        if (sizeChanged) {
+            rebuildGrain();
+            staticDirty = true;
+        }
+    }
+
     function isProbablyEvent(v) {
         return v && typeof v === "object" && ("type" in v) && ("target" in v);
     }
@@ -1365,6 +1407,9 @@ const txtEventoElem = document.getElementById("txtEvento");
             policeCount: toInt(policeNum, 2),
             soldierCount: toInt(soldierNum, 0),
             boxCount: toInt(boxNum, 32),
+            mapWidthTiles: toInt(mapWidthTilesNum, 500),
+            mapHeightTiles: toInt(mapHeightTilesNum, 300),
+            structureAttempts: toInt(structureAttemptsNum, 194),
 
             // Speeds
             zombieSpeed: toFloat(zSpeedNum, 1.5),
@@ -1491,8 +1536,9 @@ const txtEventoElem = document.getElementById("txtEvento");
     let distanciaAtraccionHeli = 150;
     let wallRepulsionForce = 0.5; 
 
-    const gridWidth = Math.floor(canvas.width / cellSize);
-    const gridHeight = Math.floor(canvas.height / cellSize);
+    let gridWidth = Math.floor(canvas.width / cellSize);
+    let gridHeight = Math.floor(canvas.height / cellSize);
+    let structureAttemptsTarget = 194;
     let grid = [];
     let openPlazas = []; 
     let houseRooms = [];
@@ -2720,8 +2766,10 @@ function generarMapa() {
         }
 
         // Crear casas (rectángulos con 1 puerta)
-        const desiredHouses = 180;
-        let tries = 6000;
+        const structureCount = Math.max(0, Number.isFinite(structureAttemptsTarget) ? structureAttemptsTarget : 194);
+        const desiredHouses = Math.max(0, Math.round(structureCount * 0.9));
+        const wallSegments = Math.max(0, structureCount - desiredHouses);
+        let tries = Math.max(800, desiredHouses * 34);
         while (houseRooms.length < desiredHouses && tries-- > 0) {
             const w = randInt(7, 13);
             const h = randInt(7, 11);
@@ -2766,7 +2814,7 @@ function generarMapa() {
         }
 
         // Algunas vallas/muros cortos para crear pasillos y embudos
-        for (let i = 0; i < 14; i++) {
+        for (let i = 0; i < wallSegments; i++) {
             const len = randInt(5, 12);
             const horizontal = Math.random() < 0.55;
             const x0 = randInt(2, Math.max(3, fieldX0 - 4));
@@ -2901,6 +2949,7 @@ function generarMapa() {
         const uiSettings = getSettingsFromUI();
         const mergedSettings = Object.assign({}, uiSettings, (currentRunDef.settingsOverrides || {}));
         applySettings(mergedSettings);
+        applyWorldSizeSettings(mergedSettings);
 
         soldiersDeployed = false;
         // Stats Reset
@@ -3678,6 +3727,7 @@ if (helicoptero.visible) {
             }
             if(!target) {
                 const check = (e) => {
+                    if (e && e.infectionFramesLeft && e.infectionFramesLeft > 0) return;
                     const d = distancia(zombie.x, zombie.y, e.x, e.y);
                     if(d < 120 && (d<35 || tieneLineaDeVision(zombie.x, zombie.y, e.x, e.y))) { if(d < minDist) { minDist=d; target=e; } }
                 };
