@@ -2049,6 +2049,8 @@ const txtEventoElem = document.getElementById("txtEvento");
     let rangoVisionMilitar = 60; 
     let rangoDeteccionMilitar = 200; 
     let anguloVisionMilitar = 120 * (Math.PI / 180); 
+    let rangoVisionNPC = 72;
+    let anguloVisionNPC = 95 * (Math.PI / 180);
     let distanciaAtraccionHeli = 150;
     let wallRepulsionForce = 0.5; 
 
@@ -2667,6 +2669,16 @@ const DOOR_BASE_HP = 70;
     function normalizar(x, y) { const m = Math.sqrt(x*x + y*y); return m === 0 ? {x:0, y:0} : {x: x/m, y: y/m}; }
     function direccionAleatoria() { return [{x:1,y:0}, {x:-1,y:0}, {x:0,y:1}, {x:0,y:-1}][Math.floor(Math.random()*4)]; }
     function anguloEntrePuntos(x1, y1, x2, y2) { return Math.atan2(y2 - y1, x2 - x1); }
+    function anguloNormalizado(a) { return Math.atan2(Math.sin(a), Math.cos(a)); }
+    function isPointInsideVisionCone(observer, target, range, angle) {
+        const ox = observer.x + 1.5, oy = observer.y + 1.5;
+        const tx = target.x + 1.5, ty = target.y + 1.5;
+        const d = distancia(ox, oy, tx, ty);
+        if (d > range) return false;
+        const facing = Math.atan2(observer.direccion.y, observer.direccion.x);
+        const toTarget = Math.atan2(ty - oy, tx - ox);
+        return Math.abs(anguloNormalizado(toTarget - facing)) <= angle / 2;
+    }
 
     function tieneLineaDeVision(x1, y1, x2, y2) {
         let x0 = Math.floor(x1 / cellSize), y0 = Math.floor(y1 / cellSize);
@@ -4194,6 +4206,20 @@ drawDoorsWorld();
             ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(cx, cy, 2, 0, Math.PI*2); ctx.fill();
         }
 
+        const drawVisionCone = (e, range, angle, fillColor) => {
+            const cx = e.x + 1.5, cy = e.y + 1.5;
+            const facing = Math.atan2(e.direccion.y, e.direccion.x);
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.arc(0, 0, range, facing - angle / 2, facing + angle / 2);
+            ctx.closePath();
+            ctx.fillStyle = fillColor;
+            ctx.fill();
+            ctx.restore();
+        };
+
         const drawEnt = (e, color, radius, kind = "generic") => {
             const cx = e.x + 1.5, cy = e.y + 1.5;
 
@@ -4240,10 +4266,17 @@ drawDoorsWorld();
         if (editorState.active) {
             ciudadanos.forEach(cit => {
                 const citizenColor = (cit.infectionFramesLeft && cit.infectionFramesLeft > 0) ? PALETA.ciudadanoEnfermo : PALETA.ciudadano;
+                drawVisionCone(cit, rangoVisionNPC, anguloVisionNPC, "rgba(121, 134, 203, 0.08)");
                 drawEnt(cit, citizenColor, radioVisual);
             });
-            policias.forEach(poli => drawEnt(poli, PALETA.policia, radioVisual));
-            militares.forEach(mil => drawEnt(mil, PALETA.militar, radioVisual));
+            policias.forEach(poli => {
+                drawVisionCone(poli, rangoVisionNPC, anguloVisionNPC, "rgba(121, 134, 203, 0.12)");
+                drawEnt(poli, PALETA.policia, radioVisual);
+            });
+            militares.forEach(mil => {
+                drawVisionCone(mil, rangoVisionMilitar, anguloVisionMilitar, "rgba(156, 204, 101, 0.15)");
+                drawEnt(mil, PALETA.militar, radioVisual);
+            });
             zombies.forEach(zombie => drawEnt(zombie, PALETA.zombie, radioVisual));
         } else ciudadanos.forEach(cit => {
             if (cit.infectionFramesLeft && cit.infectionFramesLeft > 0) {
@@ -4256,18 +4289,17 @@ drawDoorsWorld();
 
             if(Math.random()<0.05) cit.direccion = normalizar(cit.direccion.x + (Math.random()-0.5), cit.direccion.y + (Math.random()-0.5));
             let threatVec = {x:0, y:0}; let threatFound = false;
-            const checkThreat = (list) => {
+            const checkThreat = (list, requiresVisionCone = false) => {
                 for(const t of list) {
                     const d = distancia(cit.x, cit.y, t.x, t.y);
-                    if (d < distanciaHuida) {
-                        if (d < 20 || tieneLineaDeVision(cit.x, cit.y, t.x, t.y)) {
-                            const rep = normalizar(cit.x - t.x, cit.y - t.y);
-                            threatVec.x += rep.x; threatVec.y += rep.y; threatFound = true;
-                        }
-                    }
+                    if (d >= distanciaHuida) continue;
+                    if (!tieneLineaDeVision(cit.x, cit.y, t.x, t.y)) continue;
+                    if (requiresVisionCone && !isPointInsideVisionCone(cit, t, rangoVisionNPC, anguloVisionNPC)) continue;
+                    const rep = normalizar(cit.x - t.x, cit.y - t.y);
+                    threatVec.x += rep.x; threatVec.y += rep.y; threatFound = true;
                 }
             };
-            checkThreat(zombies); checkThreat(militares);
+            checkThreat(zombies, true); checkThreat(militares, false);
             if (threatFound) { cit.direccion = normalizar(threatVec.x, threatVec.y); } 
             else { /* lógica de extracción removida */ }
             if(Math.random() < 0.2) { const sep = obtenerFuerzaSeparacion(cit, ciudadanos, radioSeparacion); cit.direccion.x += sep.x * 0.5; cit.direccion.y += sep.y * 0.5; }
@@ -4275,6 +4307,7 @@ drawDoorsWorld();
             if(choco) cit.direccion = direccionAleatoria();
             cit.boarding = 0;
             const citizenColor = (cit.infectionFramesLeft && cit.infectionFramesLeft > 0) ? PALETA.ciudadanoEnfermo : PALETA.ciudadano;
+            drawVisionCone(cit, rangoVisionNPC, anguloVisionNPC, "rgba(121, 134, 203, 0.08)");
             drawEnt(cit, citizenColor, radioVisual);
         });
 
@@ -4319,6 +4352,7 @@ drawDoorsWorld();
             }
             const choco = aplicarFuerzas(poli, velocidadCiudadano, timeScale);
             if(choco) poli.direccion = direccionAleatoria();
+            drawVisionCone(poli, rangoVisionNPC, anguloVisionNPC, "rgba(121, 134, 203, 0.12)");
             drawEnt(poli, PALETA.policia, radioVisual);
         });
 
@@ -4344,10 +4378,7 @@ drawDoorsWorld();
             });
             detected.sort((a, b) => { if(a.p !== b.p) return a.p - b.p; return distancia(mil.x,mil.y,a.e.x,a.e.y) - distancia(mil.x,mil.y,b.e.x,b.e.y); });
             let target = detected.length > 0 ? detected[0] : null;
-            ctx.save(); ctx.translate(mil.x+1.5, mil.y+1.5); ctx.beginPath(); ctx.moveTo(0,0);
-            const ang = Math.atan2(mil.direccion.y, mil.direccion.x);
-            ctx.arc(0, 0, rangoVisionMilitar, ang - anguloVisionMilitar/2, ang + anguloVisionMilitar/2);
-            ctx.lineTo(0,0); ctx.fillStyle = "rgba(156, 204, 101, 0.15)"; ctx.fill(); ctx.restore();
+            drawVisionCone(mil, rangoVisionMilitar, anguloVisionMilitar, "rgba(156, 204, 101, 0.15)");
 
             if(mil.isJammed) { 
                 ctx.fillStyle = "#000"; ctx.font = "12px Arial"; ctx.textAlign="center"; ctx.fillText("😓", mil.x, mil.y - 6); 
