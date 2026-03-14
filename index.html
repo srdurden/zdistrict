@@ -696,7 +696,6 @@
         <button id="editorSaveBtn" class="editor-chip">Guardar nivel</button>
         <button id="editorExitBtn" class="editor-chip">Salir editor</button>
     </div>
-    <div style="font:700 12px Nunito;color:#6d4c41">Rueda para zoom, arrastra para mover cámara, clic para pintar.</div>
 </div>
 
 <div id="gameContainer">
@@ -1238,6 +1237,7 @@ const txtEventoElem = document.getElementById("txtEvento");
 
     function refreshEditorPreviewLevel() {
         const previewLevel = buildCampaignLevelFromEditor();
+        const preserveCam = editorState.active ? { x: camera.x, y: camera.y, zoom: camera.zoom } : null;
         resetGame({
             mode: "campaign",
             campaignIndex: getActiveCampaignIndex(),
@@ -1247,6 +1247,12 @@ const txtEventoElem = document.getElementById("txtEvento");
             settingsOverrides: previewLevel.settingsOverrides,
             mapDef: previewLevel.mapDef
         });
+        if (preserveCam) {
+            camera.x = preserveCam.x;
+            camera.y = preserveCam.y;
+            camera.zoom = Math.max(camera.minZoom, Math.min(camera.maxZoom, preserveCam.zoom));
+            clampCamera();
+        }
     }
 
     if (editorExitBtn) editorExitBtn.addEventListener("click", () => {
@@ -1267,11 +1273,11 @@ const txtEventoElem = document.getElementById("txtEvento");
         refreshEditorPreviewLevel();
     });
     if (editorSaveBtn) editorSaveBtn.addEventListener("click", () => {
-        campaignCustomLevel = buildCampaignLevelFromEditor();
-        alert("Nivel de campaña guardado. Se añadirá al final de la campaña.");
+        const idx = getActiveCampaignIndex();
+        campaignLevelOverrides[idx] = buildCampaignLevelFromEditor();
         showEditorOverlay(false);
         editorState.active = false;
-        startCampaignMode(getActiveCampaignIndex());
+        startCampaignMode(idx);
     });
 
     // ===========================
@@ -1295,20 +1301,17 @@ const txtEventoElem = document.getElementById("txtEvento");
 
     let editorState = {
         active: false,
-        selectedTool: "floor",
+        selectedTool: null,
         mapWidthTiles: 100,
         mapHeightTiles: 100,
         settingsOverrides: {},
         mapRows: []
     };
-    let campaignCustomLevel = null;
+    let campaignLevelOverrides = {};
     const EDITOR_TOOLS = [
         { key: "floor", label: "Suelo", token: "." },
         { key: "wall", label: "Pared", token: "#" },
         { key: "door", label: "Puerta", token: "D" },
-        { key: "player", label: "Jugador (P)", token: "P" },
-        { key: "key", label: "Llave (K)", token: "K" },
-        { key: "heli", label: "Heli (H)", token: "H" },
         { key: "citizen", label: "Civil (C)", token: "C" },
         { key: "zombie", label: "Zombie (Z)", token: "Z" },
         { key: "police", label: "Policía (O)", token: "O" },
@@ -1371,7 +1374,7 @@ const txtEventoElem = document.getElementById("txtEvento");
             b.className = "editor-chip" + (tool.key === editorState.selectedTool ? " active" : "");
             b.textContent = tool.label;
             b.addEventListener("click", () => {
-                editorState.selectedTool = tool.key;
+                editorState.selectedTool = (editorState.selectedTool === tool.key) ? null : tool.key;
                 buildEditorPalette();
             });
             editorPaletteRow.appendChild(b);
@@ -1677,7 +1680,7 @@ const txtEventoElem = document.getElementById("txtEvento");
         postGameShown = false;
         setSettingsUIEnabled(false);
         if (editCampaignBtn) editCampaignBtn.style.display = "";
-        const pool = campaignCustomLevel ? CAMPAIGN_LEVELS.concat([campaignCustomLevel]) : CAMPAIGN_LEVELS;
+        const pool = getCampaignLevelPool();
         campaignIndex = Math.max(0, Math.min(index, pool.length - 1));
         const lvl = pool[campaignIndex];
         resetGame({
@@ -1731,7 +1734,7 @@ const txtEventoElem = document.getElementById("txtEvento");
         return !!(currentRunDef && currentRunDef.mode === "campaign");
     }
     function getCampaignLevelPool() {
-        return campaignCustomLevel ? CAMPAIGN_LEVELS.concat([campaignCustomLevel]) : CAMPAIGN_LEVELS;
+        return CAMPAIGN_LEVELS.map((lvl, idx) => campaignLevelOverrides[idx] || lvl);
     }
     function getActiveCampaignIndex() {
         const pool = getCampaignLevelPool();
@@ -2197,24 +2200,36 @@ const DOOR_BASE_HP = 70;
         actualizarStatsUI();
     }
 
-    function paintEditorTile(tx, ty) {
-        if (!editorState.active || !editorState.mapRows.length) return;
-        if (tx < 1 || ty < 1 || tx >= editorState.mapWidthTiles - 1 || ty >= editorState.mapHeightTiles - 1) return;
-        const tool = EDITOR_TOOLS.find(t => t.key === editorState.selectedTool) || EDITOR_TOOLS[0];
-        const token = tool.token;
+    function updateEditorRowsWithToken(tx, ty, token) {
+        if (!editorState.mapRows.length) return false;
+        if (tx < 1 || ty < 1 || tx >= editorState.mapWidthTiles - 1 || ty >= editorState.mapHeightTiles - 1) return false;
         const rows = editorState.mapRows.map(r => r.split(""));
-
-        if (token === "P" || token === "K" || token === "H" || token === "C" || token === "Z" || token === "O" || token === "M") {
-            for (let y = 0; y < rows.length; y++) {
-                for (let x = 0; x < rows[y].length; x++) {
-                    if (rows[y][x] === token) rows[y][x] = ".";
-                }
-            }
-        }
-
+        if (!rows[ty] || rows[ty][tx] == null || rows[ty][tx] === token) return false;
         rows[ty][tx] = token;
         editorState.mapRows = rows.map(r => r.join(""));
-        refreshEditorPreviewLevel();
+        return true;
+    }
+
+    function paintEditorTile(tx, ty) {
+        if (!editorState.active || !editorState.selectedTool) return false;
+        const tool = EDITOR_TOOLS.find(t => t.key === editorState.selectedTool);
+        if (!tool) return false;
+        return updateEditorRowsWithToken(tx, ty, tool.token);
+    }
+
+    function moveEditorEntity(fromTx, fromTy, toTx, toTy) {
+        if (!editorState.active || !editorState.mapRows.length) return false;
+        if (fromTx === toTx && fromTy === toTy) return false;
+        const rows = editorState.mapRows.map(r => r.split(""));
+        if (!rows[fromTy] || !rows[toTy]) return false;
+        const token = rows[fromTy][fromTx];
+        if (!["C", "Z", "O", "M"].includes(token)) return false;
+        if (toTx < 1 || toTy < 1 || toTx >= editorState.mapWidthTiles - 1 || toTy >= editorState.mapHeightTiles - 1) return false;
+        if (rows[toTy][toTx] !== ".") return false;
+        rows[fromTy][fromTx] = ".";
+        rows[toTy][toTx] = token;
+        editorState.mapRows = rows.map(r => r.join(""));
+        return true;
     }
 
     const pointerState = new Map();
@@ -2230,6 +2245,7 @@ const DOOR_BASE_HP = 70;
     let touchDragPan = null;
     let touchLastPinchDist = 0;
     const enableTouchFallback = !window.PointerEvent;
+    let editorInteraction = null;
 
     function setCanvasDragging(isDragging) {
         if (!canvas) return;
@@ -2400,9 +2416,27 @@ const DOOR_BASE_HP = 70;
         updateHoverFromClientPoint(e.clientX, e.clientY);
 
         if (pointerState.size >= 2) {
+            editorInteraction = null;
             beginPinchFromPointers();
         } else {
             setCanvasDragging(true);
+            if (editorState.active) {
+                const { tx, ty } = updateHoverFromClientPoint(e.clientX, e.clientY);
+                if (editorState.selectedTool) {
+                    const changed = paintEditorTile(tx, ty);
+                    editorInteraction = { mode: "paint", dirty: !!changed, lastTx: tx, lastTy: ty };
+                } else {
+                    const rows = editorState.mapRows;
+                    const ch = (rows[ty] && rows[ty][tx]) || "";
+                    if (["C", "Z", "O", "M"].includes(ch)) {
+                        editorInteraction = { mode: "move", dirty: false, fromTx: tx, fromTy: ty, lastTx: tx, lastTy: ty };
+                    } else {
+                        editorInteraction = { mode: "none", dirty: false, lastTx: tx, lastTy: ty };
+                    }
+                }
+            } else {
+                editorInteraction = null;
+            }
         }
     }, { passive: true });
 
@@ -2428,9 +2462,35 @@ const DOOR_BASE_HP = 70;
             return;
         }
 
-        if (pointerState.size === 1 && p.dragging) {
-            e.preventDefault();
-            panCameraByScreenDelta(dx, dy, true);
+        if (pointerState.size === 1) {
+            if (editorState.active && editorInteraction) {
+                const { tx, ty } = updateHoverFromClientPoint(e.clientX, e.clientY);
+                if (editorInteraction.mode === "paint") {
+                    if (tx !== editorInteraction.lastTx || ty !== editorInteraction.lastTy) {
+                        const changed = paintEditorTile(tx, ty);
+                        editorInteraction.dirty = editorInteraction.dirty || changed;
+                        editorInteraction.lastTx = tx;
+                        editorInteraction.lastTy = ty;
+                    }
+                } else if (editorInteraction.mode === "move") {
+                    if (tx !== editorInteraction.lastTx || ty !== editorInteraction.lastTy) {
+                        const changed = moveEditorEntity(editorInteraction.fromTx, editorInteraction.fromTy, tx, ty);
+                        if (changed) {
+                            editorInteraction.dirty = true;
+                            editorInteraction.fromTx = tx;
+                            editorInteraction.fromTy = ty;
+                        }
+                        editorInteraction.lastTx = tx;
+                        editorInteraction.lastTy = ty;
+                    }
+                }
+                if (p.dragging) e.preventDefault();
+                return;
+            }
+            if (p.dragging) {
+                e.preventDefault();
+                panCameraByScreenDelta(dx, dy, true);
+            }
         }
     }, { passive: false });
 
@@ -2442,7 +2502,15 @@ const DOOR_BASE_HP = 70;
         const world = updateHoverFromClientPoint(e.clientX, e.clientY).world;
         releasePointer(e.pointerId);
 
-        if (justTapped) registerTap(world, e.clientX, e.clientY, p.pointerType);
+        if (editorState.active && editorInteraction && pointerState.size === 0) {
+            if (justTapped && editorInteraction.mode === "none") {
+                registerTap(world, e.clientX, e.clientY, p.pointerType);
+            }
+            if (editorInteraction.dirty) refreshEditorPreviewLevel();
+            editorInteraction = null;
+        } else if (justTapped) {
+            registerTap(world, e.clientX, e.clientY, p.pointerType);
+        }
         if (pointerState.size === 0) {
             setCanvasDragging(false);
             clampCamera(false);
@@ -2453,6 +2521,7 @@ const DOOR_BASE_HP = 70;
     canvas.addEventListener('pointercancel', (e) => {
         releasePointer(e.pointerId);
         if (pointerState.size === 0) {
+            editorInteraction = null;
             setCanvasDragging(false);
             clampCamera(false);
         }
@@ -2564,6 +2633,7 @@ const DOOR_BASE_HP = 70;
 
     canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
+        if (editorState.active) return;
         stopCameraInertia();
         const factor = Math.exp(-e.deltaY * 0.0035);
         setZoomAtPoint(camera.zoom * factor, e.clientX, e.clientY);
@@ -4353,7 +4423,7 @@ drawDoorsWorld();
         disparoEnFotograma = false;
 
 
-        if ((ciudadanos.length + policias.length + militares.length) === 0 && estadoJuego === "PLAYING") {
+        if (!editorState.active && (ciudadanos.length + policias.length + militares.length) === 0 && estadoJuego === "PLAYING") {
             estadoJuego = "VICTORY";
         }
 
