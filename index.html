@@ -718,18 +718,33 @@
     const ctx = canvas.getContext("2d");
     let worldPixelWidth = canvas.width;
     let worldPixelHeight = canvas.height;
+    let viewportWidth = canvas.width;
+    let viewportHeight = canvas.height;
+    let canvasPixelRatio = 1;
 
     function syncCanvasResolutionToDisplay(options = {}) {
         const { refit = false } = options;
         const rect = canvas.getBoundingClientRect();
-        const nextCanvasWidth = Math.max(1, Math.round(rect.width || canvas.clientWidth || window.innerWidth || 1));
-        const nextCanvasHeight = Math.max(1, Math.round(rect.height || canvas.clientHeight || window.innerHeight || 1));
-        const sizeChanged = (canvas.width !== nextCanvasWidth) || (canvas.height !== nextCanvasHeight);
+        const nextViewportWidth = Math.max(1, Math.round(rect.width || canvas.clientWidth || window.innerWidth || 1));
+        const nextViewportHeight = Math.max(1, Math.round(rect.height || canvas.clientHeight || window.innerHeight || 1));
+        const nextPixelRatio = Math.max(1, window.devicePixelRatio || 1);
+        const nextCanvasWidth = Math.max(1, Math.round(nextViewportWidth * nextPixelRatio));
+        const nextCanvasHeight = Math.max(1, Math.round(nextViewportHeight * nextPixelRatio));
+        const sizeChanged =
+            (canvas.width !== nextCanvasWidth) ||
+            (canvas.height !== nextCanvasHeight) ||
+            (viewportWidth !== nextViewportWidth) ||
+            (viewportHeight !== nextViewportHeight) ||
+            (canvasPixelRatio !== nextPixelRatio);
 
         if (!sizeChanged) return false;
 
+        viewportWidth = nextViewportWidth;
+        viewportHeight = nextViewportHeight;
+        canvasPixelRatio = nextPixelRatio;
         canvas.width = nextCanvasWidth;
         canvas.height = nextCanvasHeight;
+        ctx.setTransform(canvasPixelRatio, 0, 0, canvasPixelRatio, 0, 0);
         ctx.imageSmoothingEnabled = true;
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
@@ -778,14 +793,14 @@
 
     function getDefaultCameraZoom() {
         const world = getWorldPixelSize();
-        const fitZoom = Math.min(canvas.width / world.width, canvas.height / world.height);
+        const fitZoom = Math.min(viewportWidth / world.width, viewportHeight / world.height);
         return Math.max(camera.minZoom, Math.min(camera.maxZoom, fitZoom));
     }
 
     function getCameraBounds(allowOverscroll = false) {
         const world = getWorldPixelSize();
-        const halfViewW = canvas.width / (2 * camera.zoom);
-        const halfViewH = canvas.height / (2 * camera.zoom);
+        const halfViewW = viewportWidth / (2 * camera.zoom);
+        const halfViewH = viewportHeight / (2 * camera.zoom);
         const overscrollX = allowOverscroll ? halfViewW * 0.28 : 0;
         const overscrollY = allowOverscroll ? halfViewH * 0.28 : 0;
 
@@ -821,10 +836,10 @@
 
     function screenToWorld(clientX, clientY) {
         const rect = canvas.getBoundingClientRect();
-        const sx = (clientX - rect.left) * (canvas.width / rect.width);
-        const sy = (clientY - rect.top) * (canvas.height / rect.height);
-        const wx = camera.x + (sx - canvas.width / 2) / camera.zoom;
-        const wy = camera.y + (sy - canvas.height / 2) / camera.zoom;
+        const sx = (clientX - rect.left) * (viewportWidth / rect.width);
+        const sy = (clientY - rect.top) * (viewportHeight / rect.height);
+        const wx = camera.x + (sx - viewportWidth / 2) / camera.zoom;
+        const wy = camera.y + (sy - viewportHeight / 2) / camera.zoom;
         return { x: wx, y: wy };
     }
 
@@ -982,7 +997,7 @@
     }
 
     function drawGrainAndVignette() {
-        const w = canvas.width, h = canvas.height;
+        const w = viewportWidth, h = viewportHeight;
 
         // vignette
         const rg = ctx.createRadialGradient(w * 0.5, h * 0.45, Math.min(w, h) * 0.18, w * 0.5, h * 0.45, Math.max(w, h) * 0.78);
@@ -4124,8 +4139,8 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
             timeScale = simStep * (0.12 + (0.88 * introEase));
         }
 
-        const cx = canvas.width / 2;
-        const cy = canvas.height / 2;
+        const cx = viewportWidth / 2;
+        const cy = viewportHeight / 2;
         const px = jugador.x + 1.5;
         const py = jugador.y + 1.5;
         const baseFocusX = camera.x;
@@ -4141,7 +4156,7 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
         const renderZoom = camera.zoom * introZoom;
 
         ctx.save();
-        ctx.fillStyle = PALETA.fondo; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = PALETA.fondo; ctx.fillRect(0, 0, viewportWidth, viewportHeight);
         ctx.translate(cx, cy);
         ctx.scale(renderZoom, renderZoom);
         ctx.translate(-focusX, -focusY);
@@ -4437,25 +4452,25 @@ drawDoorsWorld();
             // Stats Calc
             const totalTime = ((Date.now() - gameStats.startTime) / 1000).toFixed(1);
             
-            ctx.fillStyle = "rgba(255, 252, 245, 0.9)"; ctx.fillRect(0,0,canvas.width,canvas.height);
+            ctx.fillStyle = "rgba(255, 252, 245, 0.9)"; ctx.fillRect(0,0,viewportWidth,viewportHeight);
             ctx.save(); ctx.shadowColor = "rgba(0,0,0,0.1)"; ctx.shadowBlur = 10; ctx.shadowOffsetY = 5;
             ctx.fillStyle = estadoJuego === "VICTORY" ? "#81c784" : "#ef5350";
             ctx.textAlign = "center"; ctx.font = "900 48px Nunito";
-            ctx.fillText(estadoJuego === "VICTORY" ? "¡HUMANOS ELIMINADOS!" : "SIMULACIÓN INTERRUMPIDA", canvas.width/2, canvas.height/2 - 50);
+            ctx.fillText(estadoJuego === "VICTORY" ? "¡HUMANOS ELIMINADOS!" : "SIMULACIÓN INTERRUMPIDA", viewportWidth/2, viewportHeight/2 - 50);
             ctx.restore();
 
             // Stats Display
             ctx.fillStyle = "#5d4037"; ctx.font = "700 16px Nunito";
             ctx.textAlign = "center";
-            const yStart = canvas.height/2 + 20;
-            ctx.fillText(`⏱️ Tiempo: ${totalTime}s`, canvas.width/2, yStart);
-            ctx.fillText(`🧟 Zombies Eliminados: ${gameStats.zombiesKilled}`, canvas.width/2, yStart + 25);
-            ctx.fillText(`💀 Civiles Infectados: ${gameStats.civsInfected}`, canvas.width/2, yStart + 50);
-            ctx.fillText(`🛟 Civiles Salvados: ${ciudadanosSalvados}`, canvas.width/2, yStart + 100);
-            if(gameStats.soldiersLost > 0) ctx.fillText(`🎖️ Bajas Militares: ${gameStats.soldiersLost}`, canvas.width/2, yStart + 75);
+            const yStart = viewportHeight/2 + 20;
+            ctx.fillText(`⏱️ Tiempo: ${totalTime}s`, viewportWidth/2, yStart);
+            ctx.fillText(`🧟 Zombies Eliminados: ${gameStats.zombiesKilled}`, viewportWidth/2, yStart + 25);
+            ctx.fillText(`💀 Civiles Infectados: ${gameStats.civsInfected}`, viewportWidth/2, yStart + 50);
+            ctx.fillText(`🛟 Civiles Salvados: ${ciudadanosSalvados}`, viewportWidth/2, yStart + 100);
+            if(gameStats.soldiersLost > 0) ctx.fillText(`🎖️ Bajas Militares: ${gameStats.soldiersLost}`, viewportWidth/2, yStart + 75);
 
             ctx.fillStyle = "#8d6e63"; ctx.font = "800 18px Nunito";
-            ctx.fillText(getEndHintText(), canvas.width/2, canvas.height/2 + 130);
+            ctx.fillText(getEndHintText(), viewportWidth/2, viewportHeight/2 + 130);
 
             if (!postGameShown) {
                 postGameShown = true;
