@@ -872,7 +872,7 @@
 
     const staticLayer = document.createElement("canvas");
     const staticCtx = staticLayer.getContext("2d");
-    staticCtx.imageSmoothingEnabled = true;
+    staticCtx.imageSmoothingEnabled = false;
     let staticDirty = true;
 
     let fieldRectTiles = null; // {x0,x1,y0,y1} in tile coords, for a subtle "safe field" tint
@@ -4157,9 +4157,12 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
 
         ctx.save();
         ctx.fillStyle = PALETA.fondo; ctx.fillRect(0, 0, viewportWidth, viewportHeight);
+        const snappedFocusX = Math.round(focusX * renderZoom) / renderZoom;
+        const snappedFocusY = Math.round(focusY * renderZoom) / renderZoom;
+
         ctx.translate(cx, cy);
         ctx.scale(renderZoom, renderZoom);
-        ctx.translate(-focusX, -focusY);
+        ctx.translate(-snappedFocusX, -snappedFocusY);
 
         if (screenShake > 0) {
             const mag = screenShake;
@@ -4168,9 +4171,11 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
         }
 
 
+        ctx.imageSmoothingEnabled = false;
         if (staticDirty) buildStaticLayer();
         ctx.drawImage(staticLayer, 0, 0);
         drawBloodStains();
+        ctx.imageSmoothingEnabled = true;
 
 drawDoorsWorld();
 
