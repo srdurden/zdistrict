@@ -1401,7 +1401,10 @@ const txtEventoElem = document.getElementById("txtEvento");
         const h = Math.max(15, Math.min(200, parseInt(editorHeightInput && editorHeightInput.value, 10) || editorState.mapHeightTiles || 100));
         const rows = ensureEditorMarkers(editorState.mapRows.length ? editorState.mapRows : createEditorRows(w, h));
         const uiSettings = getSettingsFromUI();
-        const settingsOverrides = Object.assign({}, uiSettings, editorState.settingsOverrides || {}, { mapWidthTiles: w, mapHeightTiles: h, structureAttempts: 0 });
+        // Editor UI values must take precedence over hydrated campaign defaults.
+        // This keeps reinforcement delay/count settings consistent with what the
+        // user configured before saving the edited level.
+        const settingsOverrides = Object.assign({}, editorState.settingsOverrides || {}, uiSettings, { mapWidthTiles: w, mapHeightTiles: h, structureAttempts: 0 });
         return {
             id: "C-EDIT",
             name: "Nivel editado",
