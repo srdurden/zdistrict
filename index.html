@@ -38,8 +38,8 @@
             display: flex;
             justify-content: center;
             align-items: flex-start;
-            min-height: 100svh;
-            overflow: auto;
+            min-height: var(--app-height);
+            overflow: hidden;
             touch-action: pan-x pan-y pinch-zoom;
             user-select: none;
         }
@@ -51,9 +51,11 @@
             justify-content: flex-start;
             position: relative;
             z-index: 1;
-            min-height: 100svh;
+            width: 100vw;
+            min-height: var(--app-height);
             padding: 16px 8px 24px;
             box-sizing: border-box;
+            overflow: hidden;
         }
 
         canvas {
@@ -64,11 +66,13 @@
             display: block;
             border: 4px solid rgba(255,255,255,0.92);
 
-            /* Responsive without looking pixelated */
+            /* The CSS box defines the visible area. JS syncs the internal bitmap to this size
+               so the camera uses the real screen aspect ratio and the map never stretches. */
             width: min(920px, 98vw);
+            height: min(calc(var(--app-height) - 40px), calc(98vw * 0.6));
             max-width: none;
-            height: min(100svh - 40px, calc(98vw * 0.6));
-            aspect-ratio: 5 / 3;
+            max-height: none;
+            aspect-ratio: auto;
             image-rendering: auto;
             will-change: transform;
             touch-action: none;
@@ -710,15 +714,57 @@
         document.documentElement.style.setProperty("--app-height", `${viewportHeight}px`);
     }
     syncAppHeight();
-    window.addEventListener("resize", syncAppHeight);
-    if (window.visualViewport) window.visualViewport.addEventListener("resize", syncAppHeight);
 
     const canvas = document.getElementById("myCanvas");
     const ctx = canvas.getContext("2d");
+    let worldPixelWidth = canvas.width;
+    let worldPixelHeight = canvas.height;
+
+    function syncCanvasResolutionToDisplay(options = {}) {
+        const { refit = false } = options;
+        const rect = canvas.getBoundingClientRect();
+        const nextCanvasWidth = Math.max(1, Math.round(rect.width || canvas.clientWidth || window.innerWidth || 1));
+        const nextCanvasHeight = Math.max(1, Math.round(rect.height || canvas.clientHeight || window.innerHeight || 1));
+        const sizeChanged = (canvas.width !== nextCanvasWidth) || (canvas.height !== nextCanvasHeight);
+
+        if (!sizeChanged) return false;
+
+        canvas.width = nextCanvasWidth;
+        canvas.height = nextCanvasHeight;
+        ctx.imageSmoothingEnabled = true;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        rebuildGrain();
+        if (refit) {
+            fitCameraToWorld();
+        } else {
+            camera.minZoom = Math.max(0.05, getDefaultCameraZoom() * 0.35);
+            camera.zoom = Math.max(camera.minZoom, Math.min(camera.maxZoom, camera.zoom));
+            clampCamera(false);
+        }
+        return true;
+    }
+
+    function syncViewportLayout(options = {}) {
+        syncAppHeight();
+        requestAnimationFrame(() => {
+            if (syncCanvasResolutionToDisplay(options)) {
+                staticDirty = true;
+            }
+        });
+    }
+
+    window.addEventListener("resize", () => syncViewportLayout());
+    window.addEventListener("orientationchange", () => syncViewportLayout());
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener("resize", () => syncViewportLayout());
+        window.visualViewport.addEventListener("scroll", () => syncViewportLayout());
+    }
 
     const camera = {
-        x: canvas.width / 2,
-        y: canvas.height / 2,
+        x: worldPixelWidth / 2,
+        y: worldPixelHeight / 2,
         zoom: 1,
         minZoom: 0.05,
         maxZoom: 18
@@ -726,8 +772,8 @@
 
     function getWorldPixelSize() {
         return {
-            width: Math.max(cellSize, gridWidth * cellSize),
-            height: Math.max(cellSize, gridHeight * cellSize)
+            width: Math.max(cellSize, worldPixelWidth, gridWidth * cellSize),
+            height: Math.max(cellSize, worldPixelHeight, gridHeight * cellSize)
         };
     }
 
@@ -957,8 +1003,9 @@
 
     function buildStaticLayer() {
         if (!grid || !grid.length) return;
-        staticLayer.width = canvas.width;
-        staticLayer.height = canvas.height;
+        const world = getWorldPixelSize();
+        staticLayer.width = world.width;
+        staticLayer.height = world.height;
 
         const w = staticLayer.width, h = staticLayer.height;
         staticCtx.clearRect(0, 0, w, h);
@@ -1179,7 +1226,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     if (zoomOutBtn) zoomOutBtn.addEventListener("click", () => zoomByFactor(1 / 1.25));
     if (fitMapBtn) fitMapBtn.addEventListener("click", () => fitCameraToWorld());
 
-
+    syncViewportLayout({ refit: true });
 
     if (postPrimaryBtn) postPrimaryBtn.addEventListener("click", () => handlePostgamePrimaryAction());
     if (postSecondaryBtn) postSecondaryBtn.addEventListener("click", () => handlePostgameSecondaryAction());
@@ -1806,18 +1853,17 @@ const txtEventoElem = document.getElementById("txtEvento");
         const nextHeightTiles = Math.max(15, Math.min(700, Number.isFinite(settings.mapHeightTiles) ? settings.mapHeightTiles : 50));
         const nextStructureAttempts = Math.max(0, Math.min(600, Number.isFinite(settings.structureAttempts) ? settings.structureAttempts : 1));
 
-        const nextCanvasWidth = nextWidthTiles * cellSize;
-        const nextCanvasHeight = nextHeightTiles * cellSize;
-        const sizeChanged = (canvas.width !== nextCanvasWidth) || (canvas.height !== nextCanvasHeight);
+        const nextWorldWidth = nextWidthTiles * cellSize;
+        const nextWorldHeight = nextHeightTiles * cellSize;
+        const sizeChanged = (worldPixelWidth !== nextWorldWidth) || (worldPixelHeight !== nextWorldHeight);
 
-        canvas.width = nextCanvasWidth;
-        canvas.height = nextCanvasHeight;
+        worldPixelWidth = nextWorldWidth;
+        worldPixelHeight = nextWorldHeight;
         gridWidth = nextWidthTiles;
         gridHeight = nextHeightTiles;
         structureAttemptsTarget = nextStructureAttempts;
 
         if (sizeChanged) {
-            rebuildGrain();
             staticDirty = true;
         }
     }
@@ -1985,8 +2031,8 @@ const txtEventoElem = document.getElementById("txtEvento");
     let distanciaAtraccionHeli = 150;
     let wallRepulsionForce = 0.5; 
 
-    let gridWidth = Math.floor(canvas.width / cellSize);
-    let gridHeight = Math.floor(canvas.height / cellSize);
+    let gridWidth = Math.floor(worldPixelWidth / cellSize);
+    let gridHeight = Math.floor(worldPixelHeight / cellSize);
     let structureAttemptsTarget = 1;
     let grid = [];
     let openPlazas = []; 
@@ -2595,8 +2641,8 @@ function colisionConPared(x, y, w, h, ignoreMuebleIndex = -1) {
         const nextY = entidad.y + vy * velocidad;
         if (!colisionConPared(nextX, entidad.y, tamanoEntidad, tamanoEntidad)) entidad.x = nextX;
         if (!colisionConPared(entidad.x, nextY, tamanoEntidad, tamanoEntidad)) entidad.y = nextY;
-        entidad.x = Math.max(0, Math.min(canvas.width - tamanoEntidad, entidad.x));
-        entidad.y = Math.max(0, Math.min(canvas.height - tamanoEntidad, entidad.y));
+        entidad.x = Math.max(0, Math.min(getWorldPixelSize().width - tamanoEntidad, entidad.x));
+        entidad.y = Math.max(0, Math.min(getWorldPixelSize().height - tamanoEntidad, entidad.y));
     }
 
 function moverJugadorConMuebles(vx, vy, velocidad) {
@@ -2642,8 +2688,8 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         }
     }
 
-    jugador.x = Math.max(0, Math.min(canvas.width - tamanoEntidad, jugador.x));
-    jugador.y = Math.max(0, Math.min(canvas.height - tamanoEntidad, jugador.y));
+    jugador.x = Math.max(0, Math.min(getWorldPixelSize().width - tamanoEntidad, jugador.x));
+    jugador.y = Math.max(0, Math.min(getWorldPixelSize().height - tamanoEntidad, jugador.y));
 }
 
 
@@ -2661,11 +2707,11 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
             entidad.y = nextY;
         } else { choco = true; }
         
-        if (entidad.x <= 0 || entidad.x >= canvas.width - tamanoEntidad) choco = true;
-        if (entidad.y <= 0 || entidad.y >= canvas.height - tamanoEntidad) choco = true;
+        if (entidad.x <= 0 || entidad.x >= getWorldPixelSize().width - tamanoEntidad) choco = true;
+        if (entidad.y <= 0 || entidad.y >= getWorldPixelSize().height - tamanoEntidad) choco = true;
         
-        entidad.x = Math.max(0, Math.min(canvas.width - tamanoEntidad, entidad.x));
-        entidad.y = Math.max(0, Math.min(canvas.height - tamanoEntidad, entidad.y));
+        entidad.x = Math.max(0, Math.min(getWorldPixelSize().width - tamanoEntidad, entidad.x));
+        entidad.y = Math.max(0, Math.min(getWorldPixelSize().height - tamanoEntidad, entidad.y));
         return choco;
     }
 
@@ -2684,9 +2730,9 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         });
         const edgeMargin = 20;
         if (entidad.x < edgeMargin) fx += 1.0;
-        if (entidad.x > canvas.width - edgeMargin) fx -= 1.0;
+        if (entidad.x > getWorldPixelSize().width - edgeMargin) fx -= 1.0;
         if (entidad.y < edgeMargin) fy += 1.0;
-        if (entidad.y > canvas.height - edgeMargin) fy -= 1.0;
+        if (entidad.y > getWorldPixelSize().height - edgeMargin) fy -= 1.0;
 
         if (fx !== 0 || fy !== 0) return normalizar(fx, fy);
         return {x:0, y:0};
@@ -3557,6 +3603,7 @@ function generarMapa() {
         }
         applySettings(mergedSettings);
         applyWorldSizeSettings(mergedSettings);
+        syncCanvasResolutionToDisplay();
 
         soldiersDeployed = false;
         // Stats Reset
