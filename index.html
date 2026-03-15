@@ -4404,47 +4404,180 @@ drawDoorsWorld();
 
         const getNpcStrength = (ent) => clampStrength(ent && ent.strength, 1);
 
+        const getNpcEscapeSkill = (npc) => {
+            const type = getNpcTypeForEntity(npc);
+            if (type === "mil") return 1.2;
+            if (type === "pol") return 1.0;
+            return 0.45;
+        };
+
+        const getZombiesTuggingNpc = (npc) => {
+            if (!npc) return [];
+            const now = frameCount;
+            const attackers = [];
+            for (const z of zombies) {
+                if (!z) continue;
+                if (Number.isFinite(z.regrabUntilFrame) && now < z.regrabUntilFrame) continue;
+                const nearNpc = distancia(z.x, z.y, npc.x, npc.y) < distanciaAtaque;
+                const tuggingNpc = !!(z.tugState && z.tugState.target === npc);
+                if (nearNpc || tuggingNpc) attackers.push(z);
+            }
+            return attackers;
+        };
+
+        const moveEntitySafely = (entidad, dir, distancePx, maxSteps = 9) => {
+            if (!entidad || !Number.isFinite(distancePx) || distancePx <= 0) return 0;
+            const unit = normalizar(dir.x, dir.y);
+            if (!unit.x && !unit.y) return 0;
+            const world = getWorldPixelSize();
+            const steps = Math.max(1, maxSteps | 0);
+            const stepDist = distancePx / steps;
+            let moved = 0;
+            for (let i = 0; i < steps; i++) {
+                const nextX = entidad.x + unit.x * stepDist;
+                const nextY = entidad.y + unit.y * stepDist;
+                let advanced = false;
+                if (!colisionConPared(nextX, nextY, tamanoEntidad, tamanoEntidad)) {
+                    entidad.x = nextX;
+                    entidad.y = nextY;
+                    advanced = true;
+                } else {
+                    if (!colisionConPared(nextX, entidad.y, tamanoEntidad, tamanoEntidad)) {
+                        entidad.x = nextX;
+                        advanced = true;
+                    }
+                    if (!colisionConPared(entidad.x, nextY, tamanoEntidad, tamanoEntidad)) {
+                        entidad.y = nextY;
+                        advanced = true;
+                    }
+                }
+                entidad.x = Math.max(0, Math.min(world.width - tamanoEntidad, entidad.x));
+                entidad.y = Math.max(0, Math.min(world.height - tamanoEntidad, entidad.y));
+                if (!advanced) break;
+                moved += stepDist;
+            }
+            return moved;
+        };
+
+        const updateNpcEscapeProgress = (npc, attackers) => {
+            if (!npc || !attackers || !attackers.length) return { escaped: false, attackForce: 0 };
+            const now = frameCount;
+            npc.escapeMeter = Number.isFinite(npc.escapeMeter) ? npc.escapeMeter : 0;
+            npc._lastEscapeTickFrame = Number.isFinite(npc._lastEscapeTickFrame) ? npc._lastEscapeTickFrame : now;
+            const ESCAPE_TICK_FRAMES = BASE_FPS * 0.25;
+            const elapsed = now - npc._lastEscapeTickFrame;
+            let attackForce = 0;
+            for (const z of attackers) attackForce += clampStrength(z.strength, zombieBaseStrength);
+            attackForce = Math.max(1, attackForce);
+
+            if (elapsed >= ESCAPE_TICK_FRAMES) {
+                const ticks = Math.max(1, Math.floor(elapsed / ESCAPE_TICK_FRAMES));
+                const npcStrength = getNpcStrength(npc);
+                const ratio = npcStrength / attackForce;
+                const groupPenalty = Math.max(0, attackers.length - 1) * 0.16;
+                const skill = getNpcEscapeSkill(npc);
+                let step = ((ratio - 0.78) - groupPenalty) * 0.32;
+                if (step >= 0) step *= skill;
+                else step *= (1.18 - Math.min(0.3, skill * 0.15));
+                npc.escapeMeter = Math.max(0, Math.min(1, npc.escapeMeter + step * ticks));
+                npc._lastEscapeTickFrame = now;
+            }
+
+            return { escaped: npc.escapeMeter >= 1, attackForce };
+        };
+
+        const releaseNpcFromTug = (npc, attackers, escapeDir) => {
+            if (!npc) return;
+            const now = frameCount;
+            const allAttackers = (attackers && attackers.length) ? attackers : getZombiesTuggingNpc(npc);
+            for (const z of allAttackers) {
+                if (z.tugState && z.tugState.target === npc) z.tugState = null;
+                z.regrabUntilFrame = now + BASE_FPS * 0.9;
+            }
+            for (const z of zombies) {
+                if (z && z.tugState && z.tugState.target === npc) z.tugState = null;
+            }
+            npc.escapeMeter = 0;
+            npc.escapeCooldownUntilFrame = now + BASE_FPS * 1.1;
+            npc._lastEscapeTickFrame = now;
+
+            const dir = normalizar(escapeDir && escapeDir.x, escapeDir && escapeDir.y);
+            const finalDir = (dir.x || dir.y) ? dir : direccionAleatoria();
+            const escapeDistance = distanciaAtaque + 2.4;
+            moveEntitySafely(npc, finalDir, escapeDistance, 12);
+            npc.tugFacingLock = { baseAngle: Math.atan2(finalDir.y, finalDir.x), lastFrame: now };
+
+            const pushBack = 1.8;
+            for (const z of allAttackers) {
+                const away = normalizar(z.x - npc.x, z.y - npc.y);
+                const zDir = (away.x || away.y) ? away : normalizar(-finalDir.x, -finalDir.y);
+                moveEntitySafely(z, zDir, pushBack, 6);
+            }
+        };
+
         const isNpcInTug = (npc) => zombies.some(z => z && z.tugState && z.tugState.target === npc);
 
         const applyZombieNpcTug = (zombie, npc) => {
             if (!zombie || !npc) return false;
+            const now = frameCount;
+            if (Number.isFinite(zombie.regrabUntilFrame) && now < zombie.regrabUntilFrame) return false;
+            if (Number.isFinite(npc.escapeCooldownUntilFrame) && now < npc.escapeCooldownUntilFrame) return false;
             const dx = npc.x - zombie.x;
             const dy = npc.y - zombie.y;
             const d = Math.hypot(dx, dy);
             if (d >= distanciaAtaque) return false;
 
-            const anchorX = (zombie.x + npc.x) * 0.5;
-            const anchorY = (zombie.y + npc.y) * 0.5;
-            const jiggle = 0.35;
-            zombie.x = anchorX + (Math.random() - 0.5) * jiggle;
-            zombie.y = anchorY + (Math.random() - 0.5) * jiggle;
-            npc.x = anchorX + (Math.random() - 0.5) * jiggle;
-            npc.y = anchorY + (Math.random() - 0.5) * jiggle;
+            if (!zombie.tugState || zombie.tugState.target !== npc) {
+                zombie.tugState = { target: npc, startFrame: now, lastRollSecond: 0 };
+            }
 
-            const now = frameCount;
+            const attackers = getZombiesTuggingNpc(npc);
             const incomingAngle = Math.atan2(zombie.y - npc.y, zombie.x - npc.x);
             if (!npc.tugFacingLock || !Number.isFinite(npc.tugFacingLock.baseAngle)) {
                 npc.tugFacingLock = { baseAngle: incomingAngle, lastFrame: now };
             } else {
                 npc.tugFacingLock.lastFrame = now;
             }
-            let attackForce = 0;
-            for (const z of zombies) {
-                if (distancia(z.x, z.y, npc.x, npc.y) < distanciaAtaque) {
-                    attackForce += clampStrength(z.strength, zombieBaseStrength);
+
+            if (npc._tugResolvedFrame !== now) {
+                npc._tugResolvedFrame = now;
+                let sumX = 0;
+                let sumY = 0;
+                for (const a of attackers) {
+                    sumX += a.x;
+                    sumY += a.y;
+                }
+                const count = Math.max(1, attackers.length);
+                const centerX = sumX / count;
+                const centerY = sumY / count;
+                const toCenter = normalizar(centerX - npc.x, centerY - npc.y);
+                moveEntitySafely(npc, toCenter, 0.55, 3);
+                for (const a of attackers) {
+                    const toNpc = normalizar(npc.x - a.x, npc.y - a.y);
+                    moveEntitySafely(a, toNpc, 0.42, 2);
                 }
             }
-            attackForce = Math.max(1, attackForce);
 
-            if (!zombie.tugState || zombie.tugState.target !== npc) {
-                zombie.tugState = { target: npc, startFrame: now, lastRollSecond: 0 };
+            const escapeInfo = updateNpcEscapeProgress(npc, attackers);
+            if (escapeInfo.escaped) {
+                const centerFromAttackers = attackers.reduce((acc, a) => {
+                    acc.x += a.x;
+                    acc.y += a.y;
+                    return acc;
+                }, { x: 0, y: 0 });
+                const avx = centerFromAttackers.x / Math.max(1, attackers.length);
+                const avy = centerFromAttackers.y / Math.max(1, attackers.length);
+                const escapeDir = normalizar(npc.x - avx, npc.y - avy);
+                releaseNpcFromTug(npc, attackers, escapeDir);
+                return false;
             }
+
             const st = zombie.tugState;
             const elapsedFrames = now - st.startFrame;
             const elapsedSeconds = Math.floor(elapsedFrames / BASE_FPS);
             if (elapsedSeconds >= 1 && elapsedSeconds > st.lastRollSecond) {
                 st.lastRollSecond = elapsedSeconds;
-                const roll = randInt(1, attackForce + 1);
+                const roll = randInt(1, escapeInfo.attackForce + 1);
                 if (roll > getNpcStrength(npc)) {
                     const npcType = getNpcTypeForEntity(npc);
                     if (npcType === "cit") {
@@ -4463,7 +4596,7 @@ drawDoorsWorld();
                         militares = militares.filter(m => m !== npc);
                         gameStats.soldiersLost++;
                     }
-                    zombie.tugState = null;
+                    releaseNpcFromTug(npc, attackers, { x: npc.x - zombie.x, y: npc.y - zombie.y });
                     actualizarStatsUI();
                 }
             }
