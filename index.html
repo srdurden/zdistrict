@@ -671,8 +671,8 @@
     </div>
 
     <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Radio mov. civiles (px)</span><input type="number" id="citizenRoamRadiusNum" min="10" max="500" step="5" value="120"></div>
-        <input type="range" id="citizenRoamRadiusSlider" min="10" max="500" step="5" value="120">
+        <div class="slider-header"><span class="slider-label">Radio movimiento (tiles)</span><input type="number" id="npcRoamRadiusTilesNum" min="1" max="80" step="1" value="5"></div>
+        <input type="range" id="npcRoamRadiusTilesSlider" min="1" max="80" step="1" value="5">
     </div>
 
     <div class="slider-group">
@@ -1152,7 +1152,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     const policeStrengthSlider = document.getElementById("policeStrengthSlider"); const policeStrengthNum = document.getElementById("policeStrengthNum");
     const soldierStrengthSlider = document.getElementById("soldierStrengthSlider"); const soldierStrengthNum = document.getElementById("soldierStrengthNum");
     const npcVisionConeSlider = document.getElementById("npcVisionConeSlider"); const npcVisionConeNum = document.getElementById("npcVisionConeNum");
-    const citizenRoamRadiusSlider = document.getElementById("citizenRoamRadiusSlider"); const citizenRoamRadiusNum = document.getElementById("citizenRoamRadiusNum");
+    const npcRoamRadiusTilesSlider = document.getElementById("npcRoamRadiusTilesSlider"); const npcRoamRadiusTilesNum = document.getElementById("npcRoamRadiusTilesNum");
     const bengalaSlider = document.getElementById("bengalaSlider"); const bengalaNum = document.getElementById("bengalaNum");
     const mapWidthTilesSlider = document.getElementById("mapWidthTilesSlider"); const mapWidthTilesNum = document.getElementById("mapWidthTilesNum");
     const mapHeightTilesSlider = document.getElementById("mapHeightTilesSlider"); const mapHeightTilesNum = document.getElementById("mapHeightTilesNum");
@@ -1220,7 +1220,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     linkInput(policeStrengthSlider, policeStrengthNum);
     linkInput(soldierStrengthSlider, soldierStrengthNum);
     linkInput(npcVisionConeSlider, npcVisionConeNum);
-    linkInput(citizenRoamRadiusSlider, citizenRoamRadiusNum);
+    linkInput(npcRoamRadiusTilesSlider, npcRoamRadiusTilesNum);
     linkInput(bengalaSlider, bengalaNum);
     linkInput(mapWidthTilesSlider, mapWidthTilesNum);
     linkInput(mapHeightTilesSlider, mapHeightTilesNum);
@@ -1983,7 +1983,7 @@ const txtEventoElem = document.getElementById("txtEvento");
             npcVisionConeDeg: toFloat(npcVisionConeNum, 95),
             citizenSpeed: toFloat(citizenSpeedSlider, 1.0),
             soldierSpeed: toFloat(soldierSpeedNum, 1.1),
-            citizenRoamRadiusPx: toFloat(citizenRoamRadiusNum, 120),
+            npcRoamRadiusTiles: toFloat(npcRoamRadiusTilesNum, 5),
 
             // Player
             balas: toInt(balasNum, 0),
@@ -2021,7 +2021,7 @@ const txtEventoElem = document.getElementById("txtEvento");
         soldierJamDurationFrames = settings.soldierJamDurationSec * 30;
 
         soldierSpawnDelayFrames = settings.soldierSpawnDelaySec * 30;
-        citizenRoamRadiusPx = Math.max(0, Number.isFinite(settings.citizenRoamRadiusPx) ? settings.citizenRoamRadiusPx : 120);
+        npcRoamRadiusPx = Math.max(cellSize, (Number.isFinite(settings.npcRoamRadiusTiles) ? settings.npcRoamRadiusTiles : 5) * cellSize);
         citizenBaseStrength = clampStrength(settings.citizenStrength, 1);
         policeBaseStrength = clampStrength(settings.policeStrength, 3);
         soldierBaseStrength = clampStrength(settings.soldierStrength, 5);
@@ -2121,7 +2121,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     let velocidadZombie = 1.5; // Default
     let velocidadCiudadano = 1.0;
     let velocidadMilitar = 1.1; 
-    let citizenRoamRadiusPx = 120;
+    let npcRoamRadiusPx = 5 * cellSize;
     
     let balasRestantes = 0;
     let bengalasRestantes = 1;
@@ -2954,6 +2954,20 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         entidad.y = cy + dy * scale;
         entidad.x = Math.max(0, Math.min(getWorldPixelSize().width - tamanoEntidad, entidad.x));
         entidad.y = Math.max(0, Math.min(getWorldPixelSize().height - tamanoEntidad, entidad.y));
+    }
+
+    function isEntityFleeingZombie(entidad, requiresVisionCone = false) {
+        if (!entidad || !Array.isArray(zombies) || !zombies.length) return false;
+        for (const z of zombies) {
+            const d = distancia(entidad.x, entidad.y, z.x, z.y);
+            if (d >= distanciaHuida) continue;
+            if (!tieneLineaDeVision(entidad.x, entidad.y, z.x, z.y)) continue;
+            if (requiresVisionCone && !isPointInsideVisionCone(entidad, z, rangoVisionNPC, anguloVisionNPC)) continue;
+            const away = normalizar(entidad.x - z.x, entidad.y - z.y);
+            const dot = (entidad.direccion.x * away.x) + (entidad.direccion.y * away.y);
+            if (dot > 0.45) return true;
+        }
+        return false;
     }
 
     function aplicarFuerzas(entidad, velocidad, timeScale) {
@@ -4113,7 +4127,7 @@ function spawnFromTiles(arr, tiles, type) {
 
         markUsed(tx, ty);
         const p = tileToEntityPixel(tx, ty);
-        let ent = initEntityFacing({ x: p.x, y: p.y, homeX: p.x, homeY: p.y, direccion: direccionAleatoria(), boarding: 0, _saved: false, scared: false, strength: citizenBaseStrength });
+        let ent = initEntityFacing({ x: p.x, y: p.y, homeX: p.x, homeY: p.y, direccion: direccionAleatoria(), boarding: 0, _saved: false, scared: false, panicking: false, panicUntilFrame: 0, fleeingZombie: false, strength: citizenBaseStrength });
         if (type === 'zomb') ent = createZombieEntity(p.x, p.y);
         if (type === 'poli') { ent.balas = policeInitialBullets; ent.cooldown = 0; ent.strength = policeBaseStrength; }
         arr.push(ent);
@@ -4173,7 +4187,7 @@ const spawn = (arr, count, type) => {
 
         markUsed(t.x, t.y);
         const p = tileToEntityPixel(t.x, t.y);
-        let ent = initEntityFacing({ x: p.x, y: p.y, homeX: p.x, homeY: p.y, direccion: direccionAleatoria(), boarding: 0, _saved: false, scared: false, strength: citizenBaseStrength });
+        let ent = initEntityFacing({ x: p.x, y: p.y, homeX: p.x, homeY: p.y, direccion: direccionAleatoria(), boarding: 0, _saved: false, scared: false, panicking: false, panicUntilFrame: 0, fleeingZombie: false, strength: citizenBaseStrength });
         if (type === 'zomb') ent = createZombieEntity(p.x, p.y);
         if (type === 'poli') { ent.balas = policeInitialBullets; ent.cooldown = 0; ent.strength = policeBaseStrength; }
         arr.push(ent);
@@ -4481,34 +4495,50 @@ drawDoorsWorld();
             }
 
             if(Math.random()<0.05) cit.direccion = normalizar(cit.direccion.x + (Math.random()-0.5), cit.direccion.y + (Math.random()-0.5));
-            let threatVec = {x:0, y:0}; let threatFound = false;
-            const checkThreat = (list, requiresVisionCone = false) => {
+            let threatVec = {x:0, y:0};
+            let threatFound = false;
+            let zombieThreatFound = false;
+            const checkThreat = (list, requiresVisionCone = false, isZombieThreat = false) => {
                 for(const t of list) {
                     const d = distancia(cit.x, cit.y, t.x, t.y);
                     if (d >= distanciaHuida) continue;
                     if (!tieneLineaDeVision(cit.x, cit.y, t.x, t.y)) continue;
                     if (requiresVisionCone && !isPointInsideVisionCone(cit, t, rangoVisionNPC, anguloVisionNPC)) continue;
                     const rep = normalizar(cit.x - t.x, cit.y - t.y);
-                    threatVec.x += rep.x; threatVec.y += rep.y; threatFound = true;
+                    threatVec.x += rep.x;
+                    threatVec.y += rep.y;
+                    threatFound = true;
+                    if (isZombieThreat) zombieThreatFound = true;
                 }
             };
-            checkThreat(zombies, true); checkThreat(militares, false);
+            checkThreat(zombies, true, true);
+            checkThreat(militares, false, false);
+
             if (threatFound) {
                 cit.scared = true;
+                cit.fleeingZombie = zombieThreatFound;
                 cit.lastThreatPos = { x: cit.x - threatVec.x * 30, y: cit.y - threatVec.y * 30 };
                 cit.direccion = normalizar(threatVec.x, threatVec.y);
-            }
-            else {
+                if (zombieThreatFound) {
+                    cit.panicUntilFrame = frameCount + (10 * 30);
+                }
+            } else {
                 cit.scared = false;
+                cit.fleeingZombie = false;
                 cit.lastThreatPos = null;
             }
+
+            const isPanicking = Number.isFinite(cit.panicUntilFrame) && cit.panicUntilFrame > frameCount;
+            cit.panicking = isPanicking;
+
             if(Math.random() < 0.2) { const sep = obtenerFuerzaSeparacion(cit, ciudadanos, radioSeparacion); cit.direccion.x += sep.x * 0.5; cit.direccion.y += sep.y * 0.5; }
             const choco = aplicarFuerzas(cit, velocidadCiudadano, timeScale);
             if(choco) cit.direccion = direccionAleatoria();
-            if (!cit.scared) limitEntityToRoamRadius(cit, citizenRoamRadiusPx, "spawn");
+            if (!cit.fleeingZombie) limitEntityToRoamRadius(cit, npcRoamRadiusPx, "spawn");
             cit.boarding = 0;
             const citizenColor = (cit.infectionFramesLeft && cit.infectionFramesLeft > 0) ? PALETA.ciudadanoEnfermo : PALETA.ciudadano;
-            drawVisionCone(cit, rangoVisionNPC, anguloVisionNPC, isNpcInTug(cit) ? "rgba(229, 57, 53, 0.28)" : (cit.scared ? "rgba(229, 57, 53, 0.16)" : "rgba(121, 134, 203, 0.08)"));
+            const baseConeColor = cit.panicking ? "rgba(229, 57, 53, 0.24)" : (cit.scared ? "rgba(229, 57, 53, 0.16)" : "rgba(121, 134, 203, 0.08)");
+            drawVisionCone(cit, rangoVisionNPC, anguloVisionNPC, isNpcInTug(cit) ? "rgba(229, 57, 53, 0.28)" : baseConeColor);
             drawEnt(cit, citizenColor, radioVisual);
         });
 
@@ -4554,6 +4584,7 @@ drawDoorsWorld();
             }
             const choco = aplicarFuerzas(poli, velocidadCiudadano, timeScale);
             if(choco) poli.direccion = direccionAleatoria();
+            if (!isEntityFleeingZombie(poli, false)) limitEntityToRoamRadius(poli, npcRoamRadiusPx, "spawn");
             drawVisionCone(poli, rangoVisionNPC, anguloVisionNPC, isNpcInTug(poli) ? "rgba(229, 57, 53, 0.28)" : "rgba(121, 134, 203, 0.12)");
             drawEnt(poli, PALETA.policia, radioVisual);
         });
@@ -4610,6 +4641,7 @@ drawDoorsWorld();
                 }
             }
             aplicarFuerzas(mil, velocidadMilitar, timeScale);
+            if (!isEntityFleeingZombie(mil, false)) limitEntityToRoamRadius(mil, npcRoamRadiusPx, "spawn");
             drawEnt(mil, PALETA.militar, radioVisual);
         });
 
