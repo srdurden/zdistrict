@@ -4565,7 +4565,10 @@ drawDoorsWorld();
             let target = null; let minDist = Infinity;
             for(const z of zombies) {
                 const d = distancia(poli.x, poli.y, z.x, z.y);
-                if(d < 120 && tieneLineaDeVision(poli.x, poli.y, z.x, z.y)) { if(d < minDist) { minDist = d; target = z; } }
+                const zombieInsideVisionCone = isPointInsideVisionCone(poli, z, rangoVisionNPC, anguloVisionNPC);
+                if(d < 120 && zombieInsideVisionCone && tieneLineaDeVision(poli.x, poli.y, z.x, z.y)) {
+                    if(d < minDist) { minDist = d; target = z; }
+                }
             }
             if(target) {
                 if(minDist < 60) { 
