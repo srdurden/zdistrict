@@ -304,6 +304,22 @@
             padding: 4px 6px;
             font: 700 12px Nunito, sans-serif;
         }
+        body.editor-active #gameContainer {
+            padding-top: 108px;
+        }
+        .editor-bottom-bar {
+            width: min(96vw, 1020px);
+            margin-top: 10px;
+            background: rgba(255, 252, 245, 0.95);
+            border: 1px solid #e4d8cf;
+            border-radius: 12px;
+            box-shadow: 0 16px 40px rgba(0,0,0,0.12);
+            padding: 10px;
+            display: none;
+            gap: 8px;
+            z-index: 20;
+        }
+        .editor-bottom-bar.visible { display: grid; }
 
         .post-stats{
             margin: 10px 0 6px;
@@ -770,22 +786,25 @@
 
 <div id="editorOverlay" class="editor-overlay">
     <div class="editor-row" id="editorPaletteRow"></div>
-    <div class="editor-row">
-        <span style="font:700 12px Nunito;color:#5d4037">Tamaño:</span>
-        <input id="editorWidthInput" class="editor-mini-input" type="number" min="15" max="200" value="60">
-        <span style="font:700 12px Nunito;color:#5d4037">x</span>
-        <input id="editorHeightInput" class="editor-mini-input" type="number" min="15" max="200" value="40">
-        <button id="editorResizeBtn" class="editor-chip">Aplicar tamaño</button>
-        <button id="editorClearBtn" class="editor-chip">Vaciar nivel</button>
-        <button id="editorSaveBtn" class="editor-chip">Guardar nivel</button>
-        <button id="editorExitBtn" class="editor-chip">Salir editor</button>
-    </div>
 </div>
 
 <div id="gameContainer">
     <canvas id="myCanvas" width="4500" height="2700"></canvas>
-
-    
+    <div id="editorBottomBar" class="editor-bottom-bar">
+        <div class="editor-row">
+            <span style="font:700 12px Nunito;color:#5d4037">Tamaño:</span>
+            <input id="editorWidthInput" class="editor-mini-input" type="number" min="15" max="200" value="60">
+            <span style="font:700 12px Nunito;color:#5d4037">x</span>
+            <input id="editorHeightInput" class="editor-mini-input" type="number" min="15" max="200" value="40">
+            <button id="editorResizeBtn" class="editor-chip">Aplicar tamaño</button>
+            <button id="editorClearBtn" class="editor-chip">Vaciar nivel</button>
+            <button id="editorSaveBtn" class="editor-chip">Guardar nivel</button>
+            <button id="editorExportBtn" class="editor-chip">Exportar nivel</button>
+            <button id="editorLoadBtn" class="editor-chip">Cargar nivel</button>
+            <button id="editorScenarioSettingsBtn" class="editor-chip">Settings escenario</button>
+            <button id="editorExitBtn" class="editor-chip">Salir editor</button>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -1256,12 +1275,16 @@ const txtEventoElem = document.getElementById("txtEvento");
     const editCampaignBtn = document.getElementById("editCampaignBtn");
 
     const editorOverlay = document.getElementById("editorOverlay");
+    const editorBottomBar = document.getElementById("editorBottomBar");
     const editorPaletteRow = document.getElementById("editorPaletteRow");
     const editorWidthInput = document.getElementById("editorWidthInput");
     const editorHeightInput = document.getElementById("editorHeightInput");
     const editorResizeBtn = document.getElementById("editorResizeBtn");
     const editorClearBtn = document.getElementById("editorClearBtn");
     const editorSaveBtn = document.getElementById("editorSaveBtn");
+    const editorExportBtn = document.getElementById("editorExportBtn");
+    const editorLoadBtn = document.getElementById("editorLoadBtn");
+    const editorScenarioSettingsBtn = document.getElementById("editorScenarioSettingsBtn");
     const editorExitBtn = document.getElementById("editorExitBtn");
 
     const postGameOverlay = document.getElementById("postGameOverlay");
@@ -1312,7 +1335,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     linkInput(deployInfectSlider, deployInfectNum);
     linkInput(deployStrengthSlider, deployStrengthNum);
 
-    settingsToggle.addEventListener("click", () => configPanel.classList.toggle("visible"));
+    settingsToggle.addEventListener("click", () => { configPanel.classList.toggle("visible"); closeEditorScenarioSettingsIfNeeded(); });
 
     let deployZombieArmed = false;
 
@@ -1413,6 +1436,18 @@ const txtEventoElem = document.getElementById("txtEvento");
         editorState.active = false;
         startCampaignMode(idx);
     });
+    if (editorExportBtn) editorExportBtn.addEventListener("click", () => exportEditorLevelDefinition());
+    if (editorLoadBtn) editorLoadBtn.addEventListener("click", () => {
+        const raw = window.prompt("Pega la definición del nivel exportada:");
+        if (!raw) return;
+        try {
+            const parsed = JSON.parse(raw);
+            applyEditorLevelDefinition(parsed);
+        } catch (err) {
+            alert("Definición inválida. Verifica el texto e inténtalo de nuevo.");
+        }
+    });
+    if (editorScenarioSettingsBtn) editorScenarioSettingsBtn.addEventListener("click", () => openEditorScenarioSettings());
 
     // ===========================
     // Phase 0: Run definitions
@@ -1446,10 +1481,9 @@ const txtEventoElem = document.getElementById("txtEvento");
         { key: "floor", label: "Suelo", token: "." },
         { key: "wall", label: "Pared", token: "#" },
         { key: "door", label: "Puerta", token: "D" },
-        { key: "citizen", label: "Civil (C)", token: "C" },
-        { key: "zombie", label: "Zombie (Z)", token: "Z" },
-        { key: "police", label: "Policía (O)", token: "O" },
-        { key: "soldier", label: "Militar (M)", token: "M" }
+        { key: "citizen", label: "Civil", token: "C" },
+        { key: "police", label: "Policia", token: "O" },
+        { key: "soldier", label: "Militar", token: "M" }
     ];
 
     function createEditorRows(w, h) {
@@ -1538,11 +1572,67 @@ const txtEventoElem = document.getElementById("txtEvento");
         };
     }
 
+    function applyEditorLevelDefinition(definition) {
+        const parsedRows = parseRowsFromMapDef(definition && definition.mapDef);
+        const w = Math.max(15, Math.min(200, (definition && definition.mapDef && definition.mapDef.w) || (parsedRows[0] ? parsedRows[0].length : editorState.mapWidthTiles || 60)));
+        const h = Math.max(15, Math.min(200, (definition && definition.mapDef && definition.mapDef.h) || parsedRows.length || editorState.mapHeightTiles || 40));
+        const rows = parsedRows.length ? parsedRows : createEditorRows(w, h);
+        editorState.mapWidthTiles = w;
+        editorState.mapHeightTiles = h;
+        editorState.mapRows = ensureEditorMarkers(rows);
+        editorState.settingsOverrides = Object.assign({}, editorState.settingsOverrides || {}, (definition && definition.settingsOverrides) || {}, { mapWidthTiles: w, mapHeightTiles: h, structureAttempts: 0 });
+        if (editorWidthInput) editorWidthInput.value = String(w);
+        if (editorHeightInput) editorHeightInput.value = String(h);
+        applySettings(editorState.settingsOverrides);
+        refreshEditorPreviewLevel();
+    }
+
+    function exportEditorLevelDefinition() {
+        const payload = buildCampaignLevelFromEditor();
+        const encoded = JSON.stringify({ mapDef: payload.mapDef, settingsOverrides: payload.settingsOverrides });
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(encoded).then(() => {
+                alert("Nivel exportado al portapapeles.");
+            }).catch(() => {
+                window.prompt("Copia manualmente la definición del nivel:", encoded);
+            });
+            return;
+        }
+        window.prompt("Copia manualmente la definición del nivel:", encoded);
+    }
+
+    function setScenarioSettingsVisibility(visible) {
+        const blockedIds = ["zombieNum", "citizenNum", "policeNum", "soldierNum", "zSpeedNum", "structureAttemptsNum"];
+        blockedIds.forEach((id) => {
+            const input = document.getElementById(id);
+            const group = input ? input.closest(".slider-group") : null;
+            if (group) group.style.display = visible ? "none" : "";
+        });
+    }
+
+    function openEditorScenarioSettings() {
+        editorState.settingsOverrides = Object.assign({}, editorState.settingsOverrides || {}, getSettingsFromUI(), {
+            mapWidthTiles: editorState.mapWidthTiles,
+            mapHeightTiles: editorState.mapHeightTiles,
+            structureAttempts: 0
+        });
+        applySettings(editorState.settingsOverrides);
+        setScenarioSettingsVisibility(true);
+        if (configPanel) configPanel.classList.add("visible");
+    }
+
+    function closeEditorScenarioSettingsIfNeeded() {
+        setScenarioSettingsVisibility(false);
+    }
+
     function showEditorOverlay(show) {
         if (!editorOverlay) return;
         const isVisible = !!show;
         editorOverlay.classList.toggle("visible", isVisible);
+        if (editorBottomBar) editorBottomBar.classList.toggle("visible", isVisible);
         document.body.classList.toggle("editor-active", isVisible);
+        if (!isVisible && configPanel) configPanel.classList.remove("visible");
+        if (!isVisible) closeEditorScenarioSettingsIfNeeded();
         syncAppHeight();
         staticDirty = true;
     }
@@ -1556,52 +1646,47 @@ const txtEventoElem = document.getElementById("txtEvento");
             directorOverrides: { enabled: false },
             settingsOverrides: {
                 zombieCount: 1,
-                citizenCount: 10,
+                citizenCount: 0,
                 policeCount: 0,
-                soldierCount: 0,
-                boxCount: 1,
+                soldierCount: 1,
+                boxCount: 0,
                 zombieSpeed: 1,
                 balas: 0,
                 bengalas: 0,
+                mapWidthTiles: 25,
+                mapHeightTiles: 25,
                 soldierSpawnDelaySec: 0
             },
             mapDef: {
                 type: "ascii",
+                w: 25,
+                h: 25,
                 data: `
-############################################################
-#..........................................................#
-#..........................................................#
-#..........................................................#
-#..........................................................#
-#.......##########################################.........#
-#.......#........................................#.........#
-#..C....#........................................#.........#
-#.......#........................................#.........#
-#.......#........................................#.........#
-#.......#........................................#.........#
-#.......#........................................#.........#
-#.......#.K................C...........P..H......#.........#
-#.......#........................................#.........#
-#..C....#........................................#.........#
-#.......#........................................#.........#
-#.......#........................................#.........#
-#.......#........................................#.........#
-#.......#........................................#.........#
-#.......#........................................#.........#
-#.C.....##########################################.........#
-#..........................................................#
-#......C...................................................#
-#...............................C..........................#
-#..........................................................#
-#............C.......C............................C........#
-#....C...................C.....D.......C...................#
-#..........................................................#
-#..........................................................#
-#...C........C.....C.......................................#
-#............................C.......C........C............#
-#..........................................................#
-#..........................................................#
-############################################################
+#########################
+#.......................#
+#.......................#
+#.......................#
+#.......................#
+#.......................#
+#.......................#
+#.......K...............#
+#.......................#
+#.......................#
+#.......................#
+#.......................#
+#...........M...........#
+#.......................#
+#.......................#
+#.......................#
+#.......................#
+#.......................#
+#.................H.....#
+#.......................#
+#.......................#
+#.......................#
+#..P....................#
+#.......................#
+#########################
 `.trim()
             }
         },
@@ -1763,6 +1848,7 @@ const txtEventoElem = document.getElementById("txtEvento");
 
 
     function setTopControlsForEditor(isEditor) {
+        if (!isEditor) closeEditorScenarioSettingsIfNeeded();
         if (settingsToggle) settingsToggle.style.display = isEditor ? "none" : "";
         if (homeBtn) homeBtn.style.display = isEditor ? "none" : "";
         if (spawnZombieBtn) spawnZombieBtn.style.display = isEditor ? "none" : "";
