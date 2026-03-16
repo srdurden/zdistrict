@@ -4185,11 +4185,13 @@ drawDoorsWorld();
 
             const dir = normalizar(escapeDir && escapeDir.x, escapeDir && escapeDir.y);
             const finalDir = (dir.x || dir.y) ? dir : direccionAleatoria();
-            const escapeDistance = npcEscapeDistance;
+            // Keep releases tight so NPCs don't "teleport" several tiles away after a tug escape.
+            const maxReleaseDistance = Math.max(distanciaAtaque + 1, cellSize * 1.25);
+            const escapeDistance = Math.min(Math.max(0, npcEscapeDistance), maxReleaseDistance);
             moveEntitySafely(npc, finalDir, escapeDistance, 12);
             npc.tugFacingLock = { baseAngle: Math.atan2(finalDir.y, finalDir.x), lastFrame: now };
 
-            const pushBack = zombieReleasePush;
+            const pushBack = Math.min(Math.max(0, zombieReleasePush), cellSize * 0.75);
             for (const z of allAttackers) {
                 const away = normalizar(z.x - npc.x, z.y - npc.y);
                 const zDir = (away.x || away.y) ? away : normalizar(-finalDir.x, -finalDir.y);
