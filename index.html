@@ -206,6 +206,25 @@
             color: #8d6e63;
             text-align: center;
         }
+        .deploy-rating {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            gap: 4px;
+            margin-top: 6px;
+        }
+        .deploy-rating-cube {
+            height: 14px;
+            border-radius: 3px;
+            border: 1px solid #d8d8d8;
+            background: #f0f0f0;
+            cursor: pointer;
+            transition: transform 0.12s ease;
+        }
+        .deploy-rating-cube:hover { transform: translateY(-1px); }
+        .deploy-rating-cube.active {
+            background: #e53935;
+            border-color: #c62828;
+        }
 
         .menu-overlay {
             position: fixed;
@@ -577,20 +596,20 @@
 <div id="deployPopup" class="deploy-popup">
     <div class="deploy-title">Tipo de zombie</div>
     <div class="slider-group" style="margin:0">
-        <div class="slider-header"><span class="slider-label">Velocidad</span><input type="number" id="deployZSpeedNum" min="0.2" max="3" step="0.1" value="1.5"></div>
-        <input type="range" id="deployZSpeedSlider" min="0.2" max="3" step="0.1" value="1.5">
+        <div class="slider-header"><span class="slider-label">Velocidad (1-10)</span><input type="number" id="deployZSpeedNum" min="1" max="10" step="1" value="5"></div>
+        <div id="deployZSpeedRating" class="deploy-rating" aria-label="Velocidad zombie"></div>
     </div>
     <div class="slider-group" style="margin:8px 0 0">
-        <div class="slider-header"><span class="slider-label">Propagación (s)</span><input type="number" id="deployInfectNum" min="1" max="30" step="0.5" value="5"></div>
-        <input type="range" id="deployInfectSlider" min="1" max="30" step="0.5" value="5">
+        <div class="slider-header"><span class="slider-label">Propagación (1-10)</span><input type="number" id="deployInfectNum" min="1" max="10" step="1" value="5"></div>
+        <div id="deployInfectRating" class="deploy-rating" aria-label="Propagación zombie"></div>
     </div>
     <div class="slider-group" style="margin:8px 0 0">
         <div class="slider-header"><span class="slider-label">Fuerza (1-10)</span><input type="number" id="deployStrengthNum" min="1" max="10" step="1" value="3"></div>
-        <input type="range" id="deployStrengthSlider" min="1" max="10" step="1" value="3">
+        <div id="deployStrengthRating" class="deploy-rating" aria-label="Fuerza zombie"></div>
     </div>
     <div class="slider-group" style="margin:8px 0 0">
-        <div class="slider-header"><span class="slider-label">Resistencia (1-5)</span><input type="number" id="deployResistanceNum" min="1" max="5" step="1" value="1"></div>
-        <input type="range" id="deployResistanceSlider" min="1" max="5" step="1" value="1">
+        <div class="slider-header"><span class="slider-label">Resistencia (1-10)</span><input type="number" id="deployResistanceNum" min="1" max="10" step="1" value="1"></div>
+        <div id="deployResistanceRating" class="deploy-rating" aria-label="Resistencia zombie"></div>
     </div>
     <button id="deployZombieBtn" class="deploy-btn">Desplegar</button>
     <div class="deploy-note">Tras pulsar, toca el escenario para soltar un zombie.</div>
@@ -1362,14 +1381,14 @@ const txtEventoElem = document.getElementById("txtEvento");
     const fitMapBtn = document.getElementById("fitMapBtn");
     const deployPopup = document.getElementById("deployPopup");
     const deployZombieBtn = document.getElementById("deployZombieBtn");
-    const deployZSpeedSlider = document.getElementById("deployZSpeedSlider");
     const deployZSpeedNum = document.getElementById("deployZSpeedNum");
-    const deployInfectSlider = document.getElementById("deployInfectSlider");
     const deployInfectNum = document.getElementById("deployInfectNum");
-    const deployStrengthSlider = document.getElementById("deployStrengthSlider");
     const deployStrengthNum = document.getElementById("deployStrengthNum");
-    const deployResistanceSlider = document.getElementById("deployResistanceSlider");
     const deployResistanceNum = document.getElementById("deployResistanceNum");
+    const deployZSpeedRating = document.getElementById("deployZSpeedRating");
+    const deployInfectRating = document.getElementById("deployInfectRating");
+    const deployStrengthRating = document.getElementById("deployStrengthRating");
+    const deployResistanceRating = document.getElementById("deployResistanceRating");
     const mainMenuOverlay = document.getElementById("mainMenuOverlay");
     const menuCampaignBtn = document.getElementById("menuCampaignBtn");
     const editCampaignBtn = document.getElementById("editCampaignBtn");
@@ -1417,10 +1436,40 @@ const txtEventoElem = document.getElementById("txtEvento");
     linkInput(policeCoolSlider, policeCoolNum);
     linkInput(jamCountSlider, jamCountNum);
     linkInput(jamDurSlider, jamDurNum);
-    linkInput(deployZSpeedSlider, deployZSpeedNum);
-    linkInput(deployInfectSlider, deployInfectNum);
-    linkInput(deployStrengthSlider, deployStrengthNum);
-    linkInput(deployResistanceSlider, deployResistanceNum);
+    function buildDeployRating(ratingEl, numberInput) {
+        if (!ratingEl || !numberInput) return;
+        ratingEl.innerHTML = "";
+        for (let i = 1; i <= 10; i += 1) {
+            const cube = document.createElement("button");
+            cube.type = "button";
+            cube.className = "deploy-rating-cube";
+            cube.dataset.value = String(i);
+            cube.setAttribute("aria-label", `Valor ${i}`);
+            cube.addEventListener("click", () => {
+                numberInput.value = String(i);
+                numberInput.dispatchEvent(new Event("input", { bubbles: true }));
+            });
+            ratingEl.appendChild(cube);
+        }
+
+        const syncRating = () => {
+            const value = Math.max(1, Math.min(10, parseInt(numberInput.value, 10) || 1));
+            numberInput.value = String(value);
+            for (const cube of ratingEl.children) {
+                const cubeValue = parseInt(cube.dataset.value || "0", 10);
+                cube.classList.toggle("active", cubeValue <= value);
+            }
+        };
+
+        numberInput.addEventListener("input", syncRating);
+        numberInput.addEventListener("change", syncRating);
+        syncRating();
+    }
+
+    buildDeployRating(deployZSpeedRating, deployZSpeedNum);
+    buildDeployRating(deployInfectRating, deployInfectNum);
+    buildDeployRating(deployStrengthRating, deployStrengthNum);
+    buildDeployRating(deployResistanceRating, deployResistanceNum);
 
     settingsToggle.addEventListener("click", () => { configPanel.classList.toggle("visible"); closeEditorScenarioSettingsIfNeeded(); });
 
@@ -2302,8 +2351,8 @@ const DOOR_BASE_HP = 70;
             speed: Number.isFinite(custom.speed) ? custom.speed : velocidadZombie,
             propagationSec: Number.isFinite(custom.propagationSec) ? custom.propagationSec : 5,
             strength: clampStrength(custom.strength, zombieBaseStrength),
-            resistance: Math.max(1, Math.min(5, Number.isFinite(custom.resistance) ? custom.resistance : 1)),
-            hp: Math.max(1, Math.min(5, Number.isFinite(custom.resistance) ? custom.resistance : 1)),
+            resistance: Math.max(1, Math.min(10, Number.isFinite(custom.resistance) ? custom.resistance : 1)),
+            hp: Math.max(1, Math.min(10, Number.isFinite(custom.resistance) ? custom.resistance : 1)),
             tugState: null
         });
     }
@@ -2471,11 +2520,15 @@ const DOOR_BASE_HP = 70;
         }
 
         if (deployZombieArmed) {
+            const speedRating = Math.max(1, Math.min(10, parseInt(deployZSpeedNum.value, 10) || 1));
+            const infectRating = Math.max(1, Math.min(10, parseInt(deployInfectNum.value, 10) || 1));
+            const strengthRating = Math.max(1, Math.min(10, parseInt(deployStrengthNum.value, 10) || zombieBaseStrength));
+            const resistanceRating = Math.max(1, Math.min(10, parseInt(deployResistanceNum.value, 10) || 1));
             const zombieType = {
-                speed: Number(deployZSpeedNum.value) || 1.5,
-                propagationSec: Number(deployInfectNum.value) || 5,
-                strength: clampStrength(Number(deployStrengthNum.value), zombieBaseStrength),
-                resistance: Math.max(1, Math.min(5, parseInt(deployResistanceNum.value, 10) || 1))
+                speed: 0.2 + ((speedRating - 1) / 9) * (3 - 0.2),
+                propagationSec: 10 - infectRating,
+                strength: clampStrength(strengthRating, zombieBaseStrength),
+                resistance: resistanceRating
             };
             spawnZombieAtWorld(world.x, world.y, zombieType);
             setDeployArmed(false);
