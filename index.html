@@ -2302,7 +2302,12 @@ const DOOR_BASE_HP = 70;
         if (!editorState.active || !editorState.selectedTool) return false;
         const tool = EDITOR_TOOLS.find(t => t.key === editorState.selectedTool);
         if (!tool) return false;
-        return updateEditorRowsWithToken(tx, ty, tool.token);
+        const changed = updateEditorRowsWithToken(tx, ty, tool.token);
+        if (changed && (tool.key === "citizen" || tool.key === "police")) {
+            editorState.selectedTool = null;
+            buildEditorPalette();
+        }
+        return changed;
     }
 
     function moveEditorEntity(fromTx, fromTy, toTx, toTy) {
@@ -2515,13 +2520,9 @@ const DOOR_BASE_HP = 70;
                     const changed = paintEditorTile(tx, ty);
                     editorInteraction = { mode: "paint", dirty: !!changed, lastTx: tx, lastTy: ty };
                 } else {
-                    const rows = editorState.mapRows;
-                    const ch = (rows[ty] && rows[ty][tx]) || "";
-                    if (["C", "Z", "O", "M"].includes(ch)) {
-                        editorInteraction = { mode: "move", dirty: false, fromTx: tx, fromTy: ty, lastTx: tx, lastTy: ty };
-                    } else {
-                        editorInteraction = { mode: "none", dirty: false, lastTx: tx, lastTy: ty };
-                    }
+                    // In navigation mode (no selected tile tool), keep editor drag behavior
+                    // aligned with gameplay: drag pans camera with edge padding.
+                    editorInteraction = null;
                 }
             } else {
                 editorInteraction = null;
