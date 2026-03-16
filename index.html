@@ -588,6 +588,10 @@
         <div class="slider-header"><span class="slider-label">Fuerza (1-10)</span><input type="number" id="deployStrengthNum" min="1" max="10" step="1" value="3"></div>
         <input type="range" id="deployStrengthSlider" min="1" max="10" step="1" value="3">
     </div>
+    <div class="slider-group" style="margin:8px 0 0">
+        <div class="slider-header"><span class="slider-label">Resistencia (1-5)</span><input type="number" id="deployResistanceNum" min="1" max="5" step="1" value="1"></div>
+        <input type="range" id="deployResistanceSlider" min="1" max="5" step="1" value="1">
+    </div>
     <button id="deployZombieBtn" class="deploy-btn">Desplegar</button>
     <div class="deploy-note">Tras pulsar, toca el escenario para soltar un zombie.</div>
 </div>
@@ -1340,6 +1344,8 @@ const txtEventoElem = document.getElementById("txtEvento");
     const deployInfectNum = document.getElementById("deployInfectNum");
     const deployStrengthSlider = document.getElementById("deployStrengthSlider");
     const deployStrengthNum = document.getElementById("deployStrengthNum");
+    const deployResistanceSlider = document.getElementById("deployResistanceSlider");
+    const deployResistanceNum = document.getElementById("deployResistanceNum");
     const mainMenuOverlay = document.getElementById("mainMenuOverlay");
     const menuCampaignBtn = document.getElementById("menuCampaignBtn");
     const editCampaignBtn = document.getElementById("editCampaignBtn");
@@ -1390,6 +1396,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     linkInput(deployZSpeedSlider, deployZSpeedNum);
     linkInput(deployInfectSlider, deployInfectNum);
     linkInput(deployStrengthSlider, deployStrengthNum);
+    linkInput(deployResistanceSlider, deployResistanceNum);
 
     settingsToggle.addEventListener("click", () => { configPanel.classList.toggle("visible"); closeEditorScenarioSettingsIfNeeded(); });
 
@@ -1536,7 +1543,8 @@ const txtEventoElem = document.getElementById("txtEvento");
         { key: "wall", label: "Pared", token: "#" },
         { key: "door", label: "Puerta", token: "D" },
         { key: "citizen", label: "Civil", token: "C" },
-        { key: "police", label: "Policia", token: "O" }
+        { key: "police", label: "Policia", token: "O" },
+        { key: "spawnZombie", label: "Spawn zombie", token: "S" }
     ];
 
     function createEditorRows(w, h) {
@@ -2221,6 +2229,7 @@ let ciudadanos = [];
     }
 
     let reachableTiles = [];         // set at reset for director spawning
+    let zombieDeploySpawnTiles = new Set();
 let frameCount = 0;
     let footstepCooldown = 0;
 
@@ -2269,6 +2278,8 @@ const DOOR_BASE_HP = 70;
             speed: Number.isFinite(custom.speed) ? custom.speed : velocidadZombie,
             propagationSec: Number.isFinite(custom.propagationSec) ? custom.propagationSec : 5,
             strength: clampStrength(custom.strength, zombieBaseStrength),
+            resistance: Math.max(1, Math.min(5, Number.isFinite(custom.resistance) ? custom.resistance : 1)),
+            hp: Math.max(1, Math.min(5, Number.isFinite(custom.resistance) ? custom.resistance : 1)),
             tugState: null
         });
     }
@@ -2279,11 +2290,21 @@ const DOOR_BASE_HP = 70;
         const tx = Math.floor(worldX / cellSize);
         const ty = Math.floor(worldY / cellSize);
         if (isTileBlocked(tx, ty)) return;
+        if (deployZombieArmed && !zombieDeploySpawnTiles.has(`${tx},${ty}`)) return;
         const x = Math.max(0, Math.min(world.width - tamanoEntidad, worldX - tamanoEntidad / 2));
         const y = Math.max(0, Math.min(world.height - tamanoEntidad, worldY - tamanoEntidad / 2));
         zombies.push(createZombieEntity(x, y, custom || undefined));
         addNoise(x, y, 160, 26);
         actualizarStatsUI();
+    }
+
+    function syncEditorTileToRuntime(tx, ty, token) {
+        if (ty < 0 || ty >= gridHeight || tx < 0 || tx >= gridWidth) return;
+        grid[ty][tx] = (token === "#");
+        const key = `${tx},${ty}`;
+        if (token === "S") zombieDeploySpawnTiles.add(key);
+        else zombieDeploySpawnTiles.delete(key);
+        staticDirty = true;
     }
 
     function updateEditorRowsWithToken(tx, ty, token) {
@@ -2295,6 +2316,7 @@ const DOOR_BASE_HP = 70;
         if (!rows[ty] || rows[ty][tx] == null || rows[ty][tx] === token) return false;
         rows[ty][tx] = token;
         editorState.mapRows = rows.map(r => r.join(""));
+        syncEditorTileToRuntime(tx, ty, token);
         return true;
     }
 
@@ -2310,6 +2332,11 @@ const DOOR_BASE_HP = 70;
         return changed;
     }
 
+    function getSelectedEditorTool() {
+        if (!editorState.selectedTool) return null;
+        return EDITOR_TOOLS.find(t => t.key === editorState.selectedTool) || null;
+    }
+
     function moveEditorEntity(fromTx, fromTy, toTx, toTy) {
         if (!editorState.active || !editorState.mapRows.length) return false;
         if (fromTx === toTx && fromTy === toTy) return false;
@@ -2322,6 +2349,8 @@ const DOOR_BASE_HP = 70;
         rows[fromTy][fromTx] = ".";
         rows[toTy][toTx] = token;
         editorState.mapRows = rows.map(r => r.join(""));
+        syncEditorTileToRuntime(fromTx, fromTy, ".");
+        syncEditorTileToRuntime(toTx, toTy, token);
         return true;
     }
 
@@ -2421,7 +2450,8 @@ const DOOR_BASE_HP = 70;
             const zombieType = {
                 speed: Number(deployZSpeedNum.value) || 1.5,
                 propagationSec: Number(deployInfectNum.value) || 5,
-                strength: clampStrength(Number(deployStrengthNum.value), zombieBaseStrength)
+                strength: clampStrength(Number(deployStrengthNum.value), zombieBaseStrength),
+                resistance: Math.max(1, Math.min(5, parseInt(deployResistanceNum.value, 10) || 1))
             };
             spawnZombieAtWorld(world.x, world.y, zombieType);
             setDeployArmed(false);
@@ -2622,7 +2652,7 @@ const DOOR_BASE_HP = 70;
 
     canvas.addEventListener('dblclick', (e) => {
         e.preventDefault();
-        if (editorState.active || deployZombieArmed) return;
+        if (deployZombieArmed) return;
         zoomByFactor(1.5, e.clientX, e.clientY);
     });
 
@@ -2723,7 +2753,6 @@ const DOOR_BASE_HP = 70;
 
     canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
-        if (editorState.active) return;
         stopCameraInertia();
         const factor = Math.exp(-e.deltaY * 0.0035);
         setZoomAtPoint(camera.zoom * factor, e.clientX, e.clientY);
@@ -3329,6 +3358,7 @@ function zombieTryHitMueble(zombie) {
 
         let zombieSpawnTiles = [];
         let citizenSpawnTiles = [];
+        let zombieDeploySpawnTiles = [];
 
         let policeSpawnTiles = [];
 
@@ -3341,7 +3371,7 @@ function zombieTryHitMueble(zombie) {
 
                 if (ch === "#") {
                     grid[gy][gx] = true;
-                } else if (ch === "." || ch === "D" || ch === "d" || ch === "B" || ch === "Z" || ch === "C" || ch === "O" || ch === "M") {
+                } else if (ch === "." || ch === "D" || ch === "d" || ch === "B" || ch === "Z" || ch === "C" || ch === "O" || ch === "M" || ch === "S") {
                     // Walkable cells + basic markers
                     grid[gy][gx] = false;
 
@@ -3349,6 +3379,7 @@ function zombieTryHitMueble(zombie) {
                     if (ch === "Z") zombieSpawnTiles.push({ x: gx, y: gy });
                     if (ch === "C") citizenSpawnTiles.push({ x: gx, y: gy });
                     if (ch === "O") policeSpawnTiles.push({ x: gx, y: gy });
+                    if (ch === "S") zombieDeploySpawnTiles.push({ x: gx, y: gy });
 
                     // Doors (Phase 1.04): each 'D'/'d' creates a single-tile door group.
                     if (ch === "D" || ch === "d") {
@@ -3363,7 +3394,7 @@ function zombieTryHitMueble(zombie) {
             }
         }
 
-        return { w, h, offsetX: ox, offsetY: oy, playerTile, boxTiles, zombieSpawnTiles, citizenSpawnTiles, policeSpawnTiles };
+        return { w, h, offsetX: ox, offsetY: oy, playerTile, boxTiles, zombieSpawnTiles, citizenSpawnTiles, policeSpawnTiles, zombieDeploySpawnTiles };
     }
 
 
@@ -3421,6 +3452,7 @@ function zombieTryHitMueble(zombie) {
 
         openPlazas = [];
         houseRooms = [];
+        zombieDeploySpawnTiles = new Set();
         doorGroups = [];
         doorIndex = Object.create(null);
 
@@ -3490,6 +3522,19 @@ function zombieTryHitMueble(zombie) {
         jugador.y = playerTile.y * cellSize;
 
 
+        const deployTiles =
+            (parsed && Array.isArray(parsed.zombieDeploySpawnTiles) && parsed.zombieDeploySpawnTiles.length) ? parsed.zombieDeploySpawnTiles :
+            (Array.isArray(def.zombieDeploySpawnTiles) ? def.zombieDeploySpawnTiles : []);
+        zombieDeploySpawnTiles = new Set();
+        for (const tile of deployTiles) {
+            if (!tile) continue;
+            const tx = tile.x | 0;
+            const ty = tile.y | 0;
+            if (ty < 0 || ty >= gridHeight || tx < 0 || tx >= gridWidth) continue;
+            if (grid[ty][tx]) continue;
+            zombieDeploySpawnTiles.add(`${tx},${ty}`);
+        }
+
         // Compute reachability
         const alcanzables = floodFill(playerTile.x, playerTile.y);
         reachableTiles = alcanzables;
@@ -3503,6 +3548,7 @@ function generarMapa() {
         doorGroups = [];
         doorIndex = Object.create(null);
         houseRooms = [];
+        zombieDeploySpawnTiles = new Set();
 
         // Bordes
         for (let x = 0; x < gridWidth; x++) { grid[0][x] = true; grid[gridHeight - 1][x] = true; }
@@ -4013,6 +4059,22 @@ drawDoorsWorld();
 
         drawMueblesWorld();
 
+        if (editorState.active && zombieDeploySpawnTiles.size) {
+            ctx.fillStyle = "rgba(67, 160, 71, 0.4)";
+            for (const key of zombieDeploySpawnTiles) {
+                const [tx, ty] = key.split(",").map(Number);
+                if (!Number.isFinite(tx) || !Number.isFinite(ty)) continue;
+                ctx.fillRect(tx * cellSize, ty * cellSize, cellSize, cellSize);
+            }
+        } else if (deployZombieArmed && zombieDeploySpawnTiles.size) {
+            ctx.fillStyle = "rgba(76, 175, 80, 0.2)";
+            for (const key of zombieDeploySpawnTiles) {
+                const [tx, ty] = key.split(",").map(Number);
+                if (!Number.isFinite(tx) || !Number.isFinite(ty)) continue;
+                ctx.fillRect(tx * cellSize, ty * cellSize, cellSize, cellSize);
+            }
+        }
+
         for(let i = bengalasActivas.length - 1; i >= 0; i--) {
             const b = bengalasActivas[i]; b.vida--;
             if (b.vida <= 0) { bengalasActivas.splice(i, 1); continue; }
@@ -4202,11 +4264,17 @@ drawDoorsWorld();
 
         const policeShootZombie = (poli, targetZombie) => {
             if (!poli || !targetZombie) return false;
-            zombies = zombies.filter(z => z !== targetZombie);
-            cadaveres.push({x:targetZombie.x, y:targetZombie.y});
-            gameStats.zombiesKilled++;
-            addBlood(targetZombie.x + 1.5, targetZombie.y + 1.5, 2);
-            addFloatText('+1', targetZombie.x + 1.5, targetZombie.y - 3, 'rgba(229,57,53,0.9)');
+            targetZombie.hp = Math.max(0, (Number.isFinite(targetZombie.hp) ? targetZombie.hp : 1) - 1);
+            const killed = targetZombie.hp <= 0;
+            if (killed) {
+                zombies = zombies.filter(z => z !== targetZombie);
+                cadaveres.push({x:targetZombie.x, y:targetZombie.y});
+                gameStats.zombiesKilled++;
+                addBlood(targetZombie.x + 1.5, targetZombie.y + 1.5, 2);
+                addFloatText('+1', targetZombie.x + 1.5, targetZombie.y - 3, 'rgba(229,57,53,0.9)');
+            } else {
+                addFloatText(`-${1} HP`, targetZombie.x + 1.5, targetZombie.y - 2, 'rgba(255,112,67,0.9)');
+            }
             poli.balas--;
             poli.cooldown = policeReloadFrames;
             addNoise(poli.x, poli.y, 190, 18);
@@ -4326,11 +4394,9 @@ drawDoorsWorld();
         if (editorState.active) {
             ciudadanos.forEach(cit => {
                 const citizenColor = (cit.infectionFramesLeft && cit.infectionFramesLeft > 0) ? PALETA.ciudadanoEnfermo : PALETA.ciudadano;
-                drawVisionCone(cit, rangoVisionNPC, anguloVisionNPC, "rgba(121, 134, 203, 0.08)");
                 drawEnt(cit, citizenColor, radioVisual);
             });
             policias.forEach(poli => {
-                drawVisionCone(poli, rangoVisionNPC, anguloVisionNPC, isNpcInTug(poli) ? "rgba(229, 57, 53, 0.28)" : "rgba(121, 134, 203, 0.12)");
                 drawEnt(poli, PALETA.policia, radioVisual);
             });
             zombies.forEach(zombie => drawEnt(zombie, PALETA.zombie, radioVisual));
@@ -4489,9 +4555,30 @@ drawDoorsWorld();
         if (hoverTile && (deployZombieArmed || editorState.active)) {
             const hx = hoverTile.x * cellSize;
             const hy = hoverTile.y * cellSize;
-            ctx.fillStyle = editorState.active ? "rgba(66, 165, 245, 0.35)" : "rgba(229, 57, 53, 0.45)";
-            ctx.fillRect(hx, hy, cellSize, cellSize);
-            ctx.strokeStyle = editorState.active ? "rgba(30, 136, 229, 0.95)" : "rgba(198, 40, 40, 0.95)";
+            const hoverKey = `${hoverTile.x},${hoverTile.y}`;
+            const canDeployHere = zombieDeploySpawnTiles.has(hoverKey);
+            const selectedTool = getSelectedEditorTool();
+            const isNpcTool = selectedTool && (selectedTool.key === "citizen" || selectedTool.key === "police");
+
+            if (editorState.active && isNpcTool) {
+                const roamTiles = Math.max(1, Math.min(80, parseFloat(npcRoamRadiusTilesNum && npcRoamRadiusTilesNum.value) || 5));
+                const roamPx = roamTiles * cellSize;
+                const cxh = hx + cellSize / 2;
+                const cyh = hy + cellSize / 2;
+                ctx.fillStyle = "rgba(102, 187, 106, 0.22)";
+                ctx.beginPath();
+                ctx.arc(cxh, cyh, roamPx, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = "rgba(56, 142, 60, 0.68)";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                drawEnt({ x: hx + (cellSize - tamanoEntidad) / 2, y: hy + (cellSize - tamanoEntidad) / 2, direccion: { x: 1, y: 0 } }, selectedTool.key === "police" ? PALETA.policia : PALETA.ciudadano, radioVisual);
+            } else {
+                ctx.fillStyle = editorState.active ? "rgba(66, 165, 245, 0.35)" : (canDeployHere ? "rgba(76, 175, 80, 0.45)" : "rgba(229, 57, 53, 0.45)");
+                ctx.fillRect(hx, hy, cellSize, cellSize);
+            }
+
+            ctx.strokeStyle = editorState.active ? "rgba(30, 136, 229, 0.95)" : (canDeployHere ? "rgba(27, 94, 32, 0.95)" : "rgba(198, 40, 40, 0.95)");
             ctx.lineWidth = 1;
             ctx.strokeRect(hx + 0.5, hy + 0.5, cellSize - 1, cellSize - 1);
         }
