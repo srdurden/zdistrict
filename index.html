@@ -676,6 +676,61 @@
     </div>
 
     <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Escape civil (habilidad)</span><input type="number" id="citizenEscapeSkillNum" min="0" max="3" step="0.01" value="0.45"></div>
+        <input type="range" id="citizenEscapeSkillSlider" min="0" max="3" step="0.01" value="0.45">
+    </div>
+
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Escape policía (habilidad)</span><input type="number" id="policeEscapeSkillNum" min="0" max="3" step="0.01" value="1.0"></div>
+        <input type="range" id="policeEscapeSkillSlider" min="0" max="3" step="0.01" value="1.0">
+    </div>
+
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Escape militar (habilidad)</span><input type="number" id="soldierEscapeSkillNum" min="0" max="3" step="0.01" value="1.2"></div>
+        <input type="range" id="soldierEscapeSkillSlider" min="0" max="3" step="0.01" value="1.2">
+    </div>
+
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Tick escape (s)</span><input type="number" id="escapeTickSecNum" min="0.05" max="2" step="0.01" value="0.25"></div>
+        <input type="range" id="escapeTickSecSlider" min="0.05" max="2" step="0.01" value="0.25">
+    </div>
+
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Penalización grupo / zombie</span><input type="number" id="escapeGroupPenaltyNum" min="0" max="1" step="0.01" value="0.16"></div>
+        <input type="range" id="escapeGroupPenaltySlider" min="0" max="1" step="0.01" value="0.16">
+    </div>
+
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Multiplicador base escape</span><input type="number" id="escapeStepMultiplierNum" min="0" max="2" step="0.01" value="0.32"></div>
+        <input type="range" id="escapeStepMultiplierSlider" min="0" max="2" step="0.01" value="0.32">
+    </div>
+
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Umbral ratio escape</span><input type="number" id="escapeRatioThresholdNum" min="0" max="2" step="0.01" value="0.78"></div>
+        <input type="range" id="escapeRatioThresholdSlider" min="0" max="2" step="0.01" value="0.78">
+    </div>
+
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Cooldown reenganche zombie (s)</span><input type="number" id="zombieRegrabCooldownSecNum" min="0" max="3" step="0.01" value="0.9"></div>
+        <input type="range" id="zombieRegrabCooldownSecSlider" min="0" max="3" step="0.01" value="0.9">
+    </div>
+
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Cooldown NPC tras escape (s)</span><input type="number" id="npcEscapeCooldownSecNum" min="0" max="3" step="0.01" value="1.1"></div>
+        <input type="range" id="npcEscapeCooldownSecSlider" min="0" max="3" step="0.01" value="1.1">
+    </div>
+
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Desplazamiento NPC al escapar</span><input type="number" id="npcEscapeDistanceNum" min="0" max="20" step="0.1" value="5.4"></div>
+        <input type="range" id="npcEscapeDistanceSlider" min="0" max="20" step="0.1" value="5.4">
+    </div>
+
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Empuje zombies al soltarse</span><input type="number" id="zombieReleasePushNum" min="0" max="10" step="0.1" value="1.8"></div>
+        <input type="range" id="zombieReleasePushSlider" min="0" max="10" step="0.1" value="1.8">
+    </div>
+
+    <div class="slider-group">
         <div class="slider-header"><span class="slider-label">Bengalas</span><input type="number" id="bengalaNum" value="0"></div>
         <input type="range" id="bengalaSlider" min="0" max="10" value="0">
     </div>
@@ -1153,6 +1208,17 @@ const txtEventoElem = document.getElementById("txtEvento");
     const soldierStrengthSlider = document.getElementById("soldierStrengthSlider"); const soldierStrengthNum = document.getElementById("soldierStrengthNum");
     const npcVisionConeSlider = document.getElementById("npcVisionConeSlider"); const npcVisionConeNum = document.getElementById("npcVisionConeNum");
     const npcRoamRadiusTilesSlider = document.getElementById("npcRoamRadiusTilesSlider"); const npcRoamRadiusTilesNum = document.getElementById("npcRoamRadiusTilesNum");
+    const citizenEscapeSkillSlider = document.getElementById("citizenEscapeSkillSlider"); const citizenEscapeSkillNum = document.getElementById("citizenEscapeSkillNum");
+    const policeEscapeSkillSlider = document.getElementById("policeEscapeSkillSlider"); const policeEscapeSkillNum = document.getElementById("policeEscapeSkillNum");
+    const soldierEscapeSkillSlider = document.getElementById("soldierEscapeSkillSlider"); const soldierEscapeSkillNum = document.getElementById("soldierEscapeSkillNum");
+    const escapeTickSecSlider = document.getElementById("escapeTickSecSlider"); const escapeTickSecNum = document.getElementById("escapeTickSecNum");
+    const escapeGroupPenaltySlider = document.getElementById("escapeGroupPenaltySlider"); const escapeGroupPenaltyNum = document.getElementById("escapeGroupPenaltyNum");
+    const escapeStepMultiplierSlider = document.getElementById("escapeStepMultiplierSlider"); const escapeStepMultiplierNum = document.getElementById("escapeStepMultiplierNum");
+    const escapeRatioThresholdSlider = document.getElementById("escapeRatioThresholdSlider"); const escapeRatioThresholdNum = document.getElementById("escapeRatioThresholdNum");
+    const zombieRegrabCooldownSecSlider = document.getElementById("zombieRegrabCooldownSecSlider"); const zombieRegrabCooldownSecNum = document.getElementById("zombieRegrabCooldownSecNum");
+    const npcEscapeCooldownSecSlider = document.getElementById("npcEscapeCooldownSecSlider"); const npcEscapeCooldownSecNum = document.getElementById("npcEscapeCooldownSecNum");
+    const npcEscapeDistanceSlider = document.getElementById("npcEscapeDistanceSlider"); const npcEscapeDistanceNum = document.getElementById("npcEscapeDistanceNum");
+    const zombieReleasePushSlider = document.getElementById("zombieReleasePushSlider"); const zombieReleasePushNum = document.getElementById("zombieReleasePushNum");
     const bengalaSlider = document.getElementById("bengalaSlider"); const bengalaNum = document.getElementById("bengalaNum");
     const mapWidthTilesSlider = document.getElementById("mapWidthTilesSlider"); const mapWidthTilesNum = document.getElementById("mapWidthTilesNum");
     const mapHeightTilesSlider = document.getElementById("mapHeightTilesSlider"); const mapHeightTilesNum = document.getElementById("mapHeightTilesNum");
@@ -1221,6 +1287,17 @@ const txtEventoElem = document.getElementById("txtEvento");
     linkInput(soldierStrengthSlider, soldierStrengthNum);
     linkInput(npcVisionConeSlider, npcVisionConeNum);
     linkInput(npcRoamRadiusTilesSlider, npcRoamRadiusTilesNum);
+    linkInput(citizenEscapeSkillSlider, citizenEscapeSkillNum);
+    linkInput(policeEscapeSkillSlider, policeEscapeSkillNum);
+    linkInput(soldierEscapeSkillSlider, soldierEscapeSkillNum);
+    linkInput(escapeTickSecSlider, escapeTickSecNum);
+    linkInput(escapeGroupPenaltySlider, escapeGroupPenaltyNum);
+    linkInput(escapeStepMultiplierSlider, escapeStepMultiplierNum);
+    linkInput(escapeRatioThresholdSlider, escapeRatioThresholdNum);
+    linkInput(zombieRegrabCooldownSecSlider, zombieRegrabCooldownSecNum);
+    linkInput(npcEscapeCooldownSecSlider, npcEscapeCooldownSecNum);
+    linkInput(npcEscapeDistanceSlider, npcEscapeDistanceNum);
+    linkInput(zombieReleasePushSlider, zombieReleasePushNum);
     linkInput(bengalaSlider, bengalaNum);
     linkInput(mapWidthTilesSlider, mapWidthTilesNum);
     linkInput(mapHeightTilesSlider, mapHeightTilesNum);
@@ -1910,6 +1987,17 @@ const txtEventoElem = document.getElementById("txtEvento");
     }
 
     let runSettings = null;     // resolved settings for the current run (UI merged with overrides)
+    let citizenEscapeSkill = 0.45;
+    let policeEscapeSkill = 1.0;
+    let soldierEscapeSkill = 1.2;
+    let escapeTickFrames = 30 * 0.25;
+    let escapeGroupPenaltyPerZombie = 0.16;
+    let escapeStepMultiplier = 0.32;
+    let escapeRatioThreshold = 0.78;
+    let zombieRegrabCooldownFrames = 30 * 0.9;
+    let npcEscapeCooldownFrames = 30 * 1.1;
+    let npcEscapeDistance = 5.4;
+    let zombieReleasePush = 1.8;
 
     function applyWorldSizeSettings(settings) {
         const nextWidthTiles = Math.max(15, Math.min(1000, Number.isFinite(settings.mapWidthTiles) ? settings.mapWidthTiles : 50));
@@ -1984,6 +2072,17 @@ const txtEventoElem = document.getElementById("txtEvento");
             citizenSpeed: toFloat(citizenSpeedSlider, 1.0),
             soldierSpeed: toFloat(soldierSpeedNum, 1.1),
             npcRoamRadiusTiles: toFloat(npcRoamRadiusTilesNum, 5),
+            citizenEscapeSkill: toFloat(citizenEscapeSkillNum, 0.45),
+            policeEscapeSkill: toFloat(policeEscapeSkillNum, 1.0),
+            soldierEscapeSkill: toFloat(soldierEscapeSkillNum, 1.2),
+            escapeTickSec: toFloat(escapeTickSecNum, 0.25),
+            escapeGroupPenaltyPerZombie: toFloat(escapeGroupPenaltyNum, 0.16),
+            escapeStepMultiplier: toFloat(escapeStepMultiplierNum, 0.32),
+            escapeRatioThreshold: toFloat(escapeRatioThresholdNum, 0.78),
+            zombieRegrabCooldownSec: toFloat(zombieRegrabCooldownSecNum, 0.9),
+            npcEscapeCooldownSec: toFloat(npcEscapeCooldownSecNum, 1.1),
+            npcEscapeDistance: toFloat(npcEscapeDistanceNum, 5.4),
+            zombieReleasePush: toFloat(zombieReleasePushNum, 1.8),
 
             // Player
             balas: toInt(balasNum, 0),
@@ -2022,6 +2121,17 @@ const txtEventoElem = document.getElementById("txtEvento");
 
         soldierSpawnDelayFrames = settings.soldierSpawnDelaySec * 30;
         npcRoamRadiusPx = Math.max(cellSize, (Number.isFinite(settings.npcRoamRadiusTiles) ? settings.npcRoamRadiusTiles : 5) * cellSize);
+        citizenEscapeSkill = Number.isFinite(settings.citizenEscapeSkill) ? settings.citizenEscapeSkill : 0.45;
+        policeEscapeSkill = Number.isFinite(settings.policeEscapeSkill) ? settings.policeEscapeSkill : 1.0;
+        soldierEscapeSkill = Number.isFinite(settings.soldierEscapeSkill) ? settings.soldierEscapeSkill : 1.2;
+        escapeTickFrames = BASE_FPS * (Number.isFinite(settings.escapeTickSec) ? settings.escapeTickSec : 0.25);
+        escapeGroupPenaltyPerZombie = Number.isFinite(settings.escapeGroupPenaltyPerZombie) ? settings.escapeGroupPenaltyPerZombie : 0.16;
+        escapeStepMultiplier = Number.isFinite(settings.escapeStepMultiplier) ? settings.escapeStepMultiplier : 0.32;
+        escapeRatioThreshold = Number.isFinite(settings.escapeRatioThreshold) ? settings.escapeRatioThreshold : 0.78;
+        zombieRegrabCooldownFrames = BASE_FPS * (Number.isFinite(settings.zombieRegrabCooldownSec) ? settings.zombieRegrabCooldownSec : 0.9);
+        npcEscapeCooldownFrames = BASE_FPS * (Number.isFinite(settings.npcEscapeCooldownSec) ? settings.npcEscapeCooldownSec : 1.1);
+        npcEscapeDistance = Number.isFinite(settings.npcEscapeDistance) ? settings.npcEscapeDistance : 5.4;
+        zombieReleasePush = Number.isFinite(settings.zombieReleasePush) ? settings.zombieReleasePush : 1.8;
         citizenBaseStrength = clampStrength(settings.citizenStrength, 1);
         policeBaseStrength = clampStrength(settings.policeStrength, 3);
         soldierBaseStrength = clampStrength(settings.soldierStrength, 5);
@@ -4406,9 +4516,9 @@ drawDoorsWorld();
 
         const getNpcEscapeSkill = (npc) => {
             const type = getNpcTypeForEntity(npc);
-            if (type === "mil") return 1.2;
-            if (type === "pol") return 1.0;
-            return 0.45;
+            if (type === "mil") return soldierEscapeSkill;
+            if (type === "pol") return policeEscapeSkill;
+            return citizenEscapeSkill;
         };
 
         const getZombiesTuggingNpc = (npc) => {
@@ -4464,7 +4574,7 @@ drawDoorsWorld();
             const now = frameCount;
             npc.escapeMeter = Number.isFinite(npc.escapeMeter) ? npc.escapeMeter : 0;
             npc._lastEscapeTickFrame = Number.isFinite(npc._lastEscapeTickFrame) ? npc._lastEscapeTickFrame : now;
-            const ESCAPE_TICK_FRAMES = BASE_FPS * 0.25;
+            const ESCAPE_TICK_FRAMES = Math.max(1, escapeTickFrames);
             const elapsed = now - npc._lastEscapeTickFrame;
             let attackForce = 0;
             for (const z of attackers) attackForce += clampStrength(z.strength, zombieBaseStrength);
@@ -4474,9 +4584,9 @@ drawDoorsWorld();
                 const ticks = Math.max(1, Math.floor(elapsed / ESCAPE_TICK_FRAMES));
                 const npcStrength = getNpcStrength(npc);
                 const ratio = npcStrength / attackForce;
-                const groupPenalty = Math.max(0, attackers.length - 1) * 0.16;
+                const groupPenalty = Math.max(0, attackers.length - 1) * escapeGroupPenaltyPerZombie;
                 const skill = getNpcEscapeSkill(npc);
-                let step = ((ratio - 0.78) - groupPenalty) * 0.32;
+                let step = ((ratio - escapeRatioThreshold) - groupPenalty) * escapeStepMultiplier;
                 if (step >= 0) step *= skill;
                 else step *= (1.18 - Math.min(0.3, skill * 0.15));
                 npc.escapeMeter = Math.max(0, Math.min(1, npc.escapeMeter + step * ticks));
@@ -4492,22 +4602,22 @@ drawDoorsWorld();
             const allAttackers = (attackers && attackers.length) ? attackers : getZombiesTuggingNpc(npc);
             for (const z of allAttackers) {
                 if (z.tugState && z.tugState.target === npc) z.tugState = null;
-                z.regrabUntilFrame = now + BASE_FPS * 0.9;
+                z.regrabUntilFrame = now + zombieRegrabCooldownFrames;
             }
             for (const z of zombies) {
                 if (z && z.tugState && z.tugState.target === npc) z.tugState = null;
             }
             npc.escapeMeter = 0;
-            npc.escapeCooldownUntilFrame = now + BASE_FPS * 1.1;
+            npc.escapeCooldownUntilFrame = now + npcEscapeCooldownFrames;
             npc._lastEscapeTickFrame = now;
 
             const dir = normalizar(escapeDir && escapeDir.x, escapeDir && escapeDir.y);
             const finalDir = (dir.x || dir.y) ? dir : direccionAleatoria();
-            const escapeDistance = distanciaAtaque + 2.4;
+            const escapeDistance = npcEscapeDistance;
             moveEntitySafely(npc, finalDir, escapeDistance, 12);
             npc.tugFacingLock = { baseAngle: Math.atan2(finalDir.y, finalDir.x), lastFrame: now };
 
-            const pushBack = 1.8;
+            const pushBack = zombieReleasePush;
             for (const z of allAttackers) {
                 const away = normalizar(z.x - npc.x, z.y - npc.y);
                 const zDir = (away.x || away.y) ? away : normalizar(-finalDir.x, -finalDir.y);
