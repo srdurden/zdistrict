@@ -4220,6 +4220,18 @@ drawDoorsWorld();
 
         const pendingZombieTransforms = [];
 
+        const infectNpcFromZombie = (npc, zombie) => {
+            if (!npc || !zombie) return;
+            if (npc.infectionFramesLeft && npc.infectionFramesLeft > 0) return;
+            const propagationSec = Number.isFinite(zombie.propagationSec) ? zombie.propagationSec : 5;
+            npc.infectionFramesLeft = Math.max(1, propagationSec * BASE_FPS);
+            npc.infectedBy = {
+                speed: Number.isFinite(zombie.speed) ? zombie.speed : velocidadZombie,
+                propagationSec,
+                strength: clampStrength(zombie.strength, zombieBaseStrength)
+            };
+        };
+
         const getNpcTypeForEntity = (ent) => {
             if (ciudadanos.includes(ent)) return "cit";
             if (policias.includes(ent)) return "pol";
@@ -4448,18 +4460,8 @@ drawDoorsWorld();
                 const roll = randInt(1, escapeInfo.attackForce + 1);
                 if (roll > getNpcStrength(npc)) {
                     const npcType = getNpcTypeForEntity(npc);
-                    if (npcType === "cit") {
-                        if (!npc.infectionFramesLeft || npc.infectionFramesLeft <= 0) {
-                            const propagationSec = Number.isFinite(zombie.propagationSec) ? zombie.propagationSec : 5;
-                            npc.infectionFramesLeft = Math.max(1, propagationSec * BASE_FPS);
-                            npc.infectedBy = {
-                                speed: Number.isFinite(zombie.speed) ? zombie.speed : velocidadZombie,
-                                propagationSec,
-                                strength: clampStrength(zombie.strength, zombieBaseStrength)
-                            };
-                        }
-                    } else if (npcType === "pol") {
-                        policias = policias.filter(p => p !== npc);
+                    if (npcType === "cit" || npcType === "pol") {
+                        infectNpcFromZombie(npc, zombie);
                     } else if (npcType === "mil") {
                     }
                     releaseNpcFromTug(npc, attackers, { x: npc.x - zombie.x, y: npc.y - zombie.y });
@@ -4482,7 +4484,7 @@ drawDoorsWorld();
             if (cit.infectionFramesLeft && cit.infectionFramesLeft > 0) {
                 cit.infectionFramesLeft = Math.max(0, cit.infectionFramesLeft - (1 * timeScale));
                 if (cit.infectionFramesLeft <= 0 && cit.infectedBy) {
-                    pendingZombieTransforms.push({ cit, infectedBy: cit.infectedBy });
+                    pendingZombieTransforms.push({ npc: cit, infectedBy: cit.infectedBy });
                     return;
                 }
             }
@@ -4536,15 +4538,19 @@ drawDoorsWorld();
 
         if (!editorState.active && pendingZombieTransforms.length) {
             for (const entry of pendingZombieTransforms) {
-                const idx = ciudadanos.indexOf(entry.cit);
-                if (idx === -1) continue;
-                const newZombie = createZombieEntity(entry.cit.x, entry.cit.y, {
+                const npc = entry.npc;
+                if (!npc) continue;
+                const citIdx = ciudadanos.indexOf(npc);
+                const polIdx = policias.indexOf(npc);
+                if (citIdx === -1 && polIdx === -1) continue;
+                const newZombie = createZombieEntity(npc.x, npc.y, {
                     speed: entry.infectedBy.speed,
                     propagationSec: entry.infectedBy.propagationSec,
                     strength: clampStrength(entry.infectedBy.strength, zombieBaseStrength)
                 });
                 zombies.push(newZombie);
-                ciudadanos.splice(idx, 1);
+                if (citIdx !== -1) ciudadanos.splice(citIdx, 1);
+                if (polIdx !== -1) policias.splice(polIdx, 1);
                 gameStats.civsInfected++;
             }
             actualizarStatsUI();
@@ -4563,26 +4569,32 @@ drawDoorsWorld();
                 }
             }
             if(target) {
-                if(minDist < 60) {
-                    const closeQuartersRange = Math.max(30, distanciaAtaque);
-                    const zombieInTug = isNpcInTug(poli);
-                    const zombieTouching = minDist <= distanciaAtaque;
-                    const zombieInGrabRange = minDist <= closeQuartersRange || zombieInTug;
-                    if(!zombieInTug && !zombieTouching && minDist < 30) {
-                        const away = normalizar(poli.x - target.x, poli.y - target.y);
-                        poli.direccion = away;
-                    }
-                    if(!zombieInGrabRange && poli.balas > 0 && poli.cooldown <= 0) {
-                        policeShootZombie(poli, target);
-                    }
-                } else { poli.direccion = normalizar(target.x - poli.x, target.y - poli.y); }
+                const lookDir = normalizar(target.x - poli.x, target.y - poli.y);
+                if (lookDir.x || lookDir.y) {
+                    poli.direccion = lookDir;
+                    poli.alertLookDir = lookDir;
+                }
+                poli.alertUntilFrame = frameCount + Math.round(BASE_FPS * 2);
+                const zombieInTug = isNpcInTug(poli);
+                if(!zombieInTug && poli.balas > 0 && poli.cooldown <= 0) {
+                    policeShootZombie(poli, target);
+                }
+            } else if (Number.isFinite(poli.alertUntilFrame) && frameCount < poli.alertUntilFrame && poli.alertLookDir) {
+                poli.direccion = normalizar(poli.alertLookDir.x, poli.alertLookDir.y);
             }
             const choco = aplicarFuerzas(poli, velocidadCiudadano, timeScale);
             if(choco) poli.direccion = direccionAleatoria();
             const underZombiePressure = zombies.some(z => distancia(poli.x, poli.y, z.x, z.y) <= Math.max(35, distanciaAtaque + 2));
             if (!underZombiePressure && !isEntityFleeingZombie(poli, false)) limitEntityToRoamRadius(poli, npcRoamRadiusPx, "spawn");
+            const policeInfected = poli.infectionFramesLeft && poli.infectionFramesLeft > 0;
+            if (policeInfected) {
+                poli.infectionFramesLeft = Math.max(0, poli.infectionFramesLeft - (1 * timeScale));
+                if (poli.infectionFramesLeft <= 0 && poli.infectedBy) {
+                    pendingZombieTransforms.push({ npc: poli, infectedBy: poli.infectedBy });
+                }
+            }
             drawVisionCone(poli, rangoVisionNPC, anguloVisionNPC, isNpcInTug(poli) ? "rgba(229, 57, 53, 0.28)" : "rgba(121, 134, 203, 0.12)");
-            drawEnt(poli, PALETA.policia, radioVisual);
+            drawEnt(poli, policeInfected ? PALETA.ciudadanoEnfermo : PALETA.policia, radioVisual);
         });
 
 
