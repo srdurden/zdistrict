@@ -809,7 +809,7 @@
 #........C..............#
 #.......................#
 #.......................#
-#.......K...............#
+#.......................#
 #.......................#
 #.......................#
 #.......................#
@@ -820,11 +820,11 @@
 #.......................#
 #.......................#
 #.......................#
-#.................H.....#
 #.......................#
 #.......................#
 #.......................#
-#..P....................#
+#.......................#
+#.......................#
 #.......................#
 #########################
 `.trim()
@@ -848,8 +848,8 @@
 #...........................#..............................#
 #..###############..........#..............................#
 #..#.............#..........#..............................#
-#..#.............#..........#.......................H......#
-#..#....K........#..........#..............................#
+#..#.............#..........#..............................#
+#..#.............#..........#..............................#
 #..#.............#..........D..............................#
 #..#.............#..........#..............................#
 #..#######D#######..........#..............................#
@@ -860,7 +860,7 @@
 #...........................#..............................#
 #...........................#..............................#
 #...........................D..............................#
-#.....P.....................#..............................#
+#...........................#..............................#
 #...........................#..............................#
 #...........................#..............................#
 #...........................#..............................#
@@ -887,7 +887,7 @@
 #...................#...................#..................#
 #..........########.#...................#...############...#
 #..........#......#.#...................#...#..........#...#
-#..........#..K...#.D...................#...#..........#...#
+#..........#......#.D...................#...#..........#...#
 #..........#......#.#...................#...#..........#...#
 #..........#......#.#...................D...#..........#...#
 #..........####D###.#...................#...#..........#...#
@@ -903,7 +903,7 @@
 #...................#...############....#..................#
 #...................#...................#..................#
 #...................D...................#..................#
-#.....P.............#...................#.............H....#
+#...................#...................#..................#
 #...................#...................D..................#
 #...................#...................#..................#
 ############################################################
@@ -949,9 +949,6 @@
                     house(10, 10, 28, 24, 19, 24);
                     house(40, 16, 58, 30, 49, 16);
                     house(67, 58, 88, 80, 67, 69);
-                    set(5, 5, "P");
-                    set(27, 20, "K");
-                    set(93, 92, "H");
                     set(18, 18, "C");
                     set(50, 24, "C");
                     set(78, 72, "C");
@@ -1604,15 +1601,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     }
 
     function ensureEditorMarkers(rows) {
-        const h = rows.length;
-        const w = h ? rows[0].length : 0;
-        if (!w || !h) return rows;
-        const list = rows.map(r => r.split(""));
-        const has = (ch) => list.some(r => r.includes(ch));
-        if (!has("P")) list[2][2] = "P";
-        if (!has("K")) list[Math.max(1, Math.floor(h * 0.35))][Math.max(2, Math.floor(w * 0.3))] = "K";
-        if (!has("H")) list[Math.max(1, Math.floor(h * 0.7))][Math.max(2, Math.floor(w * 0.75))] = "H";
-        return list.map(r => r.join(""));
+        return rows;
     }
 
     function hydrateEditorFromLevel(level) {
@@ -1621,13 +1610,6 @@ const txtEventoElem = document.getElementById("txtEvento");
         const w = Math.max(15, Math.min(200, (base && base.settingsOverrides && base.settingsOverrides.mapWidthTiles) || (rows[0] ? rows[0].length : 100)));
         const h = Math.max(15, Math.min(200, (base && base.settingsOverrides && base.settingsOverrides.mapHeightTiles) || rows.length || 100));
         let finalRows = rows.length ? rows : createEditorRows(w, h);
-        if (!rows.length && w >= 6 && h >= 6) {
-            const grid = finalRows.map(r => r.split(""));
-            grid[2][2] = "P";
-            grid[Math.floor(h * 0.35)][Math.floor(w * 0.3)] = "K";
-            grid[Math.floor(h * 0.7)][Math.floor(w * 0.8)] = "H";
-            finalRows = grid.map(r => r.join(""));
-        }
         editorState.mapWidthTiles = w;
         editorState.mapHeightTiles = h;
         editorState.mapRows = ensureEditorMarkers(finalRows);
@@ -2156,7 +2138,6 @@ const txtEventoElem = document.getElementById("txtEvento");
         policia: "#7986cb",
         militar: "#9ccc65",
         bala: "#ffcc80",     
-        llave: "#e57373",    
         heliOn: "#81c784",   
         bengala: "#ff7043", 
     };
@@ -2231,10 +2212,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     const INTRO_DURATION = 0;
 
     const jugador = { x: 0, y: 0, direccion: { x: 0, y: 0 } };
-    const helicoptero = { x: 0, y: 0, ancho: cellSize - 2, alto: cellSize - 2, visible: false };
-    const llave = { x: 0, y: 0, visible: true };
-
-    let cajasMunicion = [];
     
     // Muebles (cajas empujables tipo sokoban)
     let muebles = [];
@@ -3362,7 +3339,7 @@ function zombieTryHitMueble(zombie) {
     }
 
         // ===========================
-    // Phase 1.03 — ASCII map parser (walls + P/H/K)
+    // Phase 1.03 — ASCII map parser (walls + spawns/doors)
     // ===========================
     function parseAsciiMap(ascii, opts) {
         const def = opts || {};
@@ -3394,11 +3371,8 @@ function zombieTryHitMueble(zombie) {
         grid = new Array(gridHeight).fill(null).map(() => new Array(gridWidth).fill(true));
 
         let playerTile = null;
-        let heliTile = null;
-        let keyTile = null;
 
         
-        let ammoTiles = [];
         let boxTiles = [];
 
         let zombieSpawnTiles = [];
@@ -3416,14 +3390,10 @@ function zombieTryHitMueble(zombie) {
 
                 if (ch === "#") {
                     grid[gy][gx] = true;
-                } else if (ch === "." || ch === "P" || ch === "H" || ch === "K" || ch === "D" || ch === "d" || ch === "A" || ch === "B" || ch === "Z" || ch === "C" || ch === "O" || ch === "M") {
+                } else if (ch === "." || ch === "D" || ch === "d" || ch === "B" || ch === "Z" || ch === "C" || ch === "O" || ch === "M") {
                     // Walkable cells + basic markers
                     grid[gy][gx] = false;
 
-                    if (ch === "P") playerTile = { x: gx, y: gy };
-                    if (ch === "H") heliTile = { x: gx, y: gy };
-                    if (ch === "K") keyTile = { x: gx, y: gy };
-                    if (ch === "A") ammoTiles.push({ x: gx, y: gy });
                     if (ch === "B") boxTiles.push({ x: gx, y: gy });
                     if (ch === "Z") zombieSpawnTiles.push({ x: gx, y: gy });
                     if (ch === "C") citizenSpawnTiles.push({ x: gx, y: gy });
@@ -3443,7 +3413,7 @@ function zombieTryHitMueble(zombie) {
             }
         }
 
-        return { w, h, offsetX: ox, offsetY: oy, playerTile, heliTile, keyTile, ammoTiles, boxTiles, zombieSpawnTiles, citizenSpawnTiles, policeSpawnTiles, soldierSpawnTiles };
+        return { w, h, offsetX: ox, offsetY: oy, playerTile, boxTiles, zombieSpawnTiles, citizenSpawnTiles, policeSpawnTiles, soldierSpawnTiles };
     }
 
 
@@ -3461,16 +3431,9 @@ function zombieTryHitMueble(zombie) {
         return mask;
     }
 
-    function validateMapDef(def, parsed, playerTile, heliTile, keyTile) {
+    function validateMapDef(def, parsed, playerTile) {
         const errors = [];
         const warnings = [];
-
-        const usingAscii = !!(def && (def.type === "ascii" || typeof def.data === "string"));
-
-        // Marker expectations for ASCII maps (campaign levels will normally include these)
-        if (usingAscii && parsed) {
-            if (!parsed.playerTile) errors.push("ASCII map missing 'P' (player start).");
-        }
 
         if (!playerTile) errors.push("Missing player tile.");
 
@@ -3499,64 +3462,11 @@ function zombieTryHitMueble(zombie) {
 
         return { ok: errors.length === 0, errors, warnings, reachableCount: Array.isArray(reachable) ? reachable.length : 0 };
     }
-
-    
-
-    // ===========================
-    // Phase 1.08 — Field rect normalization / auto-derive around helicopter
-    // ===========================
-    function normalizeFieldRect(fr, heliTile) {
-        // Returns {x0,x1,y0,y1} (x1/y1 exclusive) or null.
-        let r = fr;
-
-        // Accept array [x0,y0,x1,y1]
-        if (Array.isArray(r) && r.length >= 4) {
-            r = { x0: r[0], y0: r[1], x1: r[2], y1: r[3] };
-        }
-
-        // Accept {x,y,w,h}
-        if (r && typeof r === "object" && r.x != null && r.y != null && r.w != null && r.h != null) {
-            r = { x0: r.x, y0: r.y, x1: r.x + r.w, y1: r.y + r.h };
-        }
-
-        // Accept {left,top,right,bottom}
-        if (r && typeof r === "object" && r.left != null && r.top != null && r.right != null && r.bottom != null) {
-            r = { x0: r.left, y0: r.top, x1: r.right, y1: r.bottom };
-        }
-
-        // If not provided, auto-derive a small "clear field" around heli
-        if (!r) {
-            if (!heliTile) return null;
-            const halfW = 6;
-            const halfH = 5;
-            r = {
-                x0: heliTile.x - halfW,
-                x1: heliTile.x + halfW + 1,
-                y0: heliTile.y - halfH,
-                y1: heliTile.y + halfH + 1
-            };
-        }
-
-        const x0 = Math.max(1, Math.min(gridWidth - 2, (r.x0 | 0)));
-        const y0 = Math.max(1, Math.min(gridHeight - 2, (r.y0 | 0)));
-        const x1 = Math.max(2, Math.min(gridWidth - 1, (r.x1 | 0)));
-        const y1 = Math.max(2, Math.min(gridHeight - 1, (r.y1 | 0)));
-
-        // Ensure proper ordering and minimum size
-        const nx0 = Math.min(x0, x1 - 1);
-        const ny0 = Math.min(y0, y1 - 1);
-        const nx1 = Math.max(nx0 + 1, x1);
-        const ny1 = Math.max(ny0 + 1, y1);
-
-        if (nx1 - nx0 < 2 || ny1 - ny0 < 2) return null;
-        return { x0: nx0, y0: ny0, x1: nx1, y1: ny1 };
-    }
-
 // ===========================
-    // Phase 1.02 — Minimal map loader (now supports ASCII walls + P/H/K)
+    // Phase 1.02 — Minimal map loader (ASCII walls + doors/spawns)
     // ===========================
     function loadMap(mapDef) {
-        // Map loader: creates a deterministic grid. Phase 1.04: ASCII walls + P/H/K + doors (D/d).
+        // Map loader: creates a deterministic grid. Phase 1.04: ASCII walls + doors (D/d).
         const def = mapDef || {};
 
         openPlazas = [];
@@ -3597,26 +3507,16 @@ function zombieTryHitMueble(zombie) {
 
         // Positions (tile coords)
         const fallbackPlayer = { x: Math.floor(gridWidth * 0.12), y: Math.floor(gridHeight * 0.52) };
-        const fallbackHeli = { x: Math.floor(gridWidth * 0.82), y: Math.floor(gridHeight * 0.52) };
-        const fallbackKey = { x: Math.floor(gridWidth * 0.22), y: Math.floor(gridHeight * 0.52) };
 
         const playerTile = clampTile(normPos(def.playerTile || def.player || def.startTile || (parsed && parsed.playerTile), fallbackPlayer));
-        const heliTile = clampTile(normPos(def.heliTile || def.heli || (parsed && parsed.heliTile), fallbackHeli));
-        const keyTile = clampTile(normPos(def.keyTile || def.key || (parsed && parsed.keyTile), fallbackKey));
 
 
-        // Ensure those tiles are walkable
+        // Ensure player tile is walkable
         if (grid[playerTile.y] && grid[playerTile.y][playerTile.x] != null) grid[playerTile.y][playerTile.x] = false;
-        if (grid[heliTile.y] && grid[heliTile.y][heliTile.x] != null) grid[heliTile.y][heliTile.x] = false;
-        if (grid[keyTile.y] && grid[keyTile.y][keyTile.x] != null) grid[keyTile.y][keyTile.x] = false;
 
-        // If any objective is placed over a door tile, force that door open to avoid soft-locks.
+        // If player is placed over a door tile, force that door open to avoid soft-locks.
         const dgP = getDoorGroupAtTile(playerTile.x, playerTile.y);
         if (dgP && !dgP.broken) dgP.open = true;
-        const dgH = getDoorGroupAtTile(heliTile.x, heliTile.y);
-        if (dgH && !dgH.broken) dgH.open = true;
-        const dgK = getDoorGroupAtTile(keyTile.x, keyTile.y);
-        if (dgK && !dgK.broken) dgK.open = true;
 
 
         // Ensure a small clear patch around player
@@ -3627,7 +3527,7 @@ function zombieTryHitMueble(zombie) {
         }
 
         // Phase 1.05 — validate the loaded predefined map (structural connectivity)
-        const v = validateMapDef(def, parsed, playerTile, heliTile, keyTile);
+        const v = validateMapDef(def, parsed, playerTile);
         if (!v.ok) {
             console.error("[Map] Invalid predefined map.", v.errors, { def, parsed, v });
             throw new Error(v.errors.join(" "));
@@ -3639,12 +3539,6 @@ function zombieTryHitMueble(zombie) {
         jugador.x = playerTile.x * cellSize;
         jugador.y = playerTile.y * cellSize;
 
-        helicoptero.x = heliTile.x * cellSize;
-        helicoptero.y = heliTile.y * cellSize;
-        helicoptero.visible = false;
-
-        const kPos = tileToEntityPixel(keyTile.x, keyTile.y);
-        llave.x = kPos.x; llave.y = kPos.y; llave.visible = false;
 
         // Compute reachability
         const alcanzables = floodFill(playerTile.x, playerTile.y);
@@ -3967,25 +3861,6 @@ if(alcanzables.length === 0) {
         setCanvasDragging(false);
         stopCameraInertia();
 
-        
-        const bestHeliTile = alcanzables[0] || startTile;
-        helicoptero.x = bestHeliTile.x * cellSize;
-        helicoptero.y = bestHeliTile.y * cellSize;
-        helicoptero.visible = false;
-
-        const leftLimit = Math.floor(gridWidth * 0.32);
-        const leftTiles = alcanzables.filter(t => t.x <= leftLimit);
-
-        let bestKeyTile = (leftTiles.length ? leftTiles[0] : (alcanzables[0] || startTile));
-        let bestKeyScore = -1;
-        const keyPool = leftTiles.length ? leftTiles : alcanzables;
-        for (const t of keyPool) {
-            const d = distancia(t.x, t.y, bestHeliTile.x, bestHeliTile.y);
-            const dp = distancia(t.x, t.y, startTile.x, startTile.y);
-            if (d > bestKeyScore && dp > 8) { bestKeyScore = d; bestKeyTile = t; }
-        }
-        const kPos = tileToEntityPixel(bestKeyTile.x, bestKeyTile.y);
-        llave.x = kPos.x; llave.y = kPos.y; llave.visible = false;
 
         fieldRectTiles = null;
         staticDirty = true;
@@ -3998,7 +3873,6 @@ function normTilePos(t0) {
 }
 
 // Lógica removida: sin llaves, helicóptero ni cajas de munición/muebles
-cajasMunicion.length = 0;
 muebles.length = 0;
 
 const desiredBoxes = 0;
