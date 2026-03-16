@@ -4197,6 +4197,25 @@ drawDoorsWorld();
             }
         };
 
+        const policeShootZombie = (poli, targetZombie) => {
+            if (!poli || !targetZombie) return false;
+            zombies = zombies.filter(z => z !== targetZombie);
+            cadaveres.push({x:targetZombie.x, y:targetZombie.y});
+            gameStats.zombiesKilled++;
+            addBlood(targetZombie.x + 1.5, targetZombie.y + 1.5, 2);
+            addFloatText('+1', targetZombie.x + 1.5, targetZombie.y - 3, 'rgba(229,57,53,0.9)');
+            poli.balas--;
+            poli.cooldown = policeReloadFrames;
+            addNoise(poli.x, poli.y, 190, 18);
+            ctx.strokeStyle = "rgba(121, 134, 203, 0.8)";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(poli.x+1.5, poli.y+1.5);
+            ctx.lineTo(targetZombie.x+1.5, targetZombie.y+1.5);
+            ctx.stroke();
+            return true;
+        };
+
         const isNpcInTug = (npc) => zombies.some(z => z && z.tugState && z.tugState.target === npc);
 
         const applyZombieNpcTug = (zombie, npc) => {
@@ -4242,6 +4261,7 @@ drawDoorsWorld();
 
             const escapeInfo = updateNpcEscapeProgress(npc, attackers);
             if (escapeInfo.escaped) {
+                const npcType = getNpcTypeForEntity(npc);
                 const centerFromAttackers = attackers.reduce((acc, a) => {
                     acc.x += a.x;
                     acc.y += a.y;
@@ -4251,6 +4271,23 @@ drawDoorsWorld();
                 const avy = centerFromAttackers.y / Math.max(1, attackers.length);
                 const escapeDir = normalizar(npc.x - avx, npc.y - avy);
                 releaseNpcFromTug(npc, attackers, escapeDir);
+
+                if (npcType === "pol" && npc.balas > 0) {
+                    let counterTarget = null;
+                    let minCounterDist = Infinity;
+                    for (const z of attackers) {
+                        if (!z || !zombies.includes(z)) continue;
+                        const dz = distancia(npc.x, npc.y, z.x, z.y);
+                        if (dz < minCounterDist) {
+                            minCounterDist = dz;
+                            counterTarget = z;
+                        }
+                    }
+                    if (counterTarget) {
+                        policeShootZombie(npc, counterTarget);
+                        actualizarStatsUI();
+                    }
+                }
                 return false;
             }
 
@@ -4389,14 +4426,7 @@ drawDoorsWorld();
                         poli.direccion = away;
                     }
                     if(!zombieInGrabRange && poli.balas > 0 && poli.cooldown <= 0) {
-                        zombies = zombies.filter(z => z !== target); cadaveres.push({x:target.x, y:target.y});
-                        gameStats.zombiesKilled++; // STAT
-                        addBlood(target.x + 1.5, target.y + 1.5, 2);
-                        addFloatText('+1', target.x + 1.5, target.y - 3, 'rgba(229,57,53,0.9)');
-                        poli.balas--; poli.cooldown = policeReloadFrames;
-                        addNoise(poli.x, poli.y, 190, 18);
-                        ctx.strokeStyle = "rgba(121, 134, 203, 0.8)"; ctx.lineWidth = 1;
-                        ctx.beginPath(); ctx.moveTo(poli.x+1.5, poli.y+1.5); ctx.lineTo(target.x+1.5, target.y+1.5); ctx.stroke();
+                        policeShootZombie(poli, target);
                     }
                 } else { poli.direccion = normalizar(target.x - poli.x, target.y - poli.y); }
             }
