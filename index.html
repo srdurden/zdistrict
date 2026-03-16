@@ -2360,7 +2360,9 @@ const DOOR_BASE_HP = 70;
 
     function updateEditorRowsWithToken(tx, ty, token) {
         if (!editorState.mapRows.length) return false;
-        if (tx < 1 || ty < 1 || tx >= editorState.mapWidthTiles - 1 || ty >= editorState.mapHeightTiles - 1) return false;
+        const isBorderTile = (tx <= 0 || ty <= 0 || tx >= editorState.mapWidthTiles - 1 || ty >= editorState.mapHeightTiles - 1);
+        // Border tiles are reserved for map limits. Only walls can be painted there.
+        if (isBorderTile && token !== "#") return false;
         const rows = editorState.mapRows.map(r => r.split(""));
         if (!rows[ty] || rows[ty][tx] == null || rows[ty][tx] === token) return false;
         rows[ty][tx] = token;
