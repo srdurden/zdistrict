@@ -306,6 +306,11 @@
         }
         body.editor-active #gameContainer {
             padding-top: 108px;
+            padding-bottom: 16px;
+            overflow-y: auto;
+        }
+        body.editor-active canvas {
+            height: min(calc(var(--app-height) - 180px), calc(98vw * 0.6));
         }
         .editor-bottom-bar {
             width: min(96vw, 1020px);
@@ -318,6 +323,8 @@
             display: none;
             gap: 8px;
             z-index: 20;
+            position: sticky;
+            bottom: 8px;
         }
         .editor-bottom-bar.visible { display: grid; }
 
@@ -388,6 +395,10 @@
                 --top-ui-offset: clamp(92px, 18vh, 148px);
             }
 
+            body.editor-active #gameContainer {
+                overflow-y: auto;
+            }
+
             canvas {
                 width: var(--safe-inline);
                 height: var(--safe-block);
@@ -397,6 +408,10 @@
                 border-radius: 0;
                 border-left: 0;
                 border-right: 0;
+            }
+
+            body.editor-active canvas {
+                height: max(280px, calc(var(--safe-block) - 112px));
             }
 
             #configPanel {
@@ -1828,7 +1843,7 @@ const txtEventoElem = document.getElementById("txtEvento");
 
     function setTopControlsForEditor(isEditor) {
         if (!isEditor) closeEditorScenarioSettingsIfNeeded();
-        if (settingsToggle) settingsToggle.style.display = isEditor ? "none" : "";
+        if (settingsToggle) settingsToggle.style.display = "";
         if (homeBtn) homeBtn.style.display = isEditor ? "none" : "";
         if (spawnZombieBtn) spawnZombieBtn.style.display = isEditor ? "none" : "";
         if (!isEditor) return;
