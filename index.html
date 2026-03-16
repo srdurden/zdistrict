@@ -20,7 +20,6 @@
             --c-citizen: #bcaaa4;     
             --c-police: #7986cb;      
             --c-flare: #ff7043;       
-            --c-soldier: #9ccc65;     
             
             --accent: #ffcc80;        
             --shadow-card: 0 12px 30px rgba(109, 76, 65, 0.12);
@@ -495,7 +494,6 @@
         .dot.zombie { background: var(--c-zombie); }
         .dot.citizen { background: var(--c-citizen); }
         .dot.police { background: var(--c-police); }
-        .dot.soldier { background: var(--c-soldier); }
         .dot.ammo { background: #ffcc80; }
         .dot.flare { background: var(--c-flare); border-radius: 3px; }
 
@@ -624,10 +622,6 @@
     <button id="editCampaignBtn" style="display:none;">Editar nivel</button>
     <button id="restartBtn">Reiniciar Simulación</button>
 
-    <!-- Militares -->
-
-    <!-- Retraso militar -->
-
     <div class="slider-group">
         <div class="slider-header"><span class="slider-label">Radio movimiento (tiles)</span><input type="number" id="npcRoamRadiusTilesNum" min="1" max="80" step="1" value="5"></div>
         <input type="range" id="npcRoamRadiusTilesSlider" min="1" max="80" step="1" value="5">
@@ -636,11 +630,6 @@
     <div class="slider-group">
         <div class="slider-header"><span class="slider-label">Cooldown Policía (s)</span><input type="number" id="policeCoolNum" min="0.1" max="5" step="0.1" value="1.0"></div>
         <input type="range" id="policeCoolSlider" min="0.1" max="5" step="0.1" value="1.0">
-    </div>
-
-    <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Cooldown Militar (s)</span><input type="number" id="soldierCoolNum" min="0.1" max="5" step="0.1" value="0.7"></div>
-        <input type="range" id="soldierCoolSlider" min="0.1" max="5" step="0.1" value="0.7">
     </div>
 
     <!-- Jamming Config -->
@@ -664,11 +653,6 @@
     </div>
 
     <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Fuerza Militar (1-10)</span><input type="number" id="soldierStrengthNum" min="1" max="10" step="1" value="5"></div>
-        <input type="range" id="soldierStrengthSlider" min="1" max="10" step="1" value="5">
-    </div>
-
-    <div class="slider-group">
         <div class="slider-header"><span class="slider-label">Escape civil (habilidad)</span><input type="number" id="citizenEscapeSkillNum" min="0" max="3" step="0.01" value="0.45"></div>
         <input type="range" id="citizenEscapeSkillSlider" min="0" max="3" step="0.01" value="0.45">
     </div>
@@ -676,11 +660,6 @@
     <div class="slider-group">
         <div class="slider-header"><span class="slider-label">Escape policía (habilidad)</span><input type="number" id="policeEscapeSkillNum" min="0" max="3" step="0.01" value="1.0"></div>
         <input type="range" id="policeEscapeSkillSlider" min="0" max="3" step="0.01" value="1.0">
-    </div>
-
-    <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Escape militar (habilidad)</span><input type="number" id="soldierEscapeSkillNum" min="0" max="3" step="0.01" value="1.2"></div>
-        <input type="range" id="soldierEscapeSkillSlider" min="0" max="3" step="0.01" value="1.2">
     </div>
 
     <div class="slider-group">
@@ -721,11 +700,6 @@
     <div class="slider-group">
         <div class="slider-header"><span class="slider-label">Empuje zombies al soltarse</span><input type="number" id="zombieReleasePushNum" min="0" max="10" step="0.1" value="1.8"></div>
         <input type="range" id="zombieReleasePushSlider" min="0" max="10" step="0.1" value="1.8">
-    </div>
-
-    <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Vel. Militar</span><input type="number" id="soldierSpeedNum" min="0.5" max="3" step="0.1" value="1.1"></div>
-        <input type="range" id="soldierSpeedSlider" min="0.5" max="3" step="0.1" value="1.1">
     </div>
 
     <div class="slider-group">
@@ -833,7 +807,6 @@
             },
             settingsOverrides: {
                 boxCount: 30,
-                soldierCooldownSec: 1.0
             },
             mapDef: {
                 type: "ascii",
@@ -872,7 +845,6 @@
             },
             settingsOverrides: {
                 boxCount: 34,
-                soldierCooldownSec: 0.9
             },
             mapDef: {
                 type: "ascii",
@@ -1324,7 +1296,6 @@
     const numZombiesElem = document.getElementById("numZombies");
     const numCiudadanosElem = document.getElementById("numCiudadanos");
     const numPoliciasElem = document.getElementById("numPolicias");
-    const numMilitaresElem = document.getElementById("numMilitares");
     const numBalasElem = document.getElementById("numBalas");
     const numBengalasElem = document.getElementById("numBengalas");
     const numSalvadosElem = document.getElementById("numSalvados");
@@ -1334,12 +1305,10 @@ const txtEventoElem = document.getElementById("txtEvento");
     // Inputs
     const citizenStrengthSlider = document.getElementById("citizenStrengthSlider"); const citizenStrengthNum = document.getElementById("citizenStrengthNum");
     const policeStrengthSlider = document.getElementById("policeStrengthSlider"); const policeStrengthNum = document.getElementById("policeStrengthNum");
-    const soldierStrengthSlider = document.getElementById("soldierStrengthSlider"); const soldierStrengthNum = document.getElementById("soldierStrengthNum");
     const npcVisionConeSlider = document.getElementById("npcVisionConeSlider"); const npcVisionConeNum = document.getElementById("npcVisionConeNum");
     const npcRoamRadiusTilesSlider = document.getElementById("npcRoamRadiusTilesSlider"); const npcRoamRadiusTilesNum = document.getElementById("npcRoamRadiusTilesNum");
     const citizenEscapeSkillSlider = document.getElementById("citizenEscapeSkillSlider"); const citizenEscapeSkillNum = document.getElementById("citizenEscapeSkillNum");
     const policeEscapeSkillSlider = document.getElementById("policeEscapeSkillSlider"); const policeEscapeSkillNum = document.getElementById("policeEscapeSkillNum");
-    const soldierEscapeSkillSlider = document.getElementById("soldierEscapeSkillSlider"); const soldierEscapeSkillNum = document.getElementById("soldierEscapeSkillNum");
     const escapeTickSecSlider = document.getElementById("escapeTickSecSlider"); const escapeTickSecNum = document.getElementById("escapeTickSecNum");
     const escapeGroupPenaltySlider = document.getElementById("escapeGroupPenaltySlider"); const escapeGroupPenaltyNum = document.getElementById("escapeGroupPenaltyNum");
     const escapeStepMultiplierSlider = document.getElementById("escapeStepMultiplierSlider"); const escapeStepMultiplierNum = document.getElementById("escapeStepMultiplierNum");
@@ -1351,8 +1320,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     
     // Config Inputs
     const policeCoolSlider = document.getElementById("policeCoolSlider"); const policeCoolNum = document.getElementById("policeCoolNum");
-    const soldierCoolSlider = document.getElementById("soldierCoolSlider"); const soldierCoolNum = document.getElementById("soldierCoolNum");
-    const soldierSpeedSlider = document.getElementById("soldierSpeedSlider"); const soldierSpeedNum = document.getElementById("soldierSpeedNum");
     const jamCountSlider = document.getElementById("jamCountSlider"); const jamCountNum = document.getElementById("jamCountNum");
     const jamDurSlider = document.getElementById("jamDurSlider"); const jamDurNum = document.getElementById("jamDurNum");
 
@@ -1405,12 +1372,10 @@ const txtEventoElem = document.getElementById("txtEvento");
     }
     linkInput(citizenStrengthSlider, citizenStrengthNum);
     linkInput(policeStrengthSlider, policeStrengthNum);
-    linkInput(soldierStrengthSlider, soldierStrengthNum);
     linkInput(npcVisionConeSlider, npcVisionConeNum);
     linkInput(npcRoamRadiusTilesSlider, npcRoamRadiusTilesNum);
     linkInput(citizenEscapeSkillSlider, citizenEscapeSkillNum);
     linkInput(policeEscapeSkillSlider, policeEscapeSkillNum);
-    linkInput(soldierEscapeSkillSlider, soldierEscapeSkillNum);
     linkInput(escapeTickSecSlider, escapeTickSecNum);
     linkInput(escapeGroupPenaltySlider, escapeGroupPenaltyNum);
     linkInput(escapeStepMultiplierSlider, escapeStepMultiplierNum);
@@ -1420,8 +1385,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     linkInput(npcEscapeDistanceSlider, npcEscapeDistanceNum);
     linkInput(zombieReleasePushSlider, zombieReleasePushNum);
     linkInput(policeCoolSlider, policeCoolNum);
-    linkInput(soldierCoolSlider, soldierCoolNum);
-    linkInput(soldierSpeedSlider, soldierSpeedNum);
     linkInput(jamCountSlider, jamCountNum);
     linkInput(jamDurSlider, jamDurNum);
     linkInput(deployZSpeedSlider, deployZSpeedNum);
@@ -1549,7 +1512,6 @@ const txtEventoElem = document.getElementById("txtEvento");
 
     // Global flag: campaign maps are deterministic (no RNG + no spawn filtering)
     let deterministicCampaign = false;
-    let activeSoldierEventSpawnTiles = null; // for campaign soldier event spawns ('M')
 
 
     // ===========================
@@ -1574,8 +1536,7 @@ const txtEventoElem = document.getElementById("txtEvento");
         { key: "wall", label: "Pared", token: "#" },
         { key: "door", label: "Puerta", token: "D" },
         { key: "citizen", label: "Civil", token: "C" },
-        { key: "police", label: "Policia", token: "O" },
-        { key: "soldier", label: "Militar", token: "M" }
+        { key: "police", label: "Policia", token: "O" }
     ];
 
     function createEditorRows(w, h) {
@@ -1886,7 +1847,6 @@ const txtEventoElem = document.getElementById("txtEvento");
             ["💀 Civiles infectados", `${gameStats.civsInfected}`],
             ["🛟 Civiles salvados", `${ciudadanosSalvados}`]
         ];
-        if (gameStats.soldiersLost > 0) rows.push(["🎖️ Bajas militares", `${gameStats.soldiersLost}`]);
 
         if (postStats) postStats.innerHTML = rows
             .map(r => `<div class="post-row"><span>${r[0]}</span><b>${r[1]}</b></div>`)
@@ -1958,7 +1918,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     let runSettings = null;     // resolved settings for the current run (UI merged with overrides)
     let citizenEscapeSkill = 0.45;
     let policeEscapeSkill = 1.0;
-    let soldierEscapeSkill = 1.2;
     let escapeTickFrames = 30 * 0.25;
     let escapeGroupPenaltyPerZombie = 0.16;
     let escapeStepMultiplier = 0.32;
@@ -2026,7 +1985,6 @@ const txtEventoElem = document.getElementById("txtEvento");
             zombieCount: 0,
             citizenCount: 15,
             policeCount: 1,
-            soldierCount: 0,
             boxCount: 0,
             mapWidthTiles: 50,
             mapHeightTiles: 50,
@@ -2036,14 +1994,11 @@ const txtEventoElem = document.getElementById("txtEvento");
             zombieSpeed: 1.5,
             citizenStrength: toInt(citizenStrengthNum, 1),
             policeStrength: toInt(policeStrengthNum, 3),
-            soldierStrength: toInt(soldierStrengthNum, 5),
             npcVisionConeDeg: toFloat(npcVisionConeNum, 95),
             citizenSpeed: toFloat(citizenSpeedSlider, 1.0),
-            soldierSpeed: toFloat(soldierSpeedNum, 1.1),
             npcRoamRadiusTiles: toFloat(npcRoamRadiusTilesNum, 5),
             citizenEscapeSkill: toFloat(citizenEscapeSkillNum, 0.45),
             policeEscapeSkill: toFloat(policeEscapeSkillNum, 1.0),
-            soldierEscapeSkill: toFloat(soldierEscapeSkillNum, 1.2),
             escapeTickSec: toFloat(escapeTickSecNum, 0.25),
             escapeGroupPenaltyPerZombie: toFloat(escapeGroupPenaltyNum, 0.16),
             escapeStepMultiplier: toFloat(escapeStepMultiplierNum, 0.32),
@@ -2062,10 +2017,6 @@ const txtEventoElem = document.getElementById("txtEvento");
 
             // Timings (seconds in UI)
             policeCooldownSec: toFloat(policeCoolNum, 1.0),
-            soldierCooldownSec: toFloat(soldierCoolNum, 1.0),
-            soldierJamCount: toInt(jamCountNum, 3),
-            soldierJamDurationSec: toFloat(jamDurNum, 1.5),
-            soldierSpawnDelaySec: 7
         };
     }
 
@@ -2074,7 +2025,6 @@ const txtEventoElem = document.getElementById("txtEvento");
 
         velocidadZombie = settings.zombieSpeed;
         velocidadCiudadano = settings.citizenSpeed;
-        velocidadMilitar = settings.soldierSpeed;
 
         balasRestantes = settings.balas;
         bengalasRestantes = settings.bengalas;
@@ -2083,16 +2033,11 @@ const txtEventoElem = document.getElementById("txtEvento");
         fuegoAmigo = settings.friendlyFire;
 
         policeReloadFrames = settings.policeCooldownSec * 30;
-        soldierReloadFrames = settings.soldierCooldownSec * 30;
 
-        soldierJamCount = settings.soldierJamCount;
-        soldierJamDurationFrames = settings.soldierJamDurationSec * 30;
 
-        soldierSpawnDelayFrames = settings.soldierSpawnDelaySec * 30;
         npcRoamRadiusPx = Math.max(cellSize, (Number.isFinite(settings.npcRoamRadiusTiles) ? settings.npcRoamRadiusTiles : 5) * cellSize);
         citizenEscapeSkill = Number.isFinite(settings.citizenEscapeSkill) ? settings.citizenEscapeSkill : 0.45;
         policeEscapeSkill = Number.isFinite(settings.policeEscapeSkill) ? settings.policeEscapeSkill : 1.0;
-        soldierEscapeSkill = Number.isFinite(settings.soldierEscapeSkill) ? settings.soldierEscapeSkill : 1.2;
         escapeTickFrames = BASE_FPS * (Number.isFinite(settings.escapeTickSec) ? settings.escapeTickSec : 0.25);
         escapeGroupPenaltyPerZombie = Number.isFinite(settings.escapeGroupPenaltyPerZombie) ? settings.escapeGroupPenaltyPerZombie : 0.16;
         escapeStepMultiplier = Number.isFinite(settings.escapeStepMultiplier) ? settings.escapeStepMultiplier : 0.32;
@@ -2103,7 +2048,6 @@ const txtEventoElem = document.getElementById("txtEvento");
         zombieReleasePush = Number.isFinite(settings.zombieReleasePush) ? settings.zombieReleasePush : 1.8;
         citizenBaseStrength = clampStrength(settings.citizenStrength, 1);
         policeBaseStrength = clampStrength(settings.policeStrength, 3);
-        soldierBaseStrength = clampStrength(settings.soldierStrength, 5);
         anguloVisionNPC = Math.max(30, Math.min(180, Number.isFinite(settings.npcVisionConeDeg) ? settings.npcVisionConeDeg : 95)) * (Math.PI / 180);
 
     }
@@ -2158,7 +2102,6 @@ const txtEventoElem = document.getElementById("txtEvento");
         ciudadano: "#cfd8dc",
         ciudadanoEnfermo: "#66bb6a",
         policia: "#7986cb",
-        militar: "#9ccc65",
         bala: "#ffcc80",     
         heliOn: "#81c784",   
         bengala: "#ff7043", 
@@ -2176,15 +2119,11 @@ const txtEventoElem = document.getElementById("txtEvento");
     let radioSeparacion = 5; 
     let distanciaAtaque = 3; 
     let radioAtraccionBengala = 250; 
-    let rangoVisionMilitar = 60; 
-    let rangoDeteccionMilitar = 200; 
-    let anguloVisionMilitar = 120 * (Math.PI / 180); 
     let rangoVisionNPC = 72;
     let anguloVisionNPC = 95 * (Math.PI / 180);
     let zombieBaseStrength = 3;
     let citizenBaseStrength = 1;
     let policeBaseStrength = 3;
-    let soldierBaseStrength = 5;
     let distanciaAtraccionHeli = 150;
     let wallRepulsionForce = 0.5; 
 
@@ -2198,7 +2137,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     // Variables de Juego
     let velocidadZombie = 1.5; // Default
     let velocidadCiudadano = 1.0;
-    let velocidadMilitar = 1.1; 
     let npcRoamRadiusPx = 5 * cellSize;
     
     let balasRestantes = 0;
@@ -2209,11 +2147,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     // Cooldowns
     const policeInitialBullets = 8;
     let policeReloadFrames = 30; 
-    let soldierReloadFrames = 21; 
-    let soldierJamCount = 10;
-    let soldierJamDurationFrames = 150; 
-    let soldierSpawnDelayFrames = 0;
-    let soldiersDeployed = false;
 
     let screenShake = 0; 
     let estadoJuego = "STOPPED"; 
@@ -2226,7 +2159,6 @@ const txtEventoElem = document.getElementById("txtEvento");
         startTime: 0,
         zombiesKilled: 0,
         civsInfected: 0,
-        soldiersLost: 0
     };
 
     // --- INTRO CINEMATIC VARS ---
@@ -2240,7 +2172,6 @@ const txtEventoElem = document.getElementById("txtEvento");
 let ciudadanos = [];
     let zombies = [];
     let policias = [];
-    let militares = [];
     let cadaveres = [];
     let bengalasActivas = []; 
 
@@ -3399,7 +3330,6 @@ function zombieTryHitMueble(zombie) {
         let citizenSpawnTiles = [];
 
         let policeSpawnTiles = [];
-        let soldierSpawnTiles = [];
 
         for (let y = 0; y < h; y++) {
             const line = lines[y] || "";
@@ -3418,7 +3348,6 @@ function zombieTryHitMueble(zombie) {
                     if (ch === "Z") zombieSpawnTiles.push({ x: gx, y: gy });
                     if (ch === "C") citizenSpawnTiles.push({ x: gx, y: gy });
                     if (ch === "O") policeSpawnTiles.push({ x: gx, y: gy });
-                    if (ch === "M") soldierSpawnTiles.push({ x: gx, y: gy });
 
                     // Doors (Phase 1.04): each 'D'/'d' creates a single-tile door group.
                     if (ch === "D" || ch === "d") {
@@ -3433,7 +3362,7 @@ function zombieTryHitMueble(zombie) {
             }
         }
 
-        return { w, h, offsetX: ox, offsetY: oy, playerTile, boxTiles, zombieSpawnTiles, citizenSpawnTiles, policeSpawnTiles, soldierSpawnTiles };
+        return { w, h, offsetX: ox, offsetY: oy, playerTile, boxTiles, zombieSpawnTiles, citizenSpawnTiles, policeSpawnTiles };
     }
 
 
@@ -3682,69 +3611,6 @@ function generarMapa() {
         bengalasActivas.push({ x: x, y: y, vida: 15 * 30, particles: [] }); 
     }
 
-    function deployMilitarySquad() {
-        const inCampaign = (deterministicCampaign && isCampaignRun());
-        const milCount = inCampaign
-            ? ((currentRunDef && currentRunDef.settingsOverrides && currentRunDef.settingsOverrides.soldierCount !== undefined && currentRunDef.settingsOverrides.soldierCount !== null)
-                ? currentRunDef.settingsOverrides.soldierCount
-                : 0)
-            : getRunSetting("soldierCount", 0);
-
-        if (!milCount || milCount <= 0) return;
-
-        let spawnedMil = 0;
-
-        // Helper: spawn one soldier at tile
-        function spawnSoldierAt(tx, ty) {
-            const p = tileToEntityPixel(tx, ty);
-            let ent = initEntityFacing({ x: p.x, y: p.y, angle: Math.PI * 1.2, balas: 9999, cooldown: 0, jamCount: soldierJamCount, isJammed: false, jamTimer: 0, direccion: normalizar(-1,-1), strength: soldierBaseStrength });
-            militares.push(ent);
-        }
-
-        if (inCampaign) {
-            // Prefer predefined 'M' tiles in reading order (deterministic)
-            const tiles = (Array.isArray(activeSoldierEventSpawnTiles) && activeSoldierEventSpawnTiles.length) ? activeSoldierEventSpawnTiles : null;
-            if (tiles) {
-                for (let i = 0; i < tiles.length && spawnedMil < milCount; i++) {
-                    const t = tiles[i];
-                    const tx = (t.x | 0), ty = (t.y | 0);
-                    if (tx <= 0 || ty <= 0 || tx >= gridWidth - 1 || ty >= gridHeight - 1) continue;
-                    if (grid[ty][tx]) continue; // wall
-                    if (getDoorGroupAtTile(tx, ty)) continue; // don't spawn on door tiles
-                    spawnSoldierAt(tx, ty);
-                    spawnedMil++;
-                }
-            }
-
-            // Deterministic fallback scan (bottom-right) if not enough 'M' tiles
-            if (spawnedMil < milCount) {
-                for (let ty = gridHeight - 2; ty >= 1 && spawnedMil < milCount; ty--) {
-                    for (let tx = gridWidth - 2; tx >= 1 && spawnedMil < milCount; tx--) {
-                        if (grid[ty][tx]) continue;
-                        if (getDoorGroupAtTile(tx, ty)) continue;
-                        spawnSoldierAt(tx, ty);
-                        spawnedMil++;
-                    }
-                }
-            }
-        } else {
-            // Free mode: keep the original random-ish spawn behavior
-            let attempts = 0;
-            while (spawnedMil < milCount && attempts < 2000) {
-                let tx = randInt(Math.floor(gridWidth * 0.85), gridWidth - 2);
-                let ty = randInt(Math.floor(gridHeight * 0.85), gridHeight - 2);
-                tx = Math.floor(tx); ty = Math.floor(ty);
-                if (tx > 0 && ty > 0 && tx < gridWidth && ty < gridHeight && !grid[ty][tx]) {
-                    if (getDoorGroupAtTile(tx, ty)) { attempts++; continue; }
-                    spawnSoldierAt(tx, ty);
-                    spawnedMil++;
-                }
-                attempts++;
-            }
-            if (spawnedMil < milCount) console.warn("Could not spawn all soldiers, spawned:", spawnedMil, "of", milCount);
-        }
-    }
-
     function resetGame(runDef) {
         estadoJuego = "STOPPED";
         screenShake = 0;
@@ -3774,11 +3640,10 @@ function generarMapa() {
         applyWorldSizeSettings(mergedSettings);
         syncCanvasResolutionToDisplay();
 
-        soldiersDeployed = false;
         // Stats Reset
-        gameStats = { startTime: Date.now(), zombiesKilled: 0, civsInfected: 0, soldiersLost: 0 };
+        gameStats = { startTime: Date.now(), zombiesKilled: 0, civsInfected: 0 };
 
-        ciudadanos = []; zombies = []; policias = []; militares = []; cadaveres = []; bengalasActivas = [];
+        ciudadanos = []; zombies = []; policias = []; cadaveres = []; bengalasActivas = [];
         
         ciudadanosSalvados = 0;
 noises = [];
@@ -3832,23 +3697,9 @@ noises = [];
             (typeof predefMapDef.ascii === "string") ||
             (typeof predefMapDef.data === "string" && predefMapDef.data.indexOf("\n") !== -1)
         ));
-
-        
-        // Phase 3: campaign soldier event settings are deterministic and do NOT inherit UI defaults
-        activeSoldierEventSpawnTiles = null;
         if (deterministicCampaign) {
             // Force director OFF for deterministic campaign runs (no random director events)
             director.enabled = false;
-
-            const delaySec = (currentRunDef && currentRunDef.settingsOverrides && currentRunDef.settingsOverrides.soldierSpawnDelaySec !== undefined && currentRunDef.settingsOverrides.soldierSpawnDelaySec !== null)
-                ? currentRunDef.settingsOverrides.soldierSpawnDelaySec
-                : 0;
-            soldierSpawnDelayFrames = delaySec * 30;
-
-            const tiles =
-                (predefParsed && Array.isArray(predefParsed.soldierSpawnTiles) && predefParsed.soldierSpawnTiles.length) ? predefParsed.soldierSpawnTiles :
-                ((predefMapDef && Array.isArray(predefMapDef.soldierSpawnTiles) && predefMapDef.soldierSpawnTiles.length) ? predefMapDef.soldierSpawnTiles : null);
-            activeSoldierEventSpawnTiles = tiles ? tiles.slice() : null;
         }
 if(alcanzables.length === 0) {
             startTile = {x:10, y:10};
@@ -4071,7 +3922,6 @@ else if (!deterministicCampaign) spawn(zombies, mergedSettings.zombieCount, 'zom
         if (numZombiesElem) numZombiesElem.textContent = zombies.length;
         if (numCiudadanosElem) numCiudadanosElem.textContent = ciudadanos.length;
         if (numPoliciasElem) numPoliciasElem.textContent = policias.length;
-        if (numMilitaresElem) numMilitaresElem.textContent = militares.length;
         if (numBalasElem) numBalasElem.textContent = balasRestantes;
         if (numBengalasElem) numBengalasElem.textContent = bengalasRestantes;
         if (numSalvadosElem) numSalvadosElem.textContent = ciudadanosSalvados;
@@ -4100,28 +3950,6 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
 
         // simulation step relative to BASE_FPS
         const simStep = Math.min(2.5, dtMs / FRAME_MS);
-
-        if (!soldiersDeployed && estadoJuego === "PLAYING") {
-            const inCampaign = (deterministicCampaign && isCampaignRun());
-            const milCount = inCampaign
-                ? ((currentRunDef && currentRunDef.settingsOverrides && currentRunDef.settingsOverrides.soldierCount !== undefined && currentRunDef.settingsOverrides.soldierCount !== null)
-                    ? currentRunDef.settingsOverrides.soldierCount
-                    : 0)
-                : getRunSetting("soldierCount", 0);
-
-            // In campaign: soldier event is OFF by default unless both delay>0 and soldierCount>0 are explicitly set
-            if (inCampaign) {
-                if (!milCount || milCount <= 0 || soldierSpawnDelayFrames <= 0) {
-                    soldiersDeployed = true;
-                } else {
-                    soldierSpawnDelayFrames -= simStep;
-                    if (soldierSpawnDelayFrames <= 0) { deployMilitarySquad(); soldiersDeployed = true; }
-                }
-            } else {
-                soldierSpawnDelayFrames -= simStep;
-                if (soldierSpawnDelayFrames <= 0) { deployMilitarySquad(); soldiersDeployed = true; }
-            }
-        }
 
         frameCount += simStep;
         if (footstepCooldown > 0) footstepCooldown -= simStep;
@@ -4254,7 +4082,6 @@ drawDoorsWorld();
         const getNpcTypeForEntity = (ent) => {
             if (ciudadanos.includes(ent)) return "cit";
             if (policias.includes(ent)) return "pol";
-            if (militares.includes(ent)) return "mil";
             return null;
         };
 
@@ -4262,7 +4089,6 @@ drawDoorsWorld();
 
         const getNpcEscapeSkill = (npc) => {
             const type = getNpcTypeForEntity(npc);
-            if (type === "mil") return soldierEscapeSkill;
             if (type === "pol") return policeEscapeSkill;
             return citizenEscapeSkill;
         };
@@ -4449,8 +4275,6 @@ drawDoorsWorld();
                     } else if (npcType === "pol") {
                         policias = policias.filter(p => p !== npc);
                     } else if (npcType === "mil") {
-                        militares = militares.filter(m => m !== npc);
-                        gameStats.soldiersLost++;
                     }
                     releaseNpcFromTug(npc, attackers, { x: npc.x - zombie.x, y: npc.y - zombie.y });
                     actualizarStatsUI();
@@ -4468,10 +4292,6 @@ drawDoorsWorld();
             policias.forEach(poli => {
                 drawVisionCone(poli, rangoVisionNPC, anguloVisionNPC, isNpcInTug(poli) ? "rgba(229, 57, 53, 0.28)" : "rgba(121, 134, 203, 0.12)");
                 drawEnt(poli, PALETA.policia, radioVisual);
-            });
-            militares.forEach(mil => {
-                drawVisionCone(mil, rangoVisionMilitar, anguloVisionMilitar, isNpcInTug(mil) ? "rgba(229, 57, 53, 0.28)" : "rgba(156, 204, 101, 0.15)");
-                drawEnt(mil, PALETA.militar, radioVisual);
             });
             zombies.forEach(zombie => drawEnt(zombie, PALETA.zombie, radioVisual));
         } else ciudadanos.forEach(cit => {
@@ -4501,7 +4321,6 @@ drawDoorsWorld();
                 }
             };
             checkThreat(zombies, true, true);
-            checkThreat(militares, false, false);
 
             if (threatFound) {
                 cit.scared = true;
@@ -4583,61 +4402,6 @@ drawDoorsWorld();
             drawEnt(poli, PALETA.policia, radioVisual);
         });
 
-        if (!editorState.active) militares.forEach(mil => {
-            if(mil.cooldown > 0) mil.cooldown -= 1 * timeScale;
-            if(mil.isJammed) { 
-                mil.jamTimer -= 1 * timeScale; 
-                if(mil.jamTimer <= 0) { mil.isJammed = false; mil.shotsFired = 0; } 
-                // Panic Shake
-                if(Math.random() < 0.3) { mil.direccion.x += (Math.random()-0.5)*2; mil.direccion.y += (Math.random()-0.5)*2; }
-            }
-            
-            if(Math.random()<0.05) mil.direccion = normalizar(mil.direccion.x+(Math.random()-0.5), mil.direccion.y+(Math.random()-0.5));
-            let potentialTargets = [];
-            zombies.forEach(z => potentialTargets.push({e:z, type:'zom', p:1})); 
-            if(fuegoAmigo) {
-                policias.forEach(p => potentialTargets.push({e:p, type:'pol', p:3})); 
-                ciudadanos.forEach(c => potentialTargets.push({e:c, type:'cit', p:4})); 
-            }
-            let detected = potentialTargets.filter(item => {
-                const dist = distancia(mil.x, mil.y, item.e.x, item.e.y);
-                return dist < rangoDeteccionMilitar && tieneLineaDeVision(mil.x, mil.y, item.e.x, item.e.y);
-            });
-            detected.sort((a, b) => { if(a.p !== b.p) return a.p - b.p; return distancia(mil.x,mil.y,a.e.x,a.e.y) - distancia(mil.x,mil.y,b.e.x,b.e.y); });
-            let target = detected.length > 0 ? detected[0] : null;
-            drawVisionCone(mil, rangoVisionMilitar, anguloVisionMilitar, isNpcInTug(mil) ? "rgba(229, 57, 53, 0.28)" : "rgba(156, 204, 101, 0.15)");
-
-            if(mil.isJammed) { 
-                ctx.fillStyle = "#000"; ctx.font = "12px Arial"; ctx.textAlign="center"; ctx.fillText("😓", mil.x, mil.y - 6); 
-            }
-
-            if (target) {
-                const t = target.e;
-                const dToTarget = distancia(mil.x, mil.y, t.x, t.y);
-                if (target.type === 'zom' && dToTarget < 40) { const away = normalizar(mil.x - t.x, mil.y - t.y); mil.direccion = away; } 
-                else { const towards = normalizar(t.x - mil.x, t.y - mil.y); mil.direccion = towards; }
-                const targetAngle = Math.atan2(t.y - mil.y, t.x - mil.x);
-                const facingAngle = Math.atan2(mil.direccion.y, mil.direccion.x);
-                const diff = Math.atan2(Math.sin(targetAngle - facingAngle), Math.cos(targetAngle - facingAngle));
-                mil.angle += diff * 0.2 * timeScale;
-                const canShoot = dToTarget < rangoVisionMilitar && Math.abs(diff) < anguloVisionMilitar/2;
-                if (canShoot && mil.cooldown <= 0 && !mil.isJammed) {
-                    mil.shotsFired++;
-                    if(mil.shotsFired >= soldierJamCount) { mil.isJammed = true; mil.jamTimer = soldierJamDurationFrames; }
-                    if(!mil.isJammed) { 
-                         if(target.type === 'zom') { zombies = zombies.filter(z => z !== t); cadaveres.push({x:t.x,y:t.y}); gameStats.zombiesKilled++; addBlood(t.x + 1.5, t.y + 1.5, 2); addFloatText('+1', t.x + 1.5, t.y - 3, 'rgba(229,57,53,0.9)'); }
-                         else if(target.type === 'pol') { policias = policias.filter(p => p !== t); cadaveres.push({x:t.x,y:t.y}); }
-                         else if(target.type === 'cit') { ciudadanos = ciudadanos.filter(c => c !== t); cadaveres.push({x:t.x,y:t.y}); }
-                         addNoise(mil.x, mil.y, 210, 20);
-                         actualizarStatsUI(); mil.cooldown = soldierReloadFrames;
-                         ctx.strokeStyle = "#cddc39"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(mil.x+1.5, mil.y+1.5); ctx.lineTo(t.x+1.5, t.y+1.5); ctx.stroke();
-                    }
-                }
-            }
-            aplicarFuerzas(mil, velocidadMilitar, timeScale);
-            if (!isEntityFleeingZombie(mil, false)) limitEntityToRoamRadius(mil, npcRoamRadiusPx, "spawn");
-            drawEnt(mil, PALETA.militar, radioVisual);
-        });
 
         if (!editorState.active) zombies.forEach(zombie => {
             let target = null; let minDist = Infinity;
@@ -4651,7 +4415,7 @@ drawDoorsWorld();
                     const d = distancia(zombie.x, zombie.y, e.x, e.y);
                     if(d < 120 && (d<35 || tieneLineaDeVision(zombie.x, zombie.y, e.x, e.y))) { if(d < minDist) { minDist=d; target=e; } }
                 };
-                policias.forEach(check); militares.forEach(check); ciudadanos.forEach(check);
+                policias.forEach(check); ciudadanos.forEach(check);
             }
             if(!target) {
                 const n = bestNoiseFor(zombie.x, zombie.y);
@@ -4660,7 +4424,7 @@ drawDoorsWorld();
             if(target) {
                 zombie.direccion = normalizar(target.x - zombie.x, target.y - zombie.y);
                 if(!(target.vida !== undefined)) {
-                    const isNpcTarget = ciudadanos.includes(target) || policias.includes(target) || militares.includes(target);
+                    const isNpcTarget = ciudadanos.includes(target) || policias.includes(target);
                     if (isNpcTarget) {
                         if (!applyZombieNpcTug(zombie, target)) zombie.tugState = null;
                     } else {
@@ -4696,7 +4460,7 @@ drawDoorsWorld();
         disparoEnFotograma = false;
 
 
-        if (!editorState.active && (ciudadanos.length + policias.length + militares.length) === 0 && estadoJuego === "PLAYING") {
+        if (!editorState.active && (ciudadanos.length + policias.length) === 0 && estadoJuego === "PLAYING") {
             estadoJuego = "VICTORY";
         }
 
@@ -4725,7 +4489,6 @@ drawDoorsWorld();
             ctx.fillText(`🧟 Zombies Eliminados: ${gameStats.zombiesKilled}`, viewportWidth/2, yStart + 25);
             ctx.fillText(`💀 Civiles Infectados: ${gameStats.civsInfected}`, viewportWidth/2, yStart + 50);
             ctx.fillText(`🛟 Civiles Salvados: ${ciudadanosSalvados}`, viewportWidth/2, yStart + 100);
-            if(gameStats.soldiersLost > 0) ctx.fillText(`🎖️ Bajas Militares: ${gameStats.soldiersLost}`, viewportWidth/2, yStart + 75);
 
             ctx.fillStyle = "#8d6e63"; ctx.font = "800 18px Nunito";
             ctx.fillText(getEndHintText(), viewportWidth/2, viewportHeight/2 + 130);
