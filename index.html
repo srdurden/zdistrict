@@ -4381,8 +4381,13 @@ drawDoorsWorld();
             if(target) {
                 if(minDist < 60) {
                     const closeQuartersRange = Math.max(30, distanciaAtaque);
-                    const zombieInGrabRange = minDist <= closeQuartersRange || isNpcInTug(poli);
-                    if(minDist < 30 || zombieInGrabRange) { const away = normalizar(poli.x - target.x, poli.y - target.y); poli.direccion = away; }
+                    const zombieInTug = isNpcInTug(poli);
+                    const zombieTouching = minDist <= distanciaAtaque;
+                    const zombieInGrabRange = minDist <= closeQuartersRange || zombieInTug;
+                    if(!zombieInTug && !zombieTouching && minDist < 30) {
+                        const away = normalizar(poli.x - target.x, poli.y - target.y);
+                        poli.direccion = away;
+                    }
                     if(!zombieInGrabRange && poli.balas > 0 && poli.cooldown <= 0) {
                         zombies = zombies.filter(z => z !== target); cadaveres.push({x:target.x, y:target.y});
                         gameStats.zombiesKilled++; // STAT
