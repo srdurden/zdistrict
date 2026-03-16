@@ -3004,11 +3004,12 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         const dist = Math.hypot(dx, dy);
         if (dist <= maxRadius || dist <= 0.001) return;
 
-        const scale = maxRadius / dist;
-        entidad.x = cx + dx * scale;
-        entidad.y = cy + dy * scale;
-        entidad.x = Math.max(0, Math.min(getWorldPixelSize().width - tamanoEntidad, entidad.x));
-        entidad.y = Math.max(0, Math.min(getWorldPixelSize().height - tamanoEntidad, entidad.y));
+        // Avoid hard snaps (visible "teleports") when NPCs briefly go outside their roam radius.
+        // Bring them back in small, collision-aware steps so they keep continuity near walls.
+        const overflow = dist - maxRadius;
+        const correction = Math.min(overflow, Math.max(0.15, cellSize * 0.35));
+        const toCenter = normalizar(cx - entidad.x, cy - entidad.y);
+        moverEntidadIA(entidad, toCenter.x, toCenter.y, correction);
     }
 
     function isEntityFleeingZombie(entidad, requiresVisionCone = false) {
