@@ -4402,7 +4402,8 @@ drawDoorsWorld();
             }
             const choco = aplicarFuerzas(poli, velocidadCiudadano, timeScale);
             if(choco) poli.direccion = direccionAleatoria();
-            if (!isEntityFleeingZombie(poli, false)) limitEntityToRoamRadius(poli, npcRoamRadiusPx, "spawn");
+            const underZombiePressure = zombies.some(z => distancia(poli.x, poli.y, z.x, z.y) <= Math.max(35, distanciaAtaque + 2));
+            if (!underZombiePressure && !isEntityFleeingZombie(poli, false)) limitEntityToRoamRadius(poli, npcRoamRadiusPx, "spawn");
             drawVisionCone(poli, rangoVisionNPC, anguloVisionNPC, isNpcInTug(poli) ? "rgba(229, 57, 53, 0.28)" : "rgba(121, 134, 203, 0.12)");
             drawEnt(poli, PALETA.policia, radioVisual);
         });
