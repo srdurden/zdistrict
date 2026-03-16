@@ -978,7 +978,7 @@
     staticCtx.imageSmoothingEnabled = false;
     let staticDirty = true;
 
-    let fieldRectTiles = null; // {x0,x1,y0,y1} in tile coords, for a subtle "safe field" tint
+    let fieldRectTiles = null; // legacy placeholder (fields removed)
 
     // Grain pattern (subtle) for cinematic look
     const grainCanvas = document.createElement("canvas");
@@ -1127,66 +1127,45 @@
         const w = staticLayer.width, h = staticLayer.height;
         staticCtx.clearRect(0, 0, w, h);
 
-        // subtle tint for "field"/helipad area (tile coords)
-        if (fieldRectTiles) {
-            const fx = fieldRectTiles.x0 * cellSize;
-            const fy = fieldRectTiles.y0 * cellSize;
-            const fw = (fieldRectTiles.x1 - fieldRectTiles.x0) * cellSize;
-            const fh = (fieldRectTiles.y1 - fieldRectTiles.y0) * cellSize;
-            staticCtx.fillStyle = "rgba(208, 232, 220, 0.18)";
-            staticCtx.fillRect(fx, fy, fw, fh);
-        }
-
-        // floor texture + roads
-        const roadY = Math.floor(gridHeight * 0.52);
-        const roadX = Math.floor(gridWidth * 0.33);
-        const roadToFieldX = Math.max(2, (fieldRectTiles ? fieldRectTiles.x0 : Math.floor(gridWidth * 0.68)) - 2);
+        // floor texture
 
         for (let ty = 0; ty < gridHeight; ty++) {
             for (let tx = 0; tx < gridWidth; tx++) {
                 const x = tx * cellSize;
                 const y = ty * cellSize;
 
-                const isRoad = (ty === roadY || ty === roadY + 1 || tx === roadX || tx === roadX + 1 || tx === roadToFieldX || tx === roadToFieldX + 1);
-
                 if (!grid[ty][tx]) {
                     // empty tile "floor"
-                    if (isRoad) {
-                        staticCtx.fillStyle = "rgba(120, 144, 156, 0.10)";
-                        staticCtx.fillRect(x, y, cellSize, cellSize);
-                        staticCtx.fillStyle = "rgba(255,255,255,0.08)";
-                        staticCtx.fillRect(x, y, cellSize, 1);
-                    } else {
-                        const r = hash01(tx, ty);
-                        if (r < 0.055) {
-                            staticCtx.fillStyle = "rgba(121, 85, 72, 0.06)";
-                            staticCtx.fillRect(x + 2 + (r * 3), y + 2, 1, 1);
-                        } else if (r < 0.058) {
-                            staticCtx.strokeStyle = "rgba(121, 85, 72, 0.07)";
-                            staticCtx.lineWidth = 1;
-                            staticCtx.beginPath();
-                            staticCtx.moveTo(x + 1, y + cellSize - 2);
-                            staticCtx.lineTo(x + cellSize - 2, y + 1);
-                            staticCtx.stroke();
-                        }
+                    const r = hash01(tx, ty);
+                    if (r < 0.055) {
+                        staticCtx.fillStyle = "rgba(121, 85, 72, 0.06)";
+                        staticCtx.fillRect(x + 2 + (r * 3), y + 2, 1, 1);
+                    } else if (r < 0.058) {
+                        staticCtx.strokeStyle = "rgba(121, 85, 72, 0.07)";
+                        staticCtx.lineWidth = 1;
+                        staticCtx.beginPath();
+                        staticCtx.moveTo(x + 1, y + cellSize - 2);
+                        staticCtx.lineTo(x + cellSize - 2, y + 1);
+                        staticCtx.stroke();
                     }
                     continue;
                 }
 
-                // wall tile with bevel
+                // wall tile with crisp edges
                 staticCtx.fillStyle = PALETA.pared;
                 staticCtx.fillRect(x, y, cellSize, cellSize);
 
-                staticCtx.fillStyle = "rgba(0,0,0,0.07)";
-                staticCtx.fillRect(x + 1, y + 2, cellSize, cellSize);
+                staticCtx.fillStyle = "rgba(255,255,255,0.26)";
+                staticCtx.fillRect(x, y, cellSize, 1);
+                staticCtx.fillRect(x, y, 1, cellSize);
 
-                staticCtx.fillStyle = "rgba(255,255,255,0.22)";
-                staticCtx.fillRect(x, y, cellSize, 2);
-                staticCtx.fillRect(x, y, 2, cellSize);
+                staticCtx.fillStyle = "rgba(0,0,0,0.18)";
+                staticCtx.fillRect(x, y + cellSize - 1, cellSize, 1);
+                staticCtx.fillRect(x + cellSize - 1, y, 1, cellSize);
 
-                staticCtx.fillStyle = "rgba(0,0,0,0.12)";
-                staticCtx.fillRect(x, y + cellSize - 2, cellSize, 2);
-                staticCtx.fillRect(x + cellSize - 2, y, 2, cellSize);
+                staticCtx.strokeStyle = "rgba(61, 43, 38, 0.45)";
+                staticCtx.lineWidth = 1;
+                staticCtx.strokeRect(x + 0.5, y + 0.5, cellSize - 1, cellSize - 1);
             }
         }
 
@@ -2922,10 +2901,6 @@ const DOOR_BASE_HP = 70;
     function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
     function distancia(x1, y1, x2, y2) { return Math.hypot(x2 - x1, y2 - y1); }
     function manhattan(a, b) { return Math.abs(a.x - b.x) + Math.abs(a.y - b.y); }
-    function isInFieldRect(tx, ty) {
-        if (!fieldRectTiles) return false;
-        return tx >= fieldRectTiles.x0 && tx < fieldRectTiles.x1 && ty >= fieldRectTiles.y0 && ty < fieldRectTiles.y1;
-    }
     function normalizar(x, y) { const m = Math.sqrt(x*x + y*y); return m === 0 ? {x:0, y:0} : {x: x/m, y: y/m}; }
     function direccionAleatoria() { return [{x:1,y:0}, {x:-1,y:0}, {x:0,y:1}, {x:0,y:-1}][Math.floor(Math.random()*4)]; }
     function anguloEntrePuntos(x1, y1, x2, y2) { return Math.atan2(y2 - y1, x2 - x1); }
@@ -3687,8 +3662,7 @@ function zombieTryHitMueble(zombie) {
         doorGroups = [];
         doorIndex = Object.create(null);
 
-        // Optional: field rect (for subtle tint). Future phases will define it properly.
-        const rawFieldRect = (def.fieldRectTiles || def.fieldRect || null);
+        // Fields removed: no special field area.
         fieldRectTiles = null;
         staticDirty = true;
 
@@ -3727,10 +3701,6 @@ function zombieTryHitMueble(zombie) {
         const playerTile = clampTile(normPos(def.playerTile || def.player || def.startTile || (parsed && parsed.playerTile), fallbackPlayer));
         const heliTile = clampTile(normPos(def.heliTile || def.heli || (parsed && parsed.heliTile), fallbackHeli));
         const keyTile = clampTile(normPos(def.keyTile || def.key || (parsed && parsed.keyTile), fallbackKey));
-
-        // Phase 1.08 — define helipad/field rect (either provided or auto-derived around H)
-        fieldRectTiles = normalizeFieldRect(rawFieldRect, heliTile);
-        staticDirty = true;
 
 
         // Ensure those tiles are walkable
@@ -3792,50 +3762,15 @@ function generarMapa() {
         for (let x = 0; x < gridWidth; x++) { grid[0][x] = true; grid[gridHeight - 1][x] = true; }
         for (let y = 0; y < gridHeight; y++) { grid[y][0] = true; grid[y][gridWidth - 1] = true; }
 
-        // --- Esplanada (descampado) para el helicóptero: lado derecho ---
-        const fieldX0 = Math.floor(gridWidth * 0.68);
-        const fieldX1 = gridWidth - 2;
-        const fieldY0 = 2;
-        const fieldY1 = gridHeight - 2;
-
-        for (let y = fieldY0; y < fieldY1; y++) {
-            for (let x = fieldX0; x < fieldX1; x++) {
-                grid[y][x] = false;
-            }
-        }
-
-        // Carreteras principales (para asegurar conectividad)
-        const roadY = Math.floor(gridHeight * 0.52);
-        for (let x = 1; x < gridWidth - 1; x++) {
-            grid[roadY][x] = false;
-            if (roadY + 1 < gridHeight - 1) grid[roadY + 1][x] = false;
-        }
-        const roadX = Math.floor(gridWidth * 0.33);
-        for (let y = 1; y < gridHeight - 1; y++) {
-            grid[y][roadX] = false;
-            if (roadX + 1 < gridWidth - 1) grid[y][roadX + 1] = false;
-        }
-        const roadToFieldX = Math.max(2, fieldX0 - 2);
-        for (let y = 1; y < gridHeight - 1; y++) {
-            grid[y][roadToFieldX] = false;
-            if (roadToFieldX + 1 < gridWidth - 1) grid[y][roadToFieldX + 1] = false;
-        }
-
+        // Sin explanadas ni carreteras en mapa procedural.
         // Helper: comprobar área vacía con margen
         function areaLibre(x0, y0, w, h, margin = 1) {
             const x1 = x0 + w - 1;
             const y1 = y0 + h - 1;
             if (x0 - margin < 1 || y0 - margin < 1 || x1 + margin >= gridWidth - 1 || y1 + margin >= gridHeight - 1) return false;
-            // no invadir descampado
-            if (x1 >= fieldX0) return false;
             for (let y = y0 - margin; y <= y1 + margin; y++) {
                 for (let x = x0 - margin; x <= x1 + margin; x++) {
                     if (grid[y][x]) return false;
-                    // evita carreteras (para que no se rompan)
-                    if ((y === roadY || y === roadY + 1) || (x === roadX || x === roadX + 1) || (x === roadToFieldX || x === roadToFieldX + 1)) {
-                        // permitir tocar borde de carretera pero no ocuparla
-                        if (x >= x0 && x <= x1 && y >= y0 && y <= y1) return false;
-                    }
                 }
             }
             return true;
@@ -3849,7 +3784,7 @@ function generarMapa() {
         while (houseRooms.length < desiredHouses && tries-- > 0) {
             const w = randInt(7, 13);
             const h = randInt(7, 11);
-            const x0 = randInt(2, Math.max(3, fieldX0 - w - 3));
+            const x0 = randInt(2, Math.max(3, gridWidth - w - 3));
             const y0 = randInt(2, gridHeight - h - 3);
 
             if (!areaLibre(x0, y0, w, h, 1)) continue;
@@ -3893,28 +3828,18 @@ function generarMapa() {
         for (let i = 0; i < wallSegments; i++) {
             const len = randInt(5, 12);
             const horizontal = Math.random() < 0.55;
-            const x0 = randInt(2, Math.max(3, fieldX0 - 4));
+            const x0 = randInt(2, Math.max(3, gridWidth - 4));
             const y0 = randInt(2, gridHeight - 3);
 
             for (let k = 0; k < len; k++) {
                 const x = x0 + (horizontal ? k : 0);
                 const y = y0 + (horizontal ? 0 : k);
-                if (x < 1 || x >= fieldX0 - 1 || y < 1 || y >= gridHeight - 1) break;
-                // no cortar carreteras principales
-                if (y === roadY || y === roadY + 1) continue;
-                if (x === roadX || x === roadX + 1) continue;
-                if (x === roadToFieldX || x === roadToFieldX + 1) continue;
+                if (x < 1 || x >= gridWidth - 1 || y < 1 || y >= gridHeight - 1) break;
                 // no poner dentro de casas (solo exteriores)
                 if (!grid[y][x]) grid[y][x] = Math.random() < 0.75;
             }
         }
 
-        // Reforzar la esplanada otra vez (por seguridad)
-        for (let y = fieldY0; y < fieldY1; y++) {
-            for (let x = fieldX0; x < fieldX1; x++) {
-                grid[y][x] = false;
-            }
-        }
     }
 
     function floodFill(startTx, startTy) {
@@ -4066,29 +3991,6 @@ noises = [];
                 do {
 
         buildMapFromRunDef(currentRunDef);
-
-        // --- DESCAMPADO para el helicóptero (zona despejada en la derecha) ---
-        const fieldX0 = Math.floor(gridWidth * 0.68);
-        const fieldX1 = gridWidth - 2;
-        const fieldY0 = 2;
-        const fieldY1 = gridHeight - 2;
-        for (let y = fieldY0; y < fieldY1; y++) {
-            for (let x = fieldX0; x < fieldX1; x++) {
-                grid[y][x] = false;
-            }
-        }
-        // Rompe puertas dentro del descampado para que no bloqueen ni se dibujen
-        for (const g of doorGroups) {
-            if (!g || g.broken) continue;
-            for (const t of g.tiles) {
-                if (t.x >= fieldX0 && t.x < fieldX1 && t.y >= fieldY0 && t.y < fieldY1) {
-                    g.broken = true;
-                    g.open = true;
-                    g.barricaded = false;
-                    break;
-                }
-            }
-        }
                     for(let dy=-1; dy<=1; dy++) {
                         for(let dx=-1; dx<=1; dx++) {
                             grid[startTile.y+dy][startTile.x+dx] = false; 
@@ -4164,60 +4066,27 @@ if(alcanzables.length === 0) {
         stopCameraInertia();
 
         
-        let fieldX0p, fieldX1p, fieldY0p, fieldY1p;
-        if (!isPredefMap) {
-            // --- Llave a un lado (izquierda) y helicóptero en descampado (derecha) ---
-            fieldX0p = Math.floor(gridWidth * 0.68);
-            fieldX1p = gridWidth - 2;
-            fieldY0p = 2;
-            fieldY1p = gridHeight - 2;
+        const bestHeliTile = alcanzables[0] || startTile;
+        helicoptero.x = bestHeliTile.x * cellSize;
+        helicoptero.y = bestHeliTile.y * cellSize;
+        helicoptero.visible = false;
 
-            fieldRectTiles = { x0: fieldX0p, x1: fieldX1p, y0: fieldY0p, y1: fieldY1p };
-            staticDirty = true;
+        const leftLimit = Math.floor(gridWidth * 0.32);
+        const leftTiles = alcanzables.filter(t => t.x <= leftLimit);
 
-
-            const fieldTiles = alcanzables.filter(t => t.x >= fieldX0p && t.x < fieldX1p && t.y >= fieldY0p && t.y < fieldY1p);
-
-            const heliCenter = { x: Math.floor((fieldX0p + fieldX1p) / 2), y: Math.floor((fieldY0p + fieldY1p) / 2) };
-            let bestHeliTile = heliCenter;
-
-            // si por lo que sea el centro no es alcanzable, cae a un tile del descampado
-            if (!alcanzables.some(t => t.x === heliCenter.x && t.y === heliCenter.y)) {
-                bestHeliTile = fieldTiles.length ? fieldTiles[0] : alcanzables[0];
-            }
-
-            helicoptero.x = bestHeliTile.x * cellSize;
-            helicoptero.y = bestHeliTile.y * cellSize;
-            helicoptero.visible = false;
-
-            // Llave en el lado opuesto (izquierda) y lejos del helicóptero
-            const leftLimit = Math.floor(gridWidth * 0.32);
-            const leftTiles = alcanzables.filter(t => t.x <= leftLimit);
-
-            let bestKeyTile = (leftTiles.length ? leftTiles[0] : alcanzables[0]);
-            let bestKeyScore = -1;
-            const keyPool = leftTiles.length ? leftTiles : alcanzables;
-            for (const t of keyPool) {
-                const d = distancia(t.x, t.y, bestHeliTile.x, bestHeliTile.y);
-                const dp = distancia(t.x, t.y, startTile.x, startTile.y);
-                if (d > bestKeyScore && dp > 8) { bestKeyScore = d; bestKeyTile = t; }
-            }
-            const kPos = tileToEntityPixel(bestKeyTile.x, bestKeyTile.y);
-            llave.x = kPos.x; llave.y = kPos.y; llave.visible = false;
-        } else {
-            // Predefined map: loadMap() already positioned player/key/heli. Keep optional field tint.
-            const fr = currentRunDef && currentRunDef.mapDef && (currentRunDef.mapDef.fieldRectTiles || currentRunDef.mapDef.fieldRect);
-            if (fr) fieldRectTiles = fr;
-            staticDirty = true;
-            if (fieldRectTiles && Number.isFinite(fieldRectTiles.x0) && Number.isFinite(fieldRectTiles.x1)) {
-                fieldX0p = fieldRectTiles.x0; fieldX1p = fieldRectTiles.x1;
-                fieldY0p = fieldRectTiles.y0; fieldY1p = fieldRectTiles.y1;
-            } else {
-                // No field rect for this map: treat as "no field" for placement rules
-                fieldX0p = gridWidth + 999; fieldX1p = gridWidth + 999;
-                fieldY0p = gridHeight + 999; fieldY1p = gridHeight + 999;
-            }
+        let bestKeyTile = (leftTiles.length ? leftTiles[0] : (alcanzables[0] || startTile));
+        let bestKeyScore = -1;
+        const keyPool = leftTiles.length ? leftTiles : alcanzables;
+        for (const t of keyPool) {
+            const d = distancia(t.x, t.y, bestHeliTile.x, bestHeliTile.y);
+            const dp = distancia(t.x, t.y, startTile.x, startTile.y);
+            if (d > bestKeyScore && dp > 8) { bestKeyScore = d; bestKeyTile = t; }
         }
+        const kPos = tileToEntityPixel(bestKeyTile.x, bestKeyTile.y);
+        llave.x = kPos.x; llave.y = kPos.y; llave.visible = false;
+
+        fieldRectTiles = null;
+        staticDirty = true;
 
 function normTilePos(t0) {
     if (!t0) return null;
@@ -4249,7 +4118,7 @@ if (houseRooms && houseRooms.length) {
     }
 }
 
-// + candidatos aleatorios (sin tocar el descampado)
+// + candidatos aleatorios
 for (let i = 0; i < 220; i++) {
     const t = alcanzables[randInt(0, alcanzables.length - 1)];
     candidates.push({ x: t.x, y: t.y });
@@ -4257,8 +4126,6 @@ for (let i = 0; i < 220; i++) {
 
 function tryPlaceBoxAtTile(tx, ty) {
     if (tx < 1 || ty < 1 || tx >= gridWidth - 1 || ty >= gridHeight - 1) return false;
-    // no en el descampado del helicóptero
-    if (tx >= fieldX0p && tx < fieldX1p && ty >= fieldY0p && ty < fieldY1p) return false;
     // no encima de puertas
     if (getDoorGroupAtTile(tx, ty)) return false;
     // no encima de paredes/bloqueos
@@ -4317,7 +4184,6 @@ function spawnFromTiles(arr, tiles, type) {
         if (!deterministicCampaign && (!reachableMask[ty] || !reachableMask[ty][tx])) continue; // avoid unreachable spawns (free mode only)
         if (grid[ty][tx]) continue;                                 // must be floor
         if (getDoorGroupAtTile(tx, ty)) continue;                   // not on door tiles
-        if (!deterministicCampaign && isInFieldRect(tx, ty)) continue; // keep helipad field clear (free mode only)
         if (tx === startTile.x && ty === startTile.y) continue;
         if (isUsed(tx, ty)) continue;
 
@@ -4349,7 +4215,7 @@ const usePredefZombieSpawns = !!(predefZombieSpawnTiles && predefZombieSpawnTile
 const usePredefPoliceSpawns = !!(predefPoliceSpawnTiles && predefPoliceSpawnTiles.length);
 
 // Random spawn pool (unchanged behavior) — avoid tiles already used by deterministic spawns.
-const safeTiles = alcanzables.filter(t => manhattan(t, startTile) > 20 && !isInFieldRect(t.x, t.y) && !getDoorGroupAtTile(t.x, t.y));
+const safeTiles = alcanzables.filter(t => manhattan(t, startTile) > 20 && !getDoorGroupAtTile(t.x, t.y));
 
 const spawn = (arr, count, type) => {
     for (let i = 0; i < count && safeTiles.length > 0; i++) {
@@ -4364,7 +4230,6 @@ const spawn = (arr, count, type) => {
                 const dist = manhattan(cand, startTile);
                 if (dist < 40) { triesPick++; continue; }
                 if (isUsed(cand.x, cand.y)) { triesPick++; continue; }
-                if (isInFieldRect(cand.x, cand.y)) { triesPick++; continue; }
                 if (getDoorGroupAtTile(cand.x, cand.y)) { triesPick++; continue; }
                 t = cand; break;
             }
@@ -4373,7 +4238,6 @@ const spawn = (arr, count, type) => {
                 const cand = safeTiles[randInt(0, safeTiles.length - 1)];
                 if (!cand) { triesPick++; continue; }
                 if (isUsed(cand.x, cand.y)) { triesPick++; continue; }
-                if (isInFieldRect(cand.x, cand.y)) { triesPick++; continue; }
                 if (getDoorGroupAtTile(cand.x, cand.y)) { triesPick++; continue; }
                 t = cand; break;
             }
