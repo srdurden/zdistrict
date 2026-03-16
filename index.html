@@ -1801,8 +1801,34 @@ const txtEventoElem = document.getElementById("txtEvento");
     function restartCurrentRun() {
         if (appState === "MENU") return;
         if (currentRunDef && currentRunDef.mode === "campaign") {
+            const uiSettings = getSettingsFromUI();
+            const baseOverrides = Object.assign({}, currentRunDef.settingsOverrides || {});
+            const mergedOverrides = Object.assign({}, baseOverrides, uiSettings);
+
+            // Keep predefined campaign map dimensions stable on restart.
+            // Otherwise UI defaults (50x50) can enlarge the grid and leave a thick wall ring
+            // around smaller ASCII maps (e.g. 25x25 levels).
+            if (currentRunDef.mapDef) {
+                const inferredSize = inferAsciiMapSize(currentRunDef.mapDef);
+                if (Number.isFinite(baseOverrides.mapWidthTiles)) {
+                    mergedOverrides.mapWidthTiles = baseOverrides.mapWidthTiles;
+                } else if (inferredSize) {
+                    mergedOverrides.mapWidthTiles = inferredSize.w;
+                }
+
+                if (Number.isFinite(baseOverrides.mapHeightTiles)) {
+                    mergedOverrides.mapHeightTiles = baseOverrides.mapHeightTiles;
+                } else if (inferredSize) {
+                    mergedOverrides.mapHeightTiles = inferredSize.h;
+                }
+
+                if (Number.isFinite(baseOverrides.structureAttempts)) {
+                    mergedOverrides.structureAttempts = baseOverrides.structureAttempts;
+                }
+            }
+
             const refreshedRunDef = Object.assign({}, currentRunDef, {
-                settingsOverrides: Object.assign({}, currentRunDef.settingsOverrides || {}, getSettingsFromUI())
+                settingsOverrides: mergedOverrides
             });
             resetGame(refreshedRunDef);
         } else {
