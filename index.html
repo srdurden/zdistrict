@@ -622,14 +622,15 @@
 <div id="configPanel">
     <h1>Configuración</h1>
     <button id="editCampaignBtn" style="display:none;">Editar nivel</button>
+    <button id="restartBtn">Reiniciar Simulación</button>
 
     <!-- Militares -->
 
     <!-- Retraso militar -->
 
     <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Vel. Militar</span><input type="number" id="soldierSpeedNum" min="0.5" max="3" step="0.1" value="1.1"></div>
-        <input type="range" id="soldierSpeedSlider" min="0.5" max="3" step="0.1" value="1.1">
+        <div class="slider-header"><span class="slider-label">Radio movimiento (tiles)</span><input type="number" id="npcRoamRadiusTilesNum" min="1" max="80" step="1" value="5"></div>
+        <input type="range" id="npcRoamRadiusTilesSlider" min="1" max="80" step="1" value="5">
     </div>
     
     <div class="slider-group">
@@ -665,16 +666,6 @@
     <div class="slider-group">
         <div class="slider-header"><span class="slider-label">Fuerza Militar (1-10)</span><input type="number" id="soldierStrengthNum" min="1" max="10" step="1" value="5"></div>
         <input type="range" id="soldierStrengthSlider" min="1" max="10" step="1" value="5">
-    </div>
-
-    <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Ángulo cono visión NPC (°)</span><input type="number" id="npcVisionConeNum" min="30" max="180" step="1" value="95"></div>
-        <input type="range" id="npcVisionConeSlider" min="30" max="180" step="1" value="95">
-    </div>
-
-    <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Radio movimiento (tiles)</span><input type="number" id="npcRoamRadiusTilesNum" min="1" max="80" step="1" value="5"></div>
-        <input type="range" id="npcRoamRadiusTilesSlider" min="1" max="80" step="1" value="5">
     </div>
 
     <div class="slider-group">
@@ -732,10 +723,14 @@
         <input type="range" id="zombieReleasePushSlider" min="0" max="10" step="0.1" value="1.8">
     </div>
 
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Vel. Militar</span><input type="number" id="soldierSpeedNum" min="0.5" max="3" step="0.1" value="1.1"></div>
+        <input type="range" id="soldierSpeedSlider" min="0.5" max="3" step="0.1" value="1.1">
+    </div>
 
-    <div class="toggle-row">
-        <span class="toggle-label" style="color:var(--c-soldier)">⚠️ Fuego Amigo Militar</span>
-        <input type="checkbox" id="friendlyFireToggle" checked>
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Ángulo cono visión NPC (°)</span><input type="number" id="npcVisionConeNum" min="30" max="180" step="1" value="95"></div>
+        <input type="range" id="npcVisionConeSlider" min="30" max="180" step="1" value="95">
     </div>
 
     <!-- Ocultos -->
@@ -746,7 +741,6 @@
         <input type="range" id="bengalaDuracionSlider" value="15">
     </div>
 
-    <button id="restartBtn">Reiniciar Simulación</button>
     <div class="hint">Usa el botón 🧟 para elegir tipo y desplegar zombies en el escenario.</div>
 </div>
 
@@ -1362,7 +1356,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     const jamCountSlider = document.getElementById("jamCountSlider"); const jamCountNum = document.getElementById("jamCountNum");
     const jamDurSlider = document.getElementById("jamDurSlider"); const jamDurNum = document.getElementById("jamDurNum");
 
-    const friendlyFireToggle = document.getElementById("friendlyFireToggle");
     const citizenSpeedSlider = document.getElementById("citizenSpeedSlider");
     const balasSlider = document.getElementById("balasSlider"); const balasNum = document.getElementById("balasNum");
     const restartBtn = document.getElementById("restartBtn");
@@ -1762,7 +1755,7 @@ const txtEventoElem = document.getElementById("txtEvento");
         if (mainMenuOverlay) mainMenuOverlay.classList.remove("visible");
         if (postGameOverlay) postGameOverlay.classList.remove("visible");
         postGameShown = false;
-        setSettingsUIEnabled(false);
+        setSettingsUIEnabled(true);
         if (editCampaignBtn) editCampaignBtn.style.display = "";
         const pool = getCampaignLevelPool();
         campaignIndex = Math.max(0, Math.min(index, pool.length - 1));
@@ -1808,7 +1801,10 @@ const txtEventoElem = document.getElementById("txtEvento");
     function restartCurrentRun() {
         if (appState === "MENU") return;
         if (currentRunDef && currentRunDef.mode === "campaign") {
-            startCampaignMode(currentRunDef.campaignIndex ?? campaignIndex ?? 0);
+            const refreshedRunDef = Object.assign({}, currentRunDef, {
+                settingsOverrides: Object.assign({}, currentRunDef.settingsOverrides || {}, getSettingsFromUI())
+            });
+            resetGame(refreshedRunDef);
         } else {
             startCampaignMode(getActiveCampaignIndex());
         }
@@ -2036,7 +2032,7 @@ const txtEventoElem = document.getElementById("txtEvento");
             bengalas: 0,
 
             // Toggles
-            friendlyFire: !!(friendlyFireToggle && friendlyFireToggle.checked),
+            friendlyFire: true,
 
             // Timings (seconds in UI)
             policeCooldownSec: toFloat(policeCoolNum, 1.0),
@@ -2307,8 +2303,6 @@ const DOOR_BASE_HP = 70;
     document.addEventListener("keyup", (e) => { 
         if (e.code in teclas) { teclas[e.code] = false; e.preventDefault(); } 
     });
-
-    friendlyFireToggle.addEventListener('change', (e) => fuegoAmigo = e.target.checked);
 
     function createZombieEntity(x, y, custom = {}) {
         return initEntityFacing({
