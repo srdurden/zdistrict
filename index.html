@@ -597,10 +597,9 @@
 <div id="mainMenuOverlay" class="menu-overlay">
   <div class="menu-card">
     <div class="menu-title">Z-District: Pastel Panic</div>
-    <div class="menu-subtitle">Simulación de planificación zombie</div>
+    <div class="menu-subtitle">Planifica y supera la campaña zombie</div>
     <div class="menu-actions">
-      <button id="menuCampaignBtn" class="menu-btn">🎯 Modo campaña</button>
-      <button id="menuFreeBtn" class="menu-btn primary">🧟 Nueva simulación</button>
+      <button id="menuCampaignBtn" class="menu-btn primary">🎯 Iniciar campaña</button>
     </div>
     <div class="menu-hint">Despliega zombies tocando el escenario. Sin control directo del jugador.</div>
   </div>
@@ -623,33 +622,10 @@
 <div id="configPanel">
     <h1>Configuración</h1>
     <button id="editCampaignBtn" style="display:none;">Editar nivel</button>
-    
-    <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Zombies iniciales</span><input type="number" id="zombieNum" value="0"></div>
-        <input type="range" id="zombieSlider" min="0" max="500" value="0">
-    </div>
-    
-    <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Civiles</span><input type="number" id="citizenNum" value="15"></div>
-        <input type="range" id="citizenSlider" min="0" max="3000" value="15">
-    </div>
-    
-    <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Policía</span><input type="number" id="policeNum" value="1"></div>
-        <input type="range" id="policeSlider" min="0" max="100" value="1">
-    </div>
 
     <!-- Militares -->
-    <div class="slider-group">
-        <div class="slider-header"><span class="slider-label" style="color:var(--c-soldier)">Militares (Pelotón)</span><input type="number" id="soldierNum" value="0"></div>
-        <input type="range" id="soldierSlider" min="0" max="50" value="0">
-    </div>
 
     <!-- Retraso militar -->
-    <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Retraso Refuerzos (s)</span><input type="number" id="milDelayNum" min="0" max="120" value="7"></div>
-        <input type="range" id="milDelaySlider" min="0" max="120" value="7">
-    </div>
 
     <div class="slider-group">
         <div class="slider-header"><span class="slider-label">Vel. Militar</span><input type="number" id="soldierSpeedNum" min="0.5" max="3" step="0.1" value="1.1"></div>
@@ -674,11 +650,6 @@
     <div class="slider-group">
         <div class="slider-header"><span class="slider-label">Duración atasco (s)</span><input type="number" id="jamDurNum" min="1" max="15" value="5"></div>
         <input type="range" id="jamDurSlider" min="1" max="15" value="5">
-    </div>
-
-    <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Vel. Zombies</span><input type="number" id="zSpeedNum" step="0.1" value="1.5"></div>
-        <input type="range" id="zombieSpeedSlider" min="0.2" max="3" step="0.1" value="1.5">
     </div>
 
     <div class="slider-group">
@@ -761,26 +732,6 @@
         <input type="range" id="zombieReleasePushSlider" min="0" max="10" step="0.1" value="1.8">
     </div>
 
-    <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Bengalas</span><input type="number" id="bengalaNum" value="0"></div>
-        <input type="range" id="bengalaSlider" min="0" max="10" value="0">
-    </div>
-
-    <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Ancho escenario (tiles)</span><input type="number" id="mapWidthTilesNum" min="15" max="1000" value="50"></div>
-        <input type="range" id="mapWidthTilesSlider" min="15" max="1000" step="1" value="50">
-    </div>
-
-    <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Alto escenario (tiles)</span><input type="number" id="mapHeightTilesNum" min="15" max="700" value="50"></div>
-        <input type="range" id="mapHeightTilesSlider" min="15" max="700" step="1" value="50">
-    </div>
-
-    <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Estructuras a intentar</span><input type="number" id="structureAttemptsNum" min="0" max="600" value="1"></div>
-        <input type="range" id="structureAttemptsSlider" min="0" max="600" step="1" value="1">
-    </div>
-
 
     <div class="toggle-row">
         <span class="toggle-label" style="color:var(--c-soldier)">⚠️ Fuego Amigo Militar</span>
@@ -831,6 +782,185 @@
         document.documentElement.style.setProperty("--app-height", `${viewportHeight}px`);
     }
     syncAppHeight();
+
+
+
+
+    // Placeholder campaign content (Phase 3 will add real 3-level campaign)
+    const CAMPAIGN_LEVELS = [
+        {
+            id: "C01",
+            name: "Primer Encierro",
+            directorOverrides: { enabled: false },
+            settingsOverrides: {
+                boxCount: 0,
+                mapWidthTiles: 25,
+                mapHeightTiles: 25,
+            },
+            mapDef: {
+                type: "ascii",
+                w: 25,
+                h: 25,
+                data: `
+#########################
+#.......................#
+#.......................#
+#.......................#
+#........C..............#
+#.......................#
+#.......................#
+#.......K...............#
+#.......................#
+#.......................#
+#.......................#
+#.......................#
+#...........M...........#
+#.......................#
+#.......................#
+#.......................#
+#.......................#
+#.......................#
+#.................H.....#
+#.......................#
+#.......................#
+#.......................#
+#..P....................#
+#.......................#
+#########################
+`.trim()
+            }
+        },
+
+        {
+            id: "C02",
+            name: "Barrio Cortado",
+            directorOverrides: {
+                enabled: true
+            },
+            settingsOverrides: {
+                boxCount: 30,
+                soldierCooldownSec: 1.0
+            },
+            mapDef: {
+                type: "ascii",
+                data: `
+############################################################
+#...........................#..............................#
+#..###############..........#..............................#
+#..#.............#..........#..............................#
+#..#.............#..........#.......................H......#
+#..#....K........#..........#..............................#
+#..#.............#..........D..............................#
+#..#.............#..........#..............................#
+#..#######D#######..........#..............................#
+#...........................#..............................#
+#...........................#..............................#
+#...........................#..............................#
+#...........................#..............................#
+#...........................#..............................#
+#...........................#..............................#
+#...........................D..............................#
+#.....P.....................#..............................#
+#...........................#..............................#
+#...........................#..............................#
+#...........................#..............................#
+#...........................#..............................#
+############################################################
+`.trim()
+            }
+        },
+
+        {
+            id: "C03",
+            name: "El Laberinto",
+            directorOverrides: {
+                enabled: true
+            },
+            settingsOverrides: {
+                boxCount: 34,
+                soldierCooldownSec: 0.9
+            },
+            mapDef: {
+                type: "ascii",
+                data: `
+############################################################
+#...................#...................#..................#
+#..........########.#...................#...############...#
+#..........#......#.#...................#...#..........#...#
+#..........#..K...#.D...................#...#..........#...#
+#..........#......#.#...................#...#..........#...#
+#..........#......#.#...................D...#..........#...#
+#..........####D###.#...................#...#..........#...#
+#...................#...................#...#####D######...#
+#...................#...................#..................#
+########D#####################D###################D#########
+#...................#...................#..................#
+#...................D...############....#..................#
+#...................#...#..........#....#..................#
+#...................#...D..........#....#..................#
+#...................#...#..........#....D..................#
+#...................#...#..........#....#..................#
+#...................#...############....#..................#
+#...................#...................#..................#
+#...................D...................#..................#
+#.....P.............#...................#.............H....#
+#...................#...................D..................#
+#...................#...................#..................#
+############################################################
+`.trim()
+            }
+
+        }
+
+,
+        {
+            id: "C04",
+            name: "Ciudad Compacta",
+            directorOverrides: {
+                enabled: true
+            },
+            settingsOverrides: {
+                boxCount: 3,
+                mapWidthTiles: 100,
+                mapHeightTiles: 100,
+                structureAttempts: 0
+            },
+            mapDef: {
+                type: "ascii",
+                w: 100,
+                h: 100,
+                data: (() => {
+                    const w = 100, h = 100;
+                    const rows = new Array(h).fill(null).map((_, y) => {
+                        if (y === 0 || y === h - 1) return "#".repeat(w);
+                        return "#" + ".".repeat(w - 2) + "#";
+                    });
+                    function set(x, y, ch) {
+                        if (x < 1 || y < 1 || x >= w - 1 || y >= h - 1) return;
+                        const r = rows[y].split("");
+                        r[x] = ch;
+                        rows[y] = r.join("");
+                    }
+                    function house(x0, y0, x1, y1, dx, dy) {
+                        for (let x = x0; x <= x1; x++) { set(x, y0, "#"); set(x, y1, "#"); }
+                        for (let y = y0; y <= y1; y++) { set(x0, y, "#"); set(x1, y, "#"); }
+                        set(dx, dy, "D");
+                    }
+                    house(10, 10, 28, 24, 19, 24);
+                    house(40, 16, 58, 30, 49, 16);
+                    house(67, 58, 88, 80, 67, 69);
+                    set(5, 5, "P");
+                    set(27, 20, "K");
+                    set(93, 92, "H");
+                    set(18, 18, "C");
+                    set(50, 24, "C");
+                    set(78, 72, "C");
+                    return rows.join("\n");
+                })()
+            }
+        }
+
+    ];
 
     const canvas = document.getElementById("myCanvas");
     const ctx = canvas.getContext("2d");
@@ -1211,11 +1341,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     const configPanel = document.getElementById("configPanel");
 
     // Inputs
-    const zombieSlider = document.getElementById("zombieSlider"); const zombieNum = document.getElementById("zombieNum");
-    const citizenSlider = document.getElementById("citizenSlider"); const citizenNum = document.getElementById("citizenNum");
-    const policeSlider = document.getElementById("policeSlider"); const policeNum = document.getElementById("policeNum");
-    const soldierSlider = document.getElementById("soldierSlider"); const soldierNum = document.getElementById("soldierNum");
-    const zSpeedSlider = document.getElementById("zombieSpeedSlider"); const zSpeedNum = document.getElementById("zSpeedNum");
     const citizenStrengthSlider = document.getElementById("citizenStrengthSlider"); const citizenStrengthNum = document.getElementById("citizenStrengthNum");
     const policeStrengthSlider = document.getElementById("policeStrengthSlider"); const policeStrengthNum = document.getElementById("policeStrengthNum");
     const soldierStrengthSlider = document.getElementById("soldierStrengthSlider"); const soldierStrengthNum = document.getElementById("soldierStrengthNum");
@@ -1232,10 +1357,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     const npcEscapeCooldownSecSlider = document.getElementById("npcEscapeCooldownSecSlider"); const npcEscapeCooldownSecNum = document.getElementById("npcEscapeCooldownSecNum");
     const npcEscapeDistanceSlider = document.getElementById("npcEscapeDistanceSlider"); const npcEscapeDistanceNum = document.getElementById("npcEscapeDistanceNum");
     const zombieReleasePushSlider = document.getElementById("zombieReleasePushSlider"); const zombieReleasePushNum = document.getElementById("zombieReleasePushNum");
-    const bengalaSlider = document.getElementById("bengalaSlider"); const bengalaNum = document.getElementById("bengalaNum");
-    const mapWidthTilesSlider = document.getElementById("mapWidthTilesSlider"); const mapWidthTilesNum = document.getElementById("mapWidthTilesNum");
-    const mapHeightTilesSlider = document.getElementById("mapHeightTilesSlider"); const mapHeightTilesNum = document.getElementById("mapHeightTilesNum");
-    const structureAttemptsSlider = document.getElementById("structureAttemptsSlider"); const structureAttemptsNum = document.getElementById("structureAttemptsNum");
     
     // Config Inputs
     const policeCoolSlider = document.getElementById("policeCoolSlider"); const policeCoolNum = document.getElementById("policeCoolNum");
@@ -1243,7 +1364,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     const soldierSpeedSlider = document.getElementById("soldierSpeedSlider"); const soldierSpeedNum = document.getElementById("soldierSpeedNum");
     const jamCountSlider = document.getElementById("jamCountSlider"); const jamCountNum = document.getElementById("jamCountNum");
     const jamDurSlider = document.getElementById("jamDurSlider"); const jamDurNum = document.getElementById("jamDurNum");
-    const milDelaySlider = document.getElementById("milDelaySlider"); const milDelayNum = document.getElementById("milDelayNum");
 
     const friendlyFireToggle = document.getElementById("friendlyFireToggle");
     const citizenSpeedSlider = document.getElementById("citizenSpeedSlider");
@@ -1265,7 +1385,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     const deployStrengthNum = document.getElementById("deployStrengthNum");
     const mainMenuOverlay = document.getElementById("mainMenuOverlay");
     const menuCampaignBtn = document.getElementById("menuCampaignBtn");
-    const menuFreeBtn = document.getElementById("menuFreeBtn");
     const editCampaignBtn = document.getElementById("editCampaignBtn");
 
     const editorOverlay = document.getElementById("editorOverlay");
@@ -1294,11 +1413,6 @@ const txtEventoElem = document.getElementById("txtEvento");
         slider.addEventListener('input', () => number.value = slider.value);
         number.addEventListener('input', () => slider.value = number.value);
     }
-    linkInput(zombieSlider, zombieNum);
-    linkInput(citizenSlider, citizenNum);
-    linkInput(policeSlider, policeNum);
-    linkInput(soldierSlider, soldierNum);
-    linkInput(zSpeedSlider, zSpeedNum);
     linkInput(citizenStrengthSlider, citizenStrengthNum);
     linkInput(policeStrengthSlider, policeStrengthNum);
     linkInput(soldierStrengthSlider, soldierStrengthNum);
@@ -1315,16 +1429,11 @@ const txtEventoElem = document.getElementById("txtEvento");
     linkInput(npcEscapeCooldownSecSlider, npcEscapeCooldownSecNum);
     linkInput(npcEscapeDistanceSlider, npcEscapeDistanceNum);
     linkInput(zombieReleasePushSlider, zombieReleasePushNum);
-    linkInput(bengalaSlider, bengalaNum);
-    linkInput(mapWidthTilesSlider, mapWidthTilesNum);
-    linkInput(mapHeightTilesSlider, mapHeightTilesNum);
-    linkInput(structureAttemptsSlider, structureAttemptsNum);
     linkInput(policeCoolSlider, policeCoolNum);
     linkInput(soldierCoolSlider, soldierCoolNum);
     linkInput(soldierSpeedSlider, soldierSpeedNum);
     linkInput(jamCountSlider, jamCountNum);
     linkInput(jamDurSlider, jamDurNum);
-    linkInput(milDelaySlider, milDelayNum);
     linkInput(deployZSpeedSlider, deployZSpeedNum);
     linkInput(deployInfectSlider, deployInfectNum);
     linkInput(deployStrengthSlider, deployStrengthNum);
@@ -1370,7 +1479,6 @@ const txtEventoElem = document.getElementById("txtEvento");
 
     // Main Menu wiring
     if (homeBtn) homeBtn.addEventListener("click", () => showMainMenu());
-    if (menuFreeBtn) menuFreeBtn.addEventListener("click", () => startFreeMode());
     if (menuCampaignBtn) menuCampaignBtn.addEventListener("click", () => startCampaignMode(0));
     if (zoomInBtn) zoomInBtn.addEventListener("click", () => zoomByFactor(1.25));
     if (zoomOutBtn) zoomOutBtn.addEventListener("click", () => zoomByFactor(1 / 1.25));
@@ -1447,7 +1555,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     // Phase 0: Run definitions
     // (Prep for Campaign/Free mode without changing current behavior)
     // ===========================
-    let currentRunDef = null;   // { mode: "free" | "campaign", settingsOverrides?: {...}, ... }
+    let currentRunDef = null;   // { mode: "campaign", settingsOverrides?: {...}, ... }
 
     // Global flag: campaign maps are deterministic (no RNG + no spawn filtering)
     let deterministicCampaign = false;
@@ -1596,7 +1704,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     }
 
     function setScenarioSettingsVisibility(visible) {
-        const blockedIds = ["zombieNum", "citizenNum", "policeNum", "soldierNum", "zSpeedNum", "structureAttemptsNum"];
+        const blockedIds = [];
         blockedIds.forEach((id) => {
             const input = document.getElementById(id);
             const group = input ? input.closest(".slider-group") : null;
@@ -1632,215 +1740,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     }
 
 
-    // Placeholder campaign content (Phase 3 will add real 3-level campaign)
-    const CAMPAIGN_LEVELS = [
-        {
-            id: "C01",
-            name: "Primer Encierro",
-            directorOverrides: { enabled: false },
-            settingsOverrides: {
-                zombieCount: 1,
-                citizenCount: 0,
-                policeCount: 0,
-                soldierCount: 1,
-                boxCount: 0,
-                zombieSpeed: 1,
-                balas: 0,
-                bengalas: 0,
-                mapWidthTiles: 25,
-                mapHeightTiles: 25,
-                soldierSpawnDelaySec: 0
-            },
-            mapDef: {
-                type: "ascii",
-                w: 25,
-                h: 25,
-                data: `
-#########################
-#.......................#
-#.......................#
-#.......................#
-#........C..............#
-#.......................#
-#.......................#
-#.......K...............#
-#.......................#
-#.......................#
-#.......................#
-#.......................#
-#...........M...........#
-#.......................#
-#.......................#
-#.......................#
-#.......................#
-#.......................#
-#.................H.....#
-#.......................#
-#.......................#
-#.......................#
-#..P....................#
-#.......................#
-#########################
-`.trim()
-            }
-        },
-
-        {
-            id: "C02",
-            name: "Barrio Cortado",
-            directorOverrides: {
-                enabled: true
-            },
-            settingsOverrides: {
-                zombieCount: 28,
-                citizenCount: 125,
-                policeCount: 2,
-                soldierCount: 2,
-                boxCount: 30,
-                zombieSpeed: 1.55,
-                balas: 17,
-                bengalas: 0,
-                soldierSpawnDelaySec: 10,
-                soldierCooldownSec: 1.0
-            },
-            mapDef: {
-                type: "ascii",
-                data: `
-############################################################
-#...........................#..............................#
-#..###############..........#..............................#
-#..#.............#..........#..............................#
-#..#.............#..........#.......................H......#
-#..#....K........#..........#..............................#
-#..#.............#..........D..............................#
-#..#.............#..........#..............................#
-#..#######D#######..........#..............................#
-#...........................#..............................#
-#...........................#..............................#
-#...........................#..............................#
-#...........................#..............................#
-#...........................#..............................#
-#...........................#..............................#
-#...........................D..............................#
-#.....P.....................#..............................#
-#...........................#..............................#
-#...........................#..............................#
-#...........................#..............................#
-#...........................#..............................#
-############################################################
-`.trim()
-            }
-        },
-
-        {
-            id: "C03",
-            name: "El Laberinto",
-            directorOverrides: {
-                enabled: true
-            },
-            settingsOverrides: {
-                zombieCount: 46,
-                citizenCount: 110,
-                policeCount: 1,
-                soldierCount: 3,
-                boxCount: 34,
-                zombieSpeed: 1.65,
-                balas: 14,
-                bengalas: 0,
-                soldierSpawnDelaySec: 7,
-                soldierCooldownSec: 0.9
-            },
-            mapDef: {
-                type: "ascii",
-                data: `
-############################################################
-#...................#...................#..................#
-#..........########.#...................#...############...#
-#..........#......#.#...................#...#..........#...#
-#..........#..K...#.D...................#...#..........#...#
-#..........#......#.#...................#...#..........#...#
-#..........#......#.#...................D...#..........#...#
-#..........####D###.#...................#...#..........#...#
-#...................#...................#...#####D######...#
-#...................#...................#..................#
-########D#####################D###################D#########
-#...................#...................#..................#
-#...................D...############....#..................#
-#...................#...#..........#....#..................#
-#...................#...D..........#....#..................#
-#...................#...#..........#....D..................#
-#...................#...#..........#....#..................#
-#...................#...############....#..................#
-#...................#...................#..................#
-#...................D...................#..................#
-#.....P.............#...................#.............H....#
-#...................#...................D..................#
-#...................#...................#..................#
-############################################################
-`.trim()
-            }
-
-        }
-
-,
-        {
-            id: "C04",
-            name: "Ciudad Compacta",
-            directorOverrides: {
-                enabled: true
-            },
-            settingsOverrides: {
-                zombieCount: 18,
-                citizenCount: 28,
-                policeCount: 1,
-                soldierCount: 0,
-                boxCount: 3,
-                zombieSpeed: 1.45,
-                balas: 0,
-                bengalas: 0,
-                soldierSpawnDelaySec: 0,
-                mapWidthTiles: 100,
-                mapHeightTiles: 100,
-                structureAttempts: 0
-            },
-            mapDef: {
-                type: "ascii",
-                w: 100,
-                h: 100,
-                data: (() => {
-                    const w = 100, h = 100;
-                    const rows = new Array(h).fill(null).map((_, y) => {
-                        if (y === 0 || y === h - 1) return "#".repeat(w);
-                        return "#" + ".".repeat(w - 2) + "#";
-                    });
-                    function set(x, y, ch) {
-                        if (x < 1 || y < 1 || x >= w - 1 || y >= h - 1) return;
-                        const r = rows[y].split("");
-                        r[x] = ch;
-                        rows[y] = r.join("");
-                    }
-                    function house(x0, y0, x1, y1, dx, dy) {
-                        for (let x = x0; x <= x1; x++) { set(x, y0, "#"); set(x, y1, "#"); }
-                        for (let y = y0; y <= y1; y++) { set(x0, y, "#"); set(x1, y, "#"); }
-                        set(dx, dy, "D");
-                    }
-                    house(10, 10, 28, 24, 19, 24);
-                    house(40, 16, 58, 30, 49, 16);
-                    house(67, 58, 88, 80, 67, 69);
-                    set(5, 5, "P");
-                    set(27, 20, "K");
-                    set(93, 92, "H");
-                    set(18, 18, "C");
-                    set(50, 24, "C");
-                    set(78, 72, "C");
-                    return rows.join("\n");
-                })()
-            }
-        }
-
-    ];
-
-
     function setTopControlsForEditor(isEditor) {
         if (!isEditor) closeEditorScenarioSettingsIfNeeded();
         if (settingsToggle) settingsToggle.style.display = "";
@@ -1873,20 +1772,6 @@ const txtEventoElem = document.getElementById("txtEvento");
         if (editCampaignBtn) editCampaignBtn.style.display = "none";
         if (mainMenuOverlay) mainMenuOverlay.classList.add("visible");
     }
-
-    function startFreeMode() {
-        appState = "GAME";
-        editorState.active = false;
-        setTopControlsForEditor(false);
-        showEditorOverlay(false);
-        if (mainMenuOverlay) mainMenuOverlay.classList.remove("visible");
-        if (postGameOverlay) postGameOverlay.classList.remove("visible");
-        postGameShown = false;
-        setSettingsUIEnabled(true);
-        if (editCampaignBtn) editCampaignBtn.style.display = "none";
-        resetGame({ mode: "free" });
-    }
-
     function startCampaignMode(index = 0) {
         appState = "GAME";
         editorState.active = false;
@@ -1943,7 +1828,7 @@ const txtEventoElem = document.getElementById("txtEvento");
         if (currentRunDef && currentRunDef.mode === "campaign") {
             startCampaignMode(currentRunDef.campaignIndex ?? campaignIndex ?? 0);
         } else {
-            startFreeMode();
+            startCampaignMode(getActiveCampaignIndex());
         }
     }
 
@@ -1985,7 +1870,7 @@ const txtEventoElem = document.getElementById("txtEvento");
 
         let subtitleText = isCampaignRun()
             ? `Campaña — Nivel ${idx + 1}/${getCampaignLevelPool().length}: ${lvl ? lvl.name : "—"}`
-            : "Modo libre";
+            : "Campaña";
 
         if (postTitle) postTitle.textContent = titleText;
         if (postSubtitle) postSubtitle.textContent = subtitleText;
@@ -2039,7 +1924,7 @@ const txtEventoElem = document.getElementById("txtEvento");
                 if (!isLastCampaignLevel()) startCampaignMode(idx + 1);
                 else startCampaignMode(0);
             } else startCampaignMode(idx);
-        } else startFreeMode();
+        } else startCampaignMode(0);
     }
 
     function handlePostgameSecondaryAction() {
@@ -2134,17 +2019,17 @@ const txtEventoElem = document.getElementById("txtEvento");
 
         return {
             // Counts
-            zombieCount: toInt(zombieNum, 0),
-            citizenCount: toInt(citizenNum, 15),
-            policeCount: toInt(policeNum, 1),
-            soldierCount: toInt(soldierNum, 0),
+            zombieCount: 0,
+            citizenCount: 15,
+            policeCount: 1,
+            soldierCount: 0,
             boxCount: 0,
-            mapWidthTiles: toInt(mapWidthTilesNum, 50),
-            mapHeightTiles: toInt(mapHeightTilesNum, 50),
-            structureAttempts: toInt(structureAttemptsNum, 1),
+            mapWidthTiles: 50,
+            mapHeightTiles: 50,
+            structureAttempts: 1,
 
             // Speeds
-            zombieSpeed: toFloat(zSpeedNum, 1.5),
+            zombieSpeed: 1.5,
             citizenStrength: toInt(citizenStrengthNum, 1),
             policeStrength: toInt(policeStrengthNum, 3),
             soldierStrength: toInt(soldierStrengthNum, 5),
@@ -2166,7 +2051,7 @@ const txtEventoElem = document.getElementById("txtEvento");
 
             // Player
             balas: toInt(balasNum, 0),
-            bengalas: toInt(bengalaNum, 0),
+            bengalas: 0,
 
             // Toggles
             friendlyFire: !!(friendlyFireToggle && friendlyFireToggle.checked),
@@ -2176,7 +2061,7 @@ const txtEventoElem = document.getElementById("txtEvento");
             soldierCooldownSec: toFloat(soldierCoolNum, 1.0),
             soldierJamCount: toInt(jamCountNum, 3),
             soldierJamDurationSec: toFloat(jamDurNum, 1.5),
-            soldierSpawnDelaySec: toFloat(milDelayNum, 7)
+            soldierSpawnDelaySec: 7
         };
     }
 
@@ -3887,7 +3772,7 @@ function generarMapa() {
             ? ((currentRunDef && currentRunDef.settingsOverrides && currentRunDef.settingsOverrides.soldierCount !== undefined && currentRunDef.settingsOverrides.soldierCount !== null)
                 ? currentRunDef.settingsOverrides.soldierCount
                 : 0)
-            : getRunSetting("soldierCount", parseInt(soldierNum.value, 10));
+            : getRunSetting("soldierCount", 0);
 
         if (!milCount || milCount <= 0) return;
 
@@ -3960,7 +3845,7 @@ function generarMapa() {
 
         // Phase 0: resolve run definition (defaults to current Free/Random behavior)
         if (isProbablyEvent(runDef)) runDef = null;
-        currentRunDef = runDef || { mode: "free" };
+        currentRunDef = runDef || { mode: "campaign" };
 
         const uiSettings = getSettingsFromUI();
         const mergedSettings = Object.assign({}, uiSettings, (currentRunDef.settingsOverrides || {}));
@@ -4326,7 +4211,7 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
                 ? ((currentRunDef && currentRunDef.settingsOverrides && currentRunDef.settingsOverrides.soldierCount !== undefined && currentRunDef.settingsOverrides.soldierCount !== null)
                     ? currentRunDef.settingsOverrides.soldierCount
                     : 0)
-                : getRunSetting("soldierCount", parseInt(soldierNum.value, 10));
+                : getRunSetting("soldierCount", 0);
 
             // In campaign: soldier event is OFF by default unless both delay>0 and soldierCount>0 are explicitly set
             if (inCampaign) {
