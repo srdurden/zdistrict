@@ -4463,6 +4463,7 @@ drawDoorsWorld();
 
         const policeShootZombie = (poli, target) => {
             if (!poli || !target) return false;
+            if (isNpcInTug(poli)) return false;
             poli.shootCooldown = Number.isFinite(poli.shootCooldown) ? poli.shootCooldown : 0;
             if (poli.shootCooldown > 0) return false;
             const targetIndex = zombies.indexOf(target);
@@ -4670,8 +4671,10 @@ drawDoorsWorld();
                 const aimDir = normalizar(poli.panicAimDir.x, poli.panicAimDir.y);
                 if (aimDir.x || aimDir.y) {
                     poli.direccion = aimDir;
-                    const retreatDir = { x: -aimDir.x, y: -aimDir.y };
-                    moveEntitySafely(poli, retreatDir, velocidadCiudadano * policeBackpedalSpeedFactor * Math.max(0.35, timeScale), 4);
+                    if (seenZombie) {
+                        const retreatDir = { x: -aimDir.x, y: -aimDir.y };
+                        moveEntitySafely(poli, retreatDir, velocidadCiudadano * policeBackpedalSpeedFactor * Math.max(0.35, timeScale), 4);
+                    }
                 }
 
                 let shootTarget = null;
@@ -4686,7 +4689,7 @@ drawDoorsWorld();
                         shootTarget = z;
                     }
                 }
-                if (shootTarget) policeShootZombie(poli, shootTarget);
+                if (shootTarget && !isNpcInTug(poli)) policeShootZombie(poli, shootTarget);
             } else {
                 if (Math.random() < 0.05) poli.direccion = normalizar(poli.direccion.x + (Math.random() - 0.5), poli.direccion.y + (Math.random() - 0.5));
                 if (threatFound) {
