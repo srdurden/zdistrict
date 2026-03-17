@@ -2093,6 +2093,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     const policePanicSweepMaxAngle = Math.PI / 4;
     const policePanicSweepFrequency = 0.11;
     const policePanicSearchSpeedFactor = 0.28;
+    const policePanicSweepTurnJitter = 0.015;
 
     function applyWorldSizeSettings(settings) {
         const nextWidthTiles = Math.max(15, Math.min(1000, Number.isFinite(settings.mapWidthTiles) ? settings.mapWidthTiles : 50));
@@ -4070,7 +4071,7 @@ function spawnFromTiles(arr, tiles, type) {
 
         markUsed(tx, ty);
         const p = tileToEntityPixel(tx, ty);
-        let ent = initEntityFacing({ x: p.x, y: p.y, homeX: p.x, homeY: p.y, direccion: direccionAleatoria(), boarding: 0, _saved: false, scared: false, panicking: false, panicUntilFrame: 0, fleeingZombie: false, strength: citizenBaseStrength, shootCooldown: 0, panicAimDir: null });
+        let ent = initEntityFacing({ x: p.x, y: p.y, homeX: p.x, homeY: p.y, direccion: direccionAleatoria(), boarding: 0, _saved: false, scared: false, panicking: false, panicUntilFrame: 0, fleeingZombie: false, strength: citizenBaseStrength, shootCooldown: 0, panicAimDir: null, panicSweepBaseAngle: null, panicSweepPhase: 0 });
         if (type === 'zomb') ent = createZombieEntity(p.x, p.y);
         if (type === 'poli') { ent.strength = policeBaseStrength; ent.shootCooldown = 0; }
         arr.push(ent);
@@ -4128,7 +4129,7 @@ const spawn = (arr, count, type) => {
 
         markUsed(t.x, t.y);
         const p = tileToEntityPixel(t.x, t.y);
-        let ent = initEntityFacing({ x: p.x, y: p.y, homeX: p.x, homeY: p.y, direccion: direccionAleatoria(), boarding: 0, _saved: false, scared: false, panicking: false, panicUntilFrame: 0, fleeingZombie: false, strength: citizenBaseStrength, shootCooldown: 0, panicAimDir: null });
+        let ent = initEntityFacing({ x: p.x, y: p.y, homeX: p.x, homeY: p.y, direccion: direccionAleatoria(), boarding: 0, _saved: false, scared: false, panicking: false, panicUntilFrame: 0, fleeingZombie: false, strength: citizenBaseStrength, shootCooldown: 0, panicAimDir: null, panicSweepBaseAngle: null, panicSweepPhase: 0 });
         if (type === 'zomb') ent = createZombieEntity(p.x, p.y);
         if (type === 'poli') { ent.strength = policeBaseStrength; ent.shootCooldown = 0; }
         arr.push(ent);
@@ -4471,11 +4472,21 @@ drawDoorsWorld();
             if (poli.shootCooldown > 0) return false;
             const targetIndex = zombies.indexOf(target);
             if (targetIndex === -1) return false;
-            zombies.splice(targetIndex, 1);
-            cadaveres.push({ x: target.x, y: target.y });
-            gameStats.zombiesKilled++;
+
+            const maxHp = Math.max(1, Math.min(10, Number.isFinite(target.resistance) ? target.resistance : 1));
+            target.hp = Number.isFinite(target.hp) ? target.hp : maxHp;
+            target.hp = Math.max(0, target.hp - 1);
+
             addBlood(target.x + 1.5, target.y + 1.5, 2);
-            addFloatText('+1', target.x + 1.5, target.y - 3, 'rgba(229,57,53,0.9)');
+            if (target.hp <= 0) {
+                zombies.splice(targetIndex, 1);
+                cadaveres.push({ x: target.x, y: target.y });
+                gameStats.zombiesKilled++;
+                addFloatText('+1', target.x + 1.5, target.y - 3, 'rgba(229,57,53,0.9)');
+            } else {
+                addFloatText(`-${1}`, target.x + 1.5, target.y - 3, 'rgba(121, 134, 203, 0.95)');
+            }
+
             poli.shootCooldown = policeShootCooldownFrames;
             addNoise(poli.x, poli.y, 190, 18);
             ctx.strokeStyle = 'rgba(121, 134, 203, 0.85)';
@@ -4710,6 +4721,8 @@ drawDoorsWorld();
             if (seenZombie) {
                 const aimDir = normalizar(seenZombie.x - poli.x, seenZombie.y - poli.y);
                 poli.panicAimDir = (aimDir.x || aimDir.y) ? aimDir : poli.panicAimDir;
+                poli.panicSweepBaseAngle = Math.atan2(poli.panicAimDir.y, poli.panicAimDir.x);
+                poli.panicSweepPhase = Number.isFinite(poli.panicSweepPhase) ? poli.panicSweepPhase : 0;
                 poli.lastThreatPos = { x: seenZombie.x, y: seenZombie.y };
                 poli.panicUntilFrame = frameCount + policePanicMemoryFrames;
             }
@@ -4719,20 +4732,28 @@ drawDoorsWorld();
             poli.scared = threatFound;
             poli.fleeingZombie = threatFound;
 
-            if (isPanicking && poli.panicAimDir) {
-                const aimDir = normalizar(poli.panicAimDir.x, poli.panicAimDir.y);
-                if (aimDir.x || aimDir.y) {
+            if (isPanicking) {
+                const aimDir = normalizar(poli.panicAimDir && poli.panicAimDir.x, poli.panicAimDir && poli.panicAimDir.y);
+                if (seenZombie && (aimDir.x || aimDir.y)) {
                     poli.direccion = aimDir;
-                    if (seenZombie) {
-                        const retreatDir = { x: -aimDir.x, y: -aimDir.y };
-                        moveEntitySafely(poli, retreatDir, velocidadCiudadano * policeBackpedalSpeedFactor * Math.max(0.35, timeScale), 4);
-                    } else {
-                        const baseAngle = Math.atan2(aimDir.y, aimDir.x);
-                        const sweepOffset = Math.sin(frameCount * policePanicSweepFrequency) * policePanicSweepMaxAngle;
-                        const scanAngle = baseAngle + sweepOffset;
-                        const scanDir = { x: Math.cos(scanAngle), y: Math.sin(scanAngle) };
-                        poli.direccion = scanDir;
-                        moveEntitySafely(poli, scanDir, velocidadCiudadano * policePanicSearchSpeedFactor * Math.max(0.35, timeScale), 3);
+                    poli.panicSweepBaseAngle = Math.atan2(aimDir.y, aimDir.x);
+                    const retreatDir = { x: -aimDir.x, y: -aimDir.y };
+                    moveEntitySafely(poli, retreatDir, velocidadCiudadano * policeBackpedalSpeedFactor * Math.max(0.35, timeScale), 4);
+                } else {
+                    const fallbackAngle = Number.isFinite(poli.panicSweepBaseAngle)
+                        ? poli.panicSweepBaseAngle
+                        : Math.atan2(poli.direccion.y || 0, poli.direccion.x || 1);
+                    poli.panicSweepBaseAngle = fallbackAngle;
+                    poli.panicSweepPhase = Number.isFinite(poli.panicSweepPhase) ? (poli.panicSweepPhase + (policePanicSweepFrequency * timeScale)) : 0;
+                    const sweepOffset = Math.sin(poli.panicSweepPhase) * policePanicSweepMaxAngle;
+                    const scanAngle = fallbackAngle + sweepOffset + ((Math.random() - 0.5) * policePanicSweepTurnJitter);
+                    const scanDir = { x: Math.cos(scanAngle), y: Math.sin(scanAngle) };
+                    poli.direccion = scanDir;
+                    const sep = obtenerFuerzaSeparacion(poli, policias, radioSeparacion);
+                    poli.direccion = normalizar(poli.direccion.x + sep.x * 0.4, poli.direccion.y + sep.y * 0.4);
+                    const chocoBuscando = aplicarFuerzas(poli, velocidadCiudadano * policePanicSearchSpeedFactor, timeScale);
+                    if (chocoBuscando) {
+                        poli.panicSweepBaseAngle += Math.PI * 0.5;
                     }
                 }
 
