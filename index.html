@@ -3324,10 +3324,19 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         const cameFrom = new Map();
         const gScore = new Map([[startKey, 0]]);
         const closed = new Set();
-        const dirs = [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}];
-        const heuristic = (a, b) => Math.abs(a.tx - b.tx) + Math.abs(a.ty - b.ty);
+        const dirs = [
+            { x: 1, y: 0, cost: 1 }, { x: -1, y: 0, cost: 1 },
+            { x: 0, y: 1, cost: 1 }, { x: 0, y: -1, cost: 1 },
+            { x: 1, y: 1, cost: Math.SQRT2 }, { x: -1, y: 1, cost: Math.SQRT2 },
+            { x: 1, y: -1, cost: Math.SQRT2 }, { x: -1, y: -1, cost: Math.SQRT2 }
+        ];
+        const heuristic = (a, b) => {
+            const dx = Math.abs(a.tx - b.tx);
+            const dy = Math.abs(a.ty - b.ty);
+            return (Math.max(dx, dy) - Math.min(dx, dy)) + Math.min(dx, dy) * Math.SQRT2;
+        };
         let iterations = 0;
-        const maxIterations = gridWidth * gridHeight;
+        const maxIterations = gridWidth * gridHeight * 3;
 
         while (open.length > 0 && iterations < maxIterations) {
             iterations++;
@@ -3357,7 +3366,16 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
                 if (closed.has(nKey)) continue;
                 if (isTilePathBlocked(nx, ny, start, goal)) continue;
 
-                const tentativeG = current.g + 1;
+                if (d.x !== 0 && d.y !== 0) {
+                    const hKey = keyForTile(current.tx + d.x, current.ty);
+                    const vKey = keyForTile(current.tx, current.ty + d.y);
+                    if (isTilePathBlocked(current.tx + d.x, current.ty, start, goal) || isTilePathBlocked(current.tx, current.ty + d.y, start, goal)) {
+                        continue;
+                    }
+                    if (closed.has(hKey) && closed.has(vKey)) continue;
+                }
+
+                const tentativeG = current.g + d.cost;
                 const bestKnown = gScore.get(nKey);
                 if (bestKnown !== undefined && tentativeG >= bestKnown) continue;
 
@@ -3378,6 +3396,28 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         return null;
     }
 
+    function hasDirectPathBetweenTiles(a, b, start, goal) {
+        if (!a || !b) return false;
+        let x0 = a.tx | 0;
+        let y0 = a.ty | 0;
+        const x1 = b.tx | 0;
+        const y1 = b.ty | 0;
+        const dx = Math.abs(x1 - x0);
+        const dy = Math.abs(y1 - y0);
+        const sx = x0 < x1 ? 1 : -1;
+        const sy = y0 < y1 ? 1 : -1;
+        let err = dx - dy;
+
+        while (true) {
+            if (isTilePathBlocked(x0, y0, start, goal)) return false;
+            if (x0 === x1 && y0 === y1) break;
+            const e2 = 2 * err;
+            if (e2 > -dy) { err -= dy; x0 += sx; }
+            if (e2 < dx) { err += dx; y0 += sy; }
+        }
+        return true;
+    }
+
     function getZombiePathDirection(zombie, target) {
         if (!zombie || !target) return null;
         const zombieCenter = { x: zombie.x + tamanoEntidad / 2, y: zombie.y + tamanoEntidad / 2 };
@@ -3385,7 +3425,7 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         const start = worldToTile(zombieCenter.x, zombieCenter.y);
         const goal = worldToTile(targetCenter.x, targetCenter.y);
         const targetKey = keyForTile(goal.tx, goal.ty);
-        const recalcFrames = 8;
+        const recalcFrames = 6;
 
         const shouldRecalc = !zombie.pathCache ||
             zombie.pathCache.targetKey !== targetKey ||
@@ -3403,7 +3443,16 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         const tiles = zombie.pathCache && zombie.pathCache.tiles;
         if (!tiles || tiles.length < 2) return null;
 
-        const next = tiles[1];
+        const lookAheadTiles = Math.min(7, tiles.length - 1);
+        let nextIndex = 1;
+        for (let i = lookAheadTiles; i >= 1; i--) {
+            if (hasDirectPathBetweenTiles(start, tiles[i], start, goal)) {
+                nextIndex = i;
+                break;
+            }
+        }
+
+        const next = tiles[nextIndex];
         const waypoint = {
             x: next.tx * cellSize + cellSize / 2,
             y: next.ty * cellSize + cellSize / 2
