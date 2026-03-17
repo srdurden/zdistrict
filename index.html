@@ -2494,6 +2494,8 @@ const DOOR_BASE_HP = 70;
             resistance: Math.max(1, Math.min(10, Number.isFinite(custom.resistance) ? custom.resistance : 1)),
             hp: Math.max(1, Math.min(10, Number.isFinite(custom.resistance) ? custom.resistance : 1)),
             ignoredLureId: null,
+            npcObjective: null,
+            forceRetargetNpc: false,
             tugState: null,
             pathCache: null
         });
@@ -4595,6 +4597,41 @@ drawDoorsWorld();
             return citizenEscapeSkill;
         };
 
+        const isNpcViableTarget = (npc) => {
+            if (!npc) return false;
+            if (npc.infectionFramesLeft && npc.infectionFramesLeft > 0) return false;
+            return ciudadanos.includes(npc) || policias.includes(npc);
+        };
+
+        const pickZombieNpcObjective = (zombie, forceRetarget = false) => {
+            if (!zombie) return null;
+            const nearby = [];
+            const tryPush = (npc) => {
+                if (!isNpcViableTarget(npc)) return;
+                nearby.push({ npc, d: distancia(zombie.x, zombie.y, npc.x, npc.y) });
+            };
+            ciudadanos.forEach(tryPush);
+            policias.forEach(tryPush);
+
+            if (!nearby.length) {
+                zombie.npcObjective = null;
+                zombie.forceRetargetNpc = false;
+                return null;
+            }
+
+            nearby.sort((a, b) => a.d - b.d);
+            const top3 = nearby.slice(0, 3).map(item => item.npc);
+
+            if (!forceRetarget && !zombie.forceRetargetNpc && top3.includes(zombie.npcObjective)) {
+                return zombie.npcObjective;
+            }
+
+            zombie.forceRetargetNpc = false;
+            const pickIndex = Math.floor(Math.random() * top3.length);
+            zombie.npcObjective = top3[pickIndex] || top3[0] || null;
+            return zombie.npcObjective;
+        };
+
         const getZombiesTuggingNpc = (npc) => {
             if (!npc) return [];
             const now = frameCount;
@@ -4677,6 +4714,8 @@ drawDoorsWorld();
             for (const z of allAttackers) {
                 if (z.tugState && z.tugState.target === npc) z.tugState = null;
                 z.regrabUntilFrame = now + zombieRegrabCooldownFrames;
+                z.npcObjective = null;
+                z.forceRetargetNpc = true;
             }
             for (const z of zombies) {
                 if (z && z.tugState && z.tugState.target === npc) z.tugState = null;
@@ -5088,7 +5127,13 @@ drawDoorsWorld();
                         minDist = zombieToLureDist;
                     }
                 } else {
-                    policias.forEach(check); ciudadanos.forEach(check);
+                    const objective = pickZombieNpcObjective(zombie);
+                    if (isNpcViableTarget(objective)) {
+                        target = objective;
+                        minDist = distancia(zombie.x, zombie.y, objective.x, objective.y);
+                    } else {
+                        policias.forEach(check); ciudadanos.forEach(check);
+                    }
                 }
             }
             if(!target && !zombieCanUseLure) {
