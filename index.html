@@ -2195,8 +2195,6 @@ const txtEventoElem = document.getElementById("txtEvento");
         modoFantasma = false;
         fuegoAmigo = settings.friendlyFire;
 
-        policeReloadFrames = settings.policeCooldownSec * 30;
-
 
         npcRoamRadiusPx = Math.max(cellSize, (Number.isFinite(settings.npcRoamRadiusTiles) ? settings.npcRoamRadiusTiles : 5) * cellSize);
         citizenEscapeSkill = Number.isFinite(settings.citizenEscapeSkill) ? settings.citizenEscapeSkill : 0.45;
@@ -2309,10 +2307,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     let bengalasRestantes = 1;
     let modoFantasma = false;
     let fuegoAmigo = true;
-
-    // Cooldowns
-    const policeInitialBullets = 8;
-    let policeReloadFrames = 30; 
 
     let screenShake = 0; 
     let estadoJuego = "STOPPED"; 
@@ -4070,7 +4064,7 @@ function spawnFromTiles(arr, tiles, type) {
         const p = tileToEntityPixel(tx, ty);
         let ent = initEntityFacing({ x: p.x, y: p.y, homeX: p.x, homeY: p.y, direccion: direccionAleatoria(), boarding: 0, _saved: false, scared: false, panicking: false, panicUntilFrame: 0, fleeingZombie: false, strength: citizenBaseStrength });
         if (type === 'zomb') ent = createZombieEntity(p.x, p.y);
-        if (type === 'poli') { ent.balas = policeInitialBullets; ent.cooldown = 0; ent.strength = policeBaseStrength; }
+        if (type === 'poli') { ent.strength = policeBaseStrength; }
         arr.push(ent);
         placed++;
     }
@@ -4128,7 +4122,7 @@ const spawn = (arr, count, type) => {
         const p = tileToEntityPixel(t.x, t.y);
         let ent = initEntityFacing({ x: p.x, y: p.y, homeX: p.x, homeY: p.y, direccion: direccionAleatoria(), boarding: 0, _saved: false, scared: false, panicking: false, panicUntilFrame: 0, fleeingZombie: false, strength: citizenBaseStrength });
         if (type === 'zomb') ent = createZombieEntity(p.x, p.y);
-        if (type === 'poli') { ent.balas = policeInitialBullets; ent.cooldown = 0; ent.strength = policeBaseStrength; }
+        if (type === 'poli') { ent.strength = policeBaseStrength; }
         arr.push(ent);
     }
 };
@@ -4460,31 +4454,6 @@ drawDoorsWorld();
             }
         };
 
-        const policeShootZombie = (poli, targetZombie) => {
-            if (!poli || !targetZombie) return false;
-            targetZombie.hp = Math.max(0, (Number.isFinite(targetZombie.hp) ? targetZombie.hp : 1) - 1);
-            const killed = targetZombie.hp <= 0;
-            if (killed) {
-                zombies = zombies.filter(z => z !== targetZombie);
-                cadaveres.push({x:targetZombie.x, y:targetZombie.y});
-                gameStats.zombiesKilled++;
-                addBlood(targetZombie.x + 1.5, targetZombie.y + 1.5, 2);
-                addFloatText('+1', targetZombie.x + 1.5, targetZombie.y - 3, 'rgba(229,57,53,0.9)');
-            } else {
-                addFloatText(`-${1} HP`, targetZombie.x + 1.5, targetZombie.y - 2, 'rgba(255,112,67,0.9)');
-            }
-            poli.balas--;
-            poli.cooldown = policeReloadFrames;
-            addNoise(poli.x, poli.y, 190, 18);
-            ctx.strokeStyle = "rgba(121, 134, 203, 0.8)";
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(poli.x+1.5, poli.y+1.5);
-            ctx.lineTo(targetZombie.x+1.5, targetZombie.y+1.5);
-            ctx.stroke();
-            return true;
-        };
-
         const isNpcInTug = (npc) => zombies.some(z => z && z.tugState && z.tugState.target === npc);
 
         const applyZombieNpcTug = (zombie, npc) => {
@@ -4530,7 +4499,6 @@ drawDoorsWorld();
 
             const escapeInfo = updateNpcEscapeProgress(npc, attackers);
             if (escapeInfo.escaped) {
-                const npcType = getNpcTypeForEntity(npc);
                 const centerFromAttackers = attackers.reduce((acc, a) => {
                     acc.x += a.x;
                     acc.y += a.y;
@@ -4540,23 +4508,6 @@ drawDoorsWorld();
                 const avy = centerFromAttackers.y / Math.max(1, attackers.length);
                 const escapeDir = normalizar(npc.x - avx, npc.y - avy);
                 releaseNpcFromTug(npc, attackers, escapeDir);
-
-                if (npcType === "pol" && npc.balas > 0) {
-                    let counterTarget = null;
-                    let minCounterDist = Infinity;
-                    for (const z of attackers) {
-                        if (!z || !zombies.includes(z)) continue;
-                        const dz = distancia(npc.x, npc.y, z.x, z.y);
-                        if (dz < minCounterDist) {
-                            minCounterDist = dz;
-                            counterTarget = z;
-                        }
-                    }
-                    if (counterTarget) {
-                        policeShootZombie(npc, counterTarget);
-                        actualizarStatsUI();
-                    }
-                }
                 return false;
             }
 
@@ -4644,6 +4595,62 @@ drawDoorsWorld();
             drawEnt(cit, citizenColor, radioVisual);
         });
 
+        if (!editorState.active) policias.forEach(poli => {
+            if (poli.infectionFramesLeft && poli.infectionFramesLeft > 0) {
+                poli.infectionFramesLeft = Math.max(0, poli.infectionFramesLeft - (1 * timeScale));
+                if (poli.infectionFramesLeft <= 0 && poli.infectedBy) {
+                    pendingZombieTransforms.push({ npc: poli, infectedBy: poli.infectedBy });
+                    return;
+                }
+            }
+
+            if(Math.random()<0.05) poli.direccion = normalizar(poli.direccion.x + (Math.random()-0.5), poli.direccion.y + (Math.random()-0.5));
+            let threatVec = {x:0, y:0};
+            let threatFound = false;
+            let zombieThreatFound = false;
+            const checkThreat = (list, requiresVisionCone = false, isZombieThreat = false) => {
+                for(const t of list) {
+                    const d = distancia(poli.x, poli.y, t.x, t.y);
+                    if (d >= distanciaHuida) continue;
+                    if (!tieneLineaDeVision(poli.x, poli.y, t.x, t.y)) continue;
+                    if (requiresVisionCone && !isPointInsideVisionCone(poli, t, rangoVisionNPC, anguloVisionNPC)) continue;
+                    const rep = normalizar(poli.x - t.x, poli.y - t.y);
+                    threatVec.x += rep.x;
+                    threatVec.y += rep.y;
+                    threatFound = true;
+                    if (isZombieThreat) zombieThreatFound = true;
+                }
+            };
+            checkThreat(zombies, true, true);
+
+            if (threatFound) {
+                poli.scared = true;
+                poli.fleeingZombie = zombieThreatFound;
+                poli.lastThreatPos = { x: poli.x - threatVec.x * 30, y: poli.y - threatVec.y * 30 };
+                poli.direccion = normalizar(threatVec.x, threatVec.y);
+                if (zombieThreatFound) {
+                    poli.panicUntilFrame = frameCount + (10 * 30);
+                }
+            } else {
+                poli.scared = false;
+                poli.fleeingZombie = false;
+                poli.lastThreatPos = null;
+            }
+
+            const isPanicking = Number.isFinite(poli.panicUntilFrame) && poli.panicUntilFrame > frameCount;
+            poli.panicking = isPanicking;
+
+            if(Math.random() < 0.2) { const sep = obtenerFuerzaSeparacion(poli, policias, radioSeparacion); poli.direccion.x += sep.x * 0.5; poli.direccion.y += sep.y * 0.5; }
+            const choco = aplicarFuerzas(poli, velocidadCiudadano, timeScale);
+            if(choco) poli.direccion = direccionAleatoria();
+            if (!poli.fleeingZombie) limitEntityToRoamRadius(poli, npcRoamRadiusPx, "spawn");
+            poli.boarding = 0;
+            const policeInfected = poli.infectionFramesLeft && poli.infectionFramesLeft > 0;
+            const baseConeColor = poli.panicking ? "rgba(229, 57, 53, 0.24)" : (poli.scared ? "rgba(229, 57, 53, 0.16)" : "rgba(121, 134, 203, 0.08)");
+            drawVisionCone(poli, rangoVisionNPC, anguloVisionNPC, isNpcInTug(poli) ? "rgba(229, 57, 53, 0.28)" : baseConeColor);
+            drawEnt(poli, policeInfected ? PALETA.ciudadanoEnfermo : PALETA.policia, radioVisual);
+        });
+
         if (!editorState.active && pendingZombieTransforms.length) {
             for (const entry of pendingZombieTransforms) {
                 const npc = entry.npc;
@@ -4663,47 +4670,6 @@ drawDoorsWorld();
             }
             actualizarStatsUI();
         }
-
-
-        if (!editorState.active) policias.forEach(poli => {
-            if(poli.cooldown > 0) poli.cooldown -= 1 * timeScale;
-            if(Math.random()<0.05) poli.direccion = normalizar(poli.direccion.x+(Math.random()-0.5), poli.direccion.y+(Math.random()-0.5));
-            let target = null; let minDist = Infinity;
-            for(const z of zombies) {
-                const d = distancia(poli.x, poli.y, z.x, z.y);
-                const zombieInsideVisionCone = isPointInsideVisionCone(poli, z, rangoVisionNPC, anguloVisionNPC);
-                if(d < 120 && zombieInsideVisionCone && tieneLineaDeVision(poli.x, poli.y, z.x, z.y)) {
-                    if(d < minDist) { minDist = d; target = z; }
-                }
-            }
-            if(target) {
-                const lookDir = normalizar(target.x - poli.x, target.y - poli.y);
-                if (lookDir.x || lookDir.y) {
-                    poli.direccion = lookDir;
-                    poli.alertLookDir = lookDir;
-                }
-                poli.alertUntilFrame = frameCount + Math.round(BASE_FPS * 2);
-                const zombieInTug = isNpcInTug(poli);
-                if(!zombieInTug && poli.balas > 0 && poli.cooldown <= 0) {
-                    policeShootZombie(poli, target);
-                }
-            } else if (Number.isFinite(poli.alertUntilFrame) && frameCount < poli.alertUntilFrame && poli.alertLookDir) {
-                poli.direccion = normalizar(poli.alertLookDir.x, poli.alertLookDir.y);
-            }
-            const choco = aplicarFuerzas(poli, velocidadCiudadano, timeScale);
-            if(choco) poli.direccion = direccionAleatoria();
-            const underZombiePressure = zombies.some(z => distancia(poli.x, poli.y, z.x, z.y) <= Math.max(35, distanciaAtaque + 2));
-            if (!underZombiePressure && !isEntityFleeingZombie(poli, false)) limitEntityToRoamRadius(poli, npcRoamRadiusPx, "spawn");
-            const policeInfected = poli.infectionFramesLeft && poli.infectionFramesLeft > 0;
-            if (policeInfected) {
-                poli.infectionFramesLeft = Math.max(0, poli.infectionFramesLeft - (1 * timeScale));
-                if (poli.infectionFramesLeft <= 0 && poli.infectedBy) {
-                    pendingZombieTransforms.push({ npc: poli, infectedBy: poli.infectedBy });
-                }
-            }
-            drawVisionCone(poli, rangoVisionNPC, anguloVisionNPC, isNpcInTug(poli) ? "rgba(229, 57, 53, 0.28)" : "rgba(121, 134, 203, 0.12)");
-            drawEnt(poli, policeInfected ? PALETA.ciudadanoEnfermo : PALETA.policia, radioVisual);
-        });
 
 
         if (!editorState.active) zombies.forEach(zombie => {
