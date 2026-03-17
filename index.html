@@ -4595,27 +4595,6 @@ drawDoorsWorld();
             drawEnt(cit, citizenColor, radioVisual);
         });
 
-        if (!editorState.active && pendingZombieTransforms.length) {
-            for (const entry of pendingZombieTransforms) {
-                const npc = entry.npc;
-                if (!npc) continue;
-                const citIdx = ciudadanos.indexOf(npc);
-                const polIdx = policias.indexOf(npc);
-                if (citIdx === -1 && polIdx === -1) continue;
-                const newZombie = createZombieEntity(npc.x, npc.y, {
-                    speed: entry.infectedBy.speed,
-                    propagationSec: entry.infectedBy.propagationSec,
-                    strength: clampStrength(entry.infectedBy.strength, zombieBaseStrength)
-                });
-                zombies.push(newZombie);
-                if (citIdx !== -1) ciudadanos.splice(citIdx, 1);
-                if (polIdx !== -1) policias.splice(polIdx, 1);
-                gameStats.civsInfected++;
-            }
-            actualizarStatsUI();
-        }
-
-
         if (!editorState.active) policias.forEach(poli => {
             if (poli.infectionFramesLeft && poli.infectionFramesLeft > 0) {
                 poli.infectionFramesLeft = Math.max(0, poli.infectionFramesLeft - (1 * timeScale));
@@ -4671,6 +4650,26 @@ drawDoorsWorld();
             drawVisionCone(poli, rangoVisionNPC, anguloVisionNPC, isNpcInTug(poli) ? "rgba(229, 57, 53, 0.28)" : baseConeColor);
             drawEnt(poli, policeInfected ? PALETA.ciudadanoEnfermo : PALETA.policia, radioVisual);
         });
+
+        if (!editorState.active && pendingZombieTransforms.length) {
+            for (const entry of pendingZombieTransforms) {
+                const npc = entry.npc;
+                if (!npc) continue;
+                const citIdx = ciudadanos.indexOf(npc);
+                const polIdx = policias.indexOf(npc);
+                if (citIdx === -1 && polIdx === -1) continue;
+                const newZombie = createZombieEntity(npc.x, npc.y, {
+                    speed: entry.infectedBy.speed,
+                    propagationSec: entry.infectedBy.propagationSec,
+                    strength: clampStrength(entry.infectedBy.strength, zombieBaseStrength)
+                });
+                zombies.push(newZombie);
+                if (citIdx !== -1) ciudadanos.splice(citIdx, 1);
+                if (polIdx !== -1) policias.splice(polIdx, 1);
+                gameStats.civsInfected++;
+            }
+            actualizarStatsUI();
+        }
 
 
         if (!editorState.active) zombies.forEach(zombie => {
