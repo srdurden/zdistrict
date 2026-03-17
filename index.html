@@ -2492,7 +2492,8 @@ const DOOR_BASE_HP = 70;
             strength: clampStrength(custom.strength, zombieBaseStrength),
             resistance: Math.max(1, Math.min(10, Number.isFinite(custom.resistance) ? custom.resistance : 1)),
             hp: Math.max(1, Math.min(10, Number.isFinite(custom.resistance) ? custom.resistance : 1)),
-            tugState: null
+            tugState: null,
+            pathCache: null
         });
     }
 
@@ -3286,6 +3287,128 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         if (!g) return false;
         if (g.broken) return false;
         return !g.open; // closed door blocks
+    }
+
+    function worldToTile(x, y) {
+        return {
+            tx: Math.floor(x / cellSize),
+            ty: Math.floor(y / cellSize)
+        };
+    }
+
+    function isTileBlockedByMueble(tx, ty) {
+        if (!muebles || muebles.length === 0) return false;
+        for (const b of muebles) {
+            if (!b) continue;
+            const bx = Math.floor((b.x + b.size * 0.5) / cellSize);
+            const by = Math.floor((b.y + b.size * 0.5) / cellSize);
+            if (bx === tx && by === ty) return true;
+        }
+        return false;
+    }
+
+    function isTilePathBlocked(tx, ty, start, goal) {
+        if (start && tx === start.tx && ty === start.ty) return false;
+        if (goal && tx === goal.tx && ty === goal.ty) return false;
+        if (isTileBlocked(tx, ty)) return true;
+        return isTileBlockedByMueble(tx, ty);
+    }
+
+    function findPathAStar(start, goal) {
+        if (!start || !goal) return null;
+        if (start.tx === goal.tx && start.ty === goal.ty) return [start];
+
+        const startKey = keyForTile(start.tx, start.ty);
+        const goalKey = keyForTile(goal.tx, goal.ty);
+        const open = [{ tx: start.tx, ty: start.ty, key: startKey, g: 0, f: 0 }];
+        const cameFrom = new Map();
+        const gScore = new Map([[startKey, 0]]);
+        const closed = new Set();
+        const dirs = [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}];
+        const heuristic = (a, b) => Math.abs(a.tx - b.tx) + Math.abs(a.ty - b.ty);
+        let iterations = 0;
+        const maxIterations = gridWidth * gridHeight;
+
+        while (open.length > 0 && iterations < maxIterations) {
+            iterations++;
+            let bestIdx = 0;
+            for (let i = 1; i < open.length; i++) {
+                if (open[i].f < open[bestIdx].f) bestIdx = i;
+            }
+            const current = open.splice(bestIdx, 1)[0];
+            if (current.key === goalKey) {
+                const path = [{ tx: current.tx, ty: current.ty }];
+                let walkKey = current.key;
+                while (cameFrom.has(walkKey)) {
+                    const prev = cameFrom.get(walkKey);
+                    path.push({ tx: prev.tx, ty: prev.ty });
+                    walkKey = prev.key;
+                }
+                path.reverse();
+                return path;
+            }
+
+            closed.add(current.key);
+
+            for (const d of dirs) {
+                const nx = current.tx + d.x;
+                const ny = current.ty + d.y;
+                const nKey = keyForTile(nx, ny);
+                if (closed.has(nKey)) continue;
+                if (isTilePathBlocked(nx, ny, start, goal)) continue;
+
+                const tentativeG = current.g + 1;
+                const bestKnown = gScore.get(nKey);
+                if (bestKnown !== undefined && tentativeG >= bestKnown) continue;
+
+                cameFrom.set(nKey, { tx: current.tx, ty: current.ty, key: current.key });
+                gScore.set(nKey, tentativeG);
+                const f = tentativeG + heuristic({ tx: nx, ty: ny }, goal);
+
+                let node = open.find(n => n.key === nKey);
+                if (node) {
+                    node.g = tentativeG;
+                    node.f = f;
+                } else {
+                    open.push({ tx: nx, ty: ny, key: nKey, g: tentativeG, f });
+                }
+            }
+        }
+
+        return null;
+    }
+
+    function getZombiePathDirection(zombie, target) {
+        if (!zombie || !target) return null;
+        const zombieCenter = { x: zombie.x + tamanoEntidad / 2, y: zombie.y + tamanoEntidad / 2 };
+        const targetCenter = { x: target.x + tamanoEntidad / 2, y: target.y + tamanoEntidad / 2 };
+        const start = worldToTile(zombieCenter.x, zombieCenter.y);
+        const goal = worldToTile(targetCenter.x, targetCenter.y);
+        const targetKey = keyForTile(goal.tx, goal.ty);
+        const recalcFrames = 8;
+
+        const shouldRecalc = !zombie.pathCache ||
+            zombie.pathCache.targetKey !== targetKey ||
+            (frameCount - zombie.pathCache.lastFrame) >= recalcFrames;
+
+        if (shouldRecalc) {
+            const path = findPathAStar(start, goal);
+            zombie.pathCache = {
+                targetKey,
+                tiles: Array.isArray(path) ? path : null,
+                lastFrame: frameCount
+            };
+        }
+
+        const tiles = zombie.pathCache && zombie.pathCache.tiles;
+        if (!tiles || tiles.length < 2) return null;
+
+        const next = tiles[1];
+        const waypoint = {
+            x: next.tx * cellSize + cellSize / 2,
+            y: next.ty * cellSize + cellSize / 2
+        };
+        return normalizar(waypoint.x - zombieCenter.x, waypoint.y - zombieCenter.y);
     }
 
     function nearestDoorToPlayer(maxDistPx = 24) {
@@ -4908,9 +5031,10 @@ drawDoorsWorld();
                 if (n) target = n;
             }
             if(target) {
-                zombie.direccion = normalizar(target.x - zombie.x, target.y - zombie.y);
+                const isNpcTarget = ciudadanos.includes(target) || policias.includes(target);
+                const pathDir = isNpcTarget ? getZombiePathDirection(zombie, target) : null;
+                zombie.direccion = pathDir || normalizar(target.x - zombie.x, target.y - zombie.y);
                 if(!(target.vida !== undefined)) {
-                    const isNpcTarget = ciudadanos.includes(target) || policias.includes(target);
                     if (isNpcTarget) {
                         if (!applyZombieNpcTug(zombie, target)) zombie.tugState = null;
                     } else {
