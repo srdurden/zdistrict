@@ -3446,6 +3446,18 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         const tiles = zombie.pathCache && zombie.pathCache.tiles;
         if (!tiles || tiles.length < 2) return null;
 
+        const jitterRecalcFrames = 24;
+        const shouldRefreshJitter = !zombie.pathJitter || (frameCount - zombie.pathJitter.lastFrame) >= jitterRecalcFrames;
+        if (shouldRefreshJitter) {
+            const angle = Math.random() * Math.PI * 2;
+            const radius = (0.12 + Math.random() * 0.23) * cellSize;
+            zombie.pathJitter = {
+                x: Math.cos(angle) * radius,
+                y: Math.sin(angle) * radius,
+                lastFrame: frameCount
+            };
+        }
+
         const lookAheadTiles = Math.min(7, tiles.length - 1);
         let nextIndex = 1;
         for (let i = lookAheadTiles; i >= 1; i--) {
@@ -3456,9 +3468,10 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         }
 
         const next = tiles[nextIndex];
+        const jitter = zombie.pathJitter || { x: 0, y: 0 };
         const waypoint = {
-            x: next.tx * cellSize + cellSize / 2,
-            y: next.ty * cellSize + cellSize / 2
+            x: next.tx * cellSize + cellSize / 2 + jitter.x,
+            y: next.ty * cellSize + cellSize / 2 + jitter.y
         };
         return normalizar(waypoint.x - zombieCenter.x, waypoint.y - zombieCenter.y);
     }
