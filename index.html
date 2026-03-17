@@ -2140,7 +2140,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     let policeShootCooldownFrames = 30 * 1.0;
     const policePanicMemoryFrames = 30 * 10;
     const policeShootRangePx = 120;
-    const policeBackpedalSpeedFactor = 0.45;
     const policePanicSweepMaxAngle = Math.PI / 4;
     const policePanicSweepFrequency = 0.11;
     const policePanicSearchSpeedFactor = 0.28;
@@ -4788,8 +4787,6 @@ drawDoorsWorld();
                 if (seenZombie && (aimDir.x || aimDir.y)) {
                     poli.direccion = aimDir;
                     poli.panicSweepBaseAngle = Math.atan2(aimDir.y, aimDir.x);
-                    const retreatDir = { x: -aimDir.x, y: -aimDir.y };
-                    moveEntitySafely(poli, retreatDir, velocidadCiudadano * policeBackpedalSpeedFactor * Math.max(0.35, timeScale), 4);
                 } else {
                     const fallbackAngle = Number.isFinite(poli.panicSweepBaseAngle)
                         ? poli.panicSweepBaseAngle
