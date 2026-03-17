@@ -611,8 +611,11 @@
         <div class="slider-header"><span class="slider-label">Resistencia (1-10)</span><input type="number" id="deployResistanceNum" min="1" max="10" step="1" value="1"></div>
         <div id="deployResistanceRating" class="deploy-rating" aria-label="Resistencia zombie"></div>
     </div>
+    <div class="slider-group" style="margin:8px 0 0">
+        <div class="slider-header"><span class="slider-label">Cantidad (1-10)</span><input type="number" id="deployAmountNum" min="1" max="10" step="1" value="1"></div>
+    </div>
     <button id="deployZombieBtn" class="deploy-btn">Desplegar</button>
-    <div class="deploy-note">Tras pulsar, toca el escenario para soltar un zombie.</div>
+    <div class="deploy-note">Tras pulsar, toca el escenario para soltar zombies.</div>
 </div>
 
 <div id="mainMenuOverlay" class="menu-overlay">
@@ -1385,6 +1388,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     const deployInfectNum = document.getElementById("deployInfectNum");
     const deployStrengthNum = document.getElementById("deployStrengthNum");
     const deployResistanceNum = document.getElementById("deployResistanceNum");
+    const deployAmountNum = document.getElementById("deployAmountNum");
     const deployZSpeedRating = document.getElementById("deployZSpeedRating");
     const deployInfectRating = document.getElementById("deployInfectRating");
     const deployStrengthRating = document.getElementById("deployStrengthRating");
@@ -1470,6 +1474,15 @@ const txtEventoElem = document.getElementById("txtEvento");
     buildDeployRating(deployInfectRating, deployInfectNum);
     buildDeployRating(deployStrengthRating, deployStrengthNum);
     buildDeployRating(deployResistanceRating, deployResistanceNum);
+    if (deployAmountNum) {
+        const syncDeployAmount = () => {
+            const value = Math.max(1, Math.min(10, parseInt(deployAmountNum.value, 10) || 1));
+            deployAmountNum.value = String(value);
+        };
+        deployAmountNum.addEventListener("input", syncDeployAmount);
+        deployAmountNum.addEventListener("change", syncDeployAmount);
+        syncDeployAmount();
+    }
 
     settingsToggle.addEventListener("click", () => { configPanel.classList.toggle("visible"); closeEditorScenarioSettingsIfNeeded(); });
 
@@ -2530,7 +2543,10 @@ const DOOR_BASE_HP = 70;
                 strength: clampStrength(strengthRating, zombieBaseStrength),
                 resistance: resistanceRating
             };
-            spawnZombieAtWorld(world.x, world.y, zombieType);
+            const deployAmount = Math.max(1, Math.min(10, parseInt(deployAmountNum && deployAmountNum.value, 10) || 1));
+            for (let i = 0; i < deployAmount; i += 1) {
+                spawnZombieAtWorld(world.x, world.y, zombieType);
+            }
             setDeployArmed(false);
             lastTapInfo = null;
             return;
