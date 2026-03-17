@@ -198,6 +198,27 @@
             box-shadow: 0 0 0 3px rgba(251,140,0,0.22), var(--shadow-float);
         }
 
+        #timeSpeedBtn {
+            position: fixed;
+            top: 25px;
+            right: 265px;
+            width: 58px;
+            height: 50px;
+            border-radius: 14px;
+            background: #fff;
+            color: #424242;
+            border: 2px solid #efebe9;
+            font-size: 16px;
+            font-weight: 900;
+            cursor: pointer;
+            box-shadow: var(--shadow-float);
+            z-index: 999;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+        #timeSpeedBtn:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(0,0,0,0.12); }
+        #timeSpeedBtn:active { transform: translateY(0px) scale(0.98); }
+
+
         .deploy-popup {
             position: fixed;
             top: 88px;
@@ -611,6 +632,7 @@
 <button id="homeBtn" title="Menú">🏠</button>
 <button id="spawnZombieBtn" title="Añadir zombie">🧟</button>
 <button id="zombieLureBtn" title="Diana de atracción">🎯</button>
+<button id="timeSpeedBtn" title="Velocidad del tiempo">x1</button>
 
 <div id="mapNavControls" aria-label="Controles del mapa">
     <button id="zoomInBtn" class="map-nav-btn" title="Acercar">+</button>
@@ -1474,6 +1496,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     const homeBtn = document.getElementById("homeBtn");
     const spawnZombieBtn = document.getElementById("spawnZombieBtn");
     const zombieLureBtn = document.getElementById("zombieLureBtn");
+    const timeSpeedBtn = document.getElementById("timeSpeedBtn");
     const zoomInBtn = document.getElementById("zoomInBtn");
     const zoomOutBtn = document.getElementById("zoomOutBtn");
     const fitMapBtn = document.getElementById("fitMapBtn");
@@ -1582,7 +1605,29 @@ const txtEventoElem = document.getElementById("txtEvento");
         syncDeployAmount();
     }
 
-    settingsToggle.addEventListener("click", () => { configPanel.classList.toggle("visible"); closeEditorScenarioSettingsIfNeeded(); });
+        settingsToggle.addEventListener("click", () => { configPanel.classList.toggle("visible"); closeEditorScenarioSettingsIfNeeded(); });
+
+    function updateTimeSpeedButton() {
+        if (!timeSpeedBtn) return;
+        const speed = timeSpeedOptions[timeSpeedIndex] || 1;
+        timeSpeedBtn.textContent = speed === 1 ? "x1" : `${speed}x`;
+        timeSpeedBtn.setAttribute("aria-label", `Velocidad del tiempo: ${speed}x`);
+        timeSpeedBtn.title = `Velocidad del tiempo: ${speed}x`;
+    }
+
+    function resetTimeSpeed() {
+        timeSpeedIndex = 0;
+        timeSpeedMultiplier = timeSpeedOptions[timeSpeedIndex];
+        updateTimeSpeedButton();
+    }
+
+    if (timeSpeedBtn) {
+        timeSpeedBtn.addEventListener("click", () => {
+            timeSpeedIndex = (timeSpeedIndex + 1) % timeSpeedOptions.length;
+            timeSpeedMultiplier = timeSpeedOptions[timeSpeedIndex];
+            updateTimeSpeedButton();
+        });
+    }
 
     let deployZombieArmed = false;
     let zombieLureArmed = false;
@@ -1889,6 +1934,8 @@ const txtEventoElem = document.getElementById("txtEvento");
         if (settingsToggle) settingsToggle.style.display = "";
         if (homeBtn) homeBtn.style.display = isEditor ? "none" : "";
         if (spawnZombieBtn) spawnZombieBtn.style.display = isEditor ? "none" : "";
+        if (zombieLureBtn) zombieLureBtn.style.display = isEditor ? "none" : "";
+        if (timeSpeedBtn) timeSpeedBtn.style.display = isEditor ? "none" : "";
         if (!isEditor) return;
         if (configPanel) configPanel.classList.remove("visible");
         closeDeployPopup();
@@ -2372,6 +2419,10 @@ const txtEventoElem = document.getElementById("txtEvento");
     let animationId = null;
     let lastFrameTime = 0;
     let disparoEnFotograma = false;
+    const timeSpeedOptions = [1, 2, 5];
+    let timeSpeedIndex = 0;
+    let timeSpeedMultiplier = timeSpeedOptions[timeSpeedIndex];
+
     
     // STATS
     let gameStats = {
@@ -4095,6 +4146,7 @@ function generarMapa() {
         if (postGameOverlay) postGameOverlay.classList.remove("visible");
         postGameShown = false;
         if (animationId) cancelAnimationFrame(animationId);
+        resetTimeSpeed();
 
         fieldRectTiles = null;
 
@@ -4424,7 +4476,7 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
         lastFrameTime = timestamp;
 
         // simulation step relative to BASE_FPS
-        const simStep = Math.min(2.5, dtMs / FRAME_MS);
+        const simStep = (Math.min(2.5, dtMs / FRAME_MS)) * timeSpeedMultiplier;
 
         frameCount += simStep;
         if (footstepCooldown > 0) footstepCooldown -= simStep;
