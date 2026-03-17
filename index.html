@@ -4632,6 +4632,55 @@ drawDoorsWorld();
                 }
             }
 
+            const policeInfected = !!(poli.infectionFramesLeft && poli.infectionFramesLeft > 0);
+            if (policeInfected) {
+                if (Math.random() < 0.05) poli.direccion = normalizar(poli.direccion.x + (Math.random() - 0.5), poli.direccion.y + (Math.random() - 0.5));
+                let infectedThreatVec = { x: 0, y: 0 };
+                let infectedThreatFound = false;
+                let infectedZombieThreatFound = false;
+                const checkInfectedThreat = (list, requiresVisionCone = false, isZombieThreat = false) => {
+                    for (const t of list) {
+                        const d = distancia(poli.x, poli.y, t.x, t.y);
+                        if (d >= distanciaHuida) continue;
+                        if (!tieneLineaDeVision(poli.x, poli.y, t.x, t.y)) continue;
+                        if (requiresVisionCone && !isPointInsideVisionCone(poli, t, rangoVisionNPC, anguloVisionNPC)) continue;
+                        const rep = normalizar(poli.x - t.x, poli.y - t.y);
+                        infectedThreatVec.x += rep.x;
+                        infectedThreatVec.y += rep.y;
+                        infectedThreatFound = true;
+                        if (isZombieThreat) infectedZombieThreatFound = true;
+                    }
+                };
+                checkInfectedThreat(zombies, true, true);
+
+                if (infectedThreatFound) {
+                    poli.scared = true;
+                    poli.fleeingZombie = infectedZombieThreatFound;
+                    poli.lastThreatPos = { x: poli.x - infectedThreatVec.x * 30, y: poli.y - infectedThreatVec.y * 30 };
+                    poli.direccion = normalizar(infectedThreatVec.x, infectedThreatVec.y);
+                    if (infectedZombieThreatFound) poli.panicUntilFrame = frameCount + (10 * 30);
+                } else {
+                    poli.scared = false;
+                    poli.fleeingZombie = false;
+                    poli.lastThreatPos = null;
+                }
+
+                poli.panicking = Number.isFinite(poli.panicUntilFrame) && poli.panicUntilFrame > frameCount;
+                if (Math.random() < 0.2) {
+                    const sep = obtenerFuerzaSeparacion(poli, policias, radioSeparacion);
+                    poli.direccion.x += sep.x * 0.5;
+                    poli.direccion.y += sep.y * 0.5;
+                }
+                const infectedHitWall = aplicarFuerzas(poli, velocidadCiudadano, timeScale);
+                if (infectedHitWall) poli.direccion = direccionAleatoria();
+                if (!poli.fleeingZombie) limitEntityToRoamRadius(poli, npcRoamRadiusPx, "spawn");
+                poli.boarding = 0;
+                const infectedConeColor = poli.panicking ? "rgba(229, 57, 53, 0.24)" : (poli.scared ? "rgba(229, 57, 53, 0.16)" : "rgba(121, 134, 203, 0.08)");
+                drawVisionCone(poli, rangoVisionNPC, anguloVisionNPC, isNpcInTug(poli) ? "rgba(229, 57, 53, 0.28)" : infectedConeColor);
+                drawEnt(poli, PALETA.ciudadanoEnfermo, radioVisual);
+                return;
+            }
+
             poli.shootCooldown = Number.isFinite(poli.shootCooldown) ? Math.max(0, poli.shootCooldown - (1 * timeScale)) : 0;
             let seenZombie = null;
             let seenZombieDist = Infinity;
@@ -4710,10 +4759,9 @@ drawDoorsWorld();
             }
 
             poli.boarding = 0;
-            const policeInfected = poli.infectionFramesLeft && poli.infectionFramesLeft > 0;
             const baseConeColor = poli.panicking ? "rgba(229, 57, 53, 0.24)" : (poli.scared ? "rgba(229, 57, 53, 0.16)" : "rgba(121, 134, 203, 0.08)");
             drawVisionCone(poli, rangoVisionNPC, anguloVisionNPC, isNpcInTug(poli) ? "rgba(229, 57, 53, 0.28)" : baseConeColor);
-            drawEnt(poli, policeInfected ? PALETA.ciudadanoEnfermo : PALETA.policia, radioVisual);
+            drawEnt(poli, PALETA.policia, radioVisual);
         });
 
         if (!editorState.active && pendingZombieTransforms.length) {
