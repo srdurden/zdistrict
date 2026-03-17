@@ -2441,7 +2441,8 @@ let ciudadanos = [];
 
     let reachableTiles = [];         // set at reset for director spawning
     let zombieDeploySpawnTiles = new Set();
-    let zombieLureTarget = null; // {x,y,expiresAtFrame}
+    let zombieLureTarget = null; // {id,x,y,expiresAtFrame}
+    let zombieLureIdCounter = 0;
 let frameCount = 0;
     let footstepCooldown = 0;
 
@@ -2492,6 +2493,7 @@ const DOOR_BASE_HP = 70;
             strength: clampStrength(custom.strength, zombieBaseStrength),
             resistance: Math.max(1, Math.min(10, Number.isFinite(custom.resistance) ? custom.resistance : 1)),
             hp: Math.max(1, Math.min(10, Number.isFinite(custom.resistance) ? custom.resistance : 1)),
+            ignoredLureId: null,
             tugState: null,
             pathCache: null
         });
@@ -2685,6 +2687,7 @@ const DOOR_BASE_HP = 70;
             const ty = Math.floor(world.y / cellSize);
             if (tx >= 0 && tx < gridWidth && ty >= 0 && ty < gridHeight) {
                 zombieLureTarget = {
+                    id: ++zombieLureIdCounter,
                     x: tx * cellSize + cellSize / 2,
                     y: ty * cellSize + cellSize / 2,
                     expiresAtFrame: frameCount + zombieLureDurationFrames
@@ -5046,13 +5049,13 @@ drawDoorsWorld();
             const lureRadiusPx = zombieLureRadiusTiles * cellSize;
             const lureNpcPriorityPx = zombieLureNpcPriorityTiles * cellSize;
             const zombieToLureDist = lureActive ? distancia(zombie.x, zombie.y, zombieLureTarget.x, zombieLureTarget.y) : Infinity;
-            const zombieCanUseLure = lureActive && zombieToLureDist <= lureRadiusPx;
+            const zombieCanUseLure = lureActive && zombieToLureDist <= lureRadiusPx && zombie.ignoredLureId !== zombieLureTarget.id;
 
             if(!target) {
                 const check = (e) => {
                     if (e && e.infectionFramesLeft && e.infectionFramesLeft > 0) return;
                     const d = distancia(zombie.x, zombie.y, e.x, e.y);
-                    if(d < 120 && (d<35 || tieneLineaDeVision(zombie.x, zombie.y, e.x, e.y))) { if(d < minDist) { minDist=d; target=e; } }
+                    if (d < minDist) { minDist=d; target=e; }
                 };
 
                 if (zombieCanUseLure) {
@@ -5068,7 +5071,7 @@ drawDoorsWorld();
                     policias.forEach(checkPriorityNpcNearLure);
                     ciudadanos.forEach(checkPriorityNpcNearLure);
                     if (!target) {
-                        target = { x: zombieLureTarget.x, y: zombieLureTarget.y, isLurePoint: true };
+                        target = { x: zombieLureTarget.x, y: zombieLureTarget.y, isLurePoint: true, lureId: zombieLureTarget.id };
                         minDist = zombieToLureDist;
                     }
                 } else {
@@ -5083,7 +5086,13 @@ drawDoorsWorld();
                 const isNpcTarget = ciudadanos.includes(target) || policias.includes(target);
                 const pathDir = isNpcTarget ? getZombiePathDirection(zombie, target) : null;
                 zombie.direccion = pathDir || normalizar(target.x - zombie.x, target.y - zombie.y);
-                if(!(target.vida !== undefined)) {
+
+                if (target.isLurePoint && target.lureId && distancia(zombie.x, zombie.y, target.x, target.y) <= cellSize * 0.6) {
+                    zombie.ignoredLureId = target.lureId;
+                    target = null;
+                }
+
+                if(target && !(target.vida !== undefined)) {
                     if (isNpcTarget) {
                         if (!applyZombieNpcTug(zombie, target)) zombie.tugState = null;
                     } else {
