@@ -1607,24 +1607,28 @@ const txtEventoElem = document.getElementById("txtEvento");
 
         settingsToggle.addEventListener("click", () => { configPanel.classList.toggle("visible"); closeEditorScenarioSettingsIfNeeded(); });
 
+    function getCurrentTimeSpeedOption() {
+        return timeSpeedOptions[timeSpeedIndex] || timeSpeedOptions[0];
+    }
+
     function updateTimeSpeedButton() {
         if (!timeSpeedBtn) return;
-        const speed = timeSpeedOptions[timeSpeedIndex] || 1;
-        timeSpeedBtn.textContent = speed === 1 ? "x1" : `${speed}x`;
-        timeSpeedBtn.setAttribute("aria-label", `Velocidad del tiempo: ${speed}x`);
-        timeSpeedBtn.title = `Velocidad del tiempo: ${speed}x`;
+        const { label } = getCurrentTimeSpeedOption();
+        timeSpeedBtn.textContent = label === 1 ? "x1" : `${label}x`;
+        timeSpeedBtn.setAttribute("aria-label", `Velocidad del tiempo: ${label}x`);
+        timeSpeedBtn.title = `Velocidad del tiempo: ${label}x`;
     }
 
     function resetTimeSpeed() {
         timeSpeedIndex = 0;
-        timeSpeedMultiplier = timeSpeedOptions[timeSpeedIndex];
+        timeSpeedMultiplier = getCurrentTimeSpeedOption().multiplier;
         updateTimeSpeedButton();
     }
 
     if (timeSpeedBtn) {
         timeSpeedBtn.addEventListener("click", () => {
             timeSpeedIndex = (timeSpeedIndex + 1) % timeSpeedOptions.length;
-            timeSpeedMultiplier = timeSpeedOptions[timeSpeedIndex];
+            timeSpeedMultiplier = getCurrentTimeSpeedOption().multiplier;
             updateTimeSpeedButton();
         });
     }
@@ -2419,9 +2423,13 @@ const txtEventoElem = document.getElementById("txtEvento");
     let animationId = null;
     let lastFrameTime = 0;
     let disparoEnFotograma = false;
-    const timeSpeedOptions = [1, 2, 5];
+    const timeSpeedOptions = [
+        { label: 1, multiplier: 1 },
+        { label: 2, multiplier: 5 },
+        { label: 5, multiplier: 20 },
+    ];
     let timeSpeedIndex = 0;
-    let timeSpeedMultiplier = timeSpeedOptions[timeSpeedIndex];
+    let timeSpeedMultiplier = timeSpeedOptions[timeSpeedIndex].multiplier;
 
     
     // STATS
