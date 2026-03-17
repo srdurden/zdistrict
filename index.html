@@ -2195,8 +2195,6 @@ const txtEventoElem = document.getElementById("txtEvento");
         modoFantasma = false;
         fuegoAmigo = settings.friendlyFire;
 
-        policeReloadFrames = settings.policeCooldownSec * 30;
-
 
         npcRoamRadiusPx = Math.max(cellSize, (Number.isFinite(settings.npcRoamRadiusTiles) ? settings.npcRoamRadiusTiles : 5) * cellSize);
         citizenEscapeSkill = Number.isFinite(settings.citizenEscapeSkill) ? settings.citizenEscapeSkill : 0.45;
@@ -2309,10 +2307,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     let bengalasRestantes = 1;
     let modoFantasma = false;
     let fuegoAmigo = true;
-
-    // Cooldowns
-    const policeInitialBullets = 8;
-    let policeReloadFrames = 30; 
 
     let screenShake = 0; 
     let estadoJuego = "STOPPED"; 
@@ -4070,7 +4064,7 @@ function spawnFromTiles(arr, tiles, type) {
         const p = tileToEntityPixel(tx, ty);
         let ent = initEntityFacing({ x: p.x, y: p.y, homeX: p.x, homeY: p.y, direccion: direccionAleatoria(), boarding: 0, _saved: false, scared: false, panicking: false, panicUntilFrame: 0, fleeingZombie: false, strength: citizenBaseStrength });
         if (type === 'zomb') ent = createZombieEntity(p.x, p.y);
-        if (type === 'poli') { ent.balas = policeInitialBullets; ent.cooldown = 0; ent.strength = policeBaseStrength; }
+        if (type === 'poli') { ent.strength = policeBaseStrength; }
         arr.push(ent);
         placed++;
     }
@@ -4128,7 +4122,7 @@ const spawn = (arr, count, type) => {
         const p = tileToEntityPixel(t.x, t.y);
         let ent = initEntityFacing({ x: p.x, y: p.y, homeX: p.x, homeY: p.y, direccion: direccionAleatoria(), boarding: 0, _saved: false, scared: false, panicking: false, panicUntilFrame: 0, fleeingZombie: false, strength: citizenBaseStrength });
         if (type === 'zomb') ent = createZombieEntity(p.x, p.y);
-        if (type === 'poli') { ent.balas = policeInitialBullets; ent.cooldown = 0; ent.strength = policeBaseStrength; }
+        if (type === 'poli') { ent.strength = policeBaseStrength; }
         arr.push(ent);
     }
 };
