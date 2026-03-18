@@ -350,6 +350,13 @@
         }
         .editor-overlay.visible { display: grid; }
         .editor-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        .editor-toolbar-separator {
+            width: 1px;
+            height: 24px;
+            background: linear-gradient(180deg, rgba(140, 110, 94, 0.08), rgba(140, 110, 94, 0.35), rgba(140, 110, 94, 0.08));
+            margin: 0 4px;
+            border-radius: 999px;
+        }
         .editor-chip {
             border: 1px solid #ccb9ad;
             background: #fff;
@@ -834,7 +841,9 @@ body.editor-active #configPanel {
     <div class="editor-row">
         <label for="editorBrushSizeInput" style="font:800 12px Nunito;color:#5d4037">Tamaño del pincel</label>
         <input id="editorBrushSizeInput" class="editor-mini-input" type="number" min="1" max="10" value="1">
+        <span class="editor-toolbar-separator" aria-hidden="true"></span>
         <button id="editorFillToolBtn" class="editor-chip">Fill Tool</button>
+        <span class="editor-toolbar-separator" aria-hidden="true"></span>
         <input id="editorAddCiviliansInput" class="editor-mini-input" type="number" min="1" max="1" value="1">
         <button id="editorAddCiviliansBtn" class="editor-chip">Añadir civiles</button>
     </div>
@@ -847,10 +856,10 @@ body.editor-active #configPanel {
     </div>
     <div class="editor-side-grid">
         <div class="editor-side-nav">
+            <button id="editorNavProjectBtn" class="editor-chip">Proyecto</button>
             <button id="editorNavSurfacesBtn" class="editor-chip">Superficies</button>
             <button id="editorNavEntitiesBtn" class="editor-chip">Entidades</button>
             <button id="editorNavStructuresBtn" class="editor-chip">Estructuras</button>
-            <button id="editorNavProjectBtn" class="editor-chip">Proyecto</button>
             <button id="editorNavSettingsBtn" class="editor-chip">Ajustes</button>
         </div>
         <div>
@@ -1353,8 +1362,10 @@ body.editor-active #configPanel {
     }
 
     function addBlood(x, y, intensity = 1) {
-        const r = 2.5 + Math.random() * (2.0 + intensity * 1.6);
-        bloodStains.push({ x, y, r, ttl: 60 * 35, life: 60 * 35 });
+        const varianceBoost = 1 + Math.random() * 1.9;
+        const r = 1.6 + Math.random() * (4.4 + intensity * 3.8) * varianceBoost;
+        const alpha = 0.14 + Math.random() * 0.22;
+        bloodStains.push({ x, y, r, alpha });
         if (bloodStains.length > 280) bloodStains.splice(0, bloodStains.length - 280);
         spawnParticles(x, y, "rgba(229, 57, 53, 0.9)", 5 + (intensity | 0) * 3, 1.9, Math.PI * 2, 16, 1.05, 0.95);
     }
@@ -1374,10 +1385,6 @@ body.editor-active #configPanel {
             p.vy *= Math.pow(0.92, step);
             if (p.ttl <= 0) particles.splice(i, 1);
         }
-        for (let i = bloodStains.length - 1; i >= 0; i--) {
-            bloodStains[i].ttl -= step;
-            if (bloodStains[i].ttl <= 0) bloodStains.splice(i, 1);
-        }
         for (let i = floatingTexts.length - 1; i >= 0; i--) {
             const t = floatingTexts[i];
             t.ttl -= step;
@@ -1389,7 +1396,7 @@ body.editor-active #configPanel {
 
     function drawBloodStains() {
         for (const s of bloodStains) {
-            const a = Math.max(0, Math.min(1, s.ttl / s.life)) * 0.30;
+            const a = Math.max(0.08, Math.min(0.4, s.alpha || 0.2));
             ctx.fillStyle = `rgba(229,57,53,${a})`;
             ctx.beginPath();
             ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
@@ -1611,7 +1618,7 @@ const txtEventoElem = document.getElementById("txtEvento");
         active: false,
         selectedTool: null,
         selectedStructure: null,
-        selectedSection: "surfaces",
+        selectedSection: "project",
         structureStartTile: null,
         brushSize: 1,
         fillMode: false,
@@ -1966,7 +1973,7 @@ const txtEventoElem = document.getElementById("txtEvento");
         active: false,
         selectedTool: null,
         selectedStructure: null,
-        selectedSection: "surfaces",
+        selectedSection: "project",
         structureStartTile: null,
         brushSize: 1,
         fillMode: false,
@@ -2257,7 +2264,7 @@ const txtEventoElem = document.getElementById("txtEvento");
 
         const base = getActiveCampaignLevel() || CAMPAIGN_LEVELS[0];
         hydrateEditorFromLevel(base);
-        editorState.selectedSection = "surfaces";
+        editorState.selectedSection = "project";
         editorState.fillMode = false;
         buildEditorPalette();
         setEditorSection(editorState.selectedSection);
@@ -2863,6 +2870,17 @@ const DOOR_BASE_HP = 70;
             }
         }
         return changed;
+    }
+
+    function getEditorBrushBounds(tx, ty) {
+        const brushSize = Math.max(1, Math.min(10, editorState.brushSize || 1));
+        const half = Math.floor(brushSize / 2);
+        return {
+            minX: tx - half,
+            minY: ty - half,
+            maxX: tx - half + brushSize - 1,
+            maxY: ty - half + brushSize - 1
+        };
     }
 
     function fillEditorArea(tx, ty, token) {
@@ -5636,36 +5654,61 @@ drawDoorsWorld();
                 ctx.stroke();
                 drawEnt({ x: hx + (cellSize - tamanoEntidad) / 2, y: hy + (cellSize - tamanoEntidad) / 2, direccion: { x: 1, y: 0 } }, selectedTool.key === "police" ? PALETA.policia : PALETA.ciudadano, radioVisual);
             } else {
-                ctx.fillStyle = editorState.active ? "rgba(66, 165, 245, 0.35)" : (zombieLureArmed ? "rgba(251, 140, 0, 0.35)" : (canDeployHere ? "rgba(76, 175, 80, 0.45)" : "rgba(229, 57, 53, 0.45)"));
-                ctx.fillRect(hx, hy, cellSize, cellSize);
+                const isEditorBrushPreview = editorState.active && !!selectedTool && !editorState.fillMode;
+                if (isEditorBrushPreview) {
+                    const bounds = getEditorBrushBounds(hoverTile.x, hoverTile.y);
+                    const minX = Math.max(0, bounds.minX);
+                    const minY = Math.max(0, bounds.minY);
+                    const maxX = Math.min(gridWidth - 1, bounds.maxX);
+                    const maxY = Math.min(gridHeight - 1, bounds.maxY);
+                    for (let py = minY; py <= maxY; py += 1) {
+                        for (let px = minX; px <= maxX; px += 1) {
+                            const pxWorld = px * cellSize;
+                            const pyWorld = py * cellSize;
+                            ctx.fillStyle = "rgba(66, 165, 245, 0.22)";
+                            ctx.fillRect(pxWorld, pyWorld, cellSize, cellSize);
+                            ctx.strokeStyle = "rgba(30, 136, 229, 0.9)";
+                            ctx.lineWidth = 1;
+                            ctx.strokeRect(pxWorld + 0.5, pyWorld + 0.5, cellSize - 1, cellSize - 1);
+                        }
+                    }
+                } else {
+                    ctx.fillStyle = editorState.active ? "rgba(66, 165, 245, 0.35)" : (zombieLureArmed ? "rgba(251, 140, 0, 0.35)" : (canDeployHere ? "rgba(76, 175, 80, 0.45)" : "rgba(229, 57, 53, 0.45)"));
+                    ctx.fillRect(hx, hy, cellSize, cellSize);
+                    ctx.strokeStyle = editorState.active ? "rgba(30, 136, 229, 0.95)" : (zombieLureArmed ? "rgba(239, 108, 0, 0.95)" : (canDeployHere ? "rgba(27, 94, 32, 0.95)" : "rgba(198, 40, 40, 0.95)"));
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(hx + 0.5, hy + 0.5, cellSize - 1, cellSize - 1);
+                }
             }
-
-            ctx.strokeStyle = editorState.active ? "rgba(30, 136, 229, 0.95)" : (zombieLureArmed ? "rgba(239, 108, 0, 0.95)" : (canDeployHere ? "rgba(27, 94, 32, 0.95)" : "rgba(198, 40, 40, 0.95)"));
-            ctx.lineWidth = 1;
-            ctx.strokeRect(hx + 0.5, hy + 0.5, cellSize - 1, cellSize - 1);
         }
 
         if (editorState.active && editorState.selectedStructure === "rectangle" && editorState.structureStartTile) {
-            const sx = editorState.structureStartTile.x * cellSize;
-            const sy = editorState.structureStartTile.y * cellSize;
-            const pulse = 0.35 + (0.15 * (Math.sin(frameCount * 0.22) + 1));
-            const centerX = sx + (cellSize / 2);
-            const centerY = sy + (cellSize / 2);
+            const start = editorState.structureStartTile;
+            const end = hoverTile || start;
+            const minX = Math.max(0, Math.min(start.x, end.x));
+            const maxX = Math.min(gridWidth - 1, Math.max(start.x, end.x));
+            const minY = Math.max(0, Math.min(start.y, end.y));
+            const maxY = Math.min(gridHeight - 1, Math.max(start.y, end.y));
+            const pulse = 0.22 + (0.16 * (Math.sin(frameCount * 0.22) + 1));
 
-            ctx.fillStyle = `rgba(255, 179, 0, ${pulse.toFixed(3)})`;
-            ctx.fillRect(sx, sy, cellSize, cellSize);
+            for (let x = minX; x <= maxX; x += 1) {
+                const topY = minY * cellSize;
+                const bottomY = maxY * cellSize;
+                const worldX = x * cellSize;
+                ctx.fillStyle = `rgba(255, 179, 0, ${pulse.toFixed(3)})`;
+                ctx.fillRect(worldX, topY, cellSize, cellSize);
+                if (maxY !== minY) ctx.fillRect(worldX, bottomY, cellSize, cellSize);
+            }
+            for (let y = minY + 1; y <= maxY - 1; y += 1) {
+                const worldY = y * cellSize;
+                ctx.fillStyle = `rgba(255, 179, 0, ${pulse.toFixed(3)})`;
+                ctx.fillRect(minX * cellSize, worldY, cellSize, cellSize);
+                if (maxX !== minX) ctx.fillRect(maxX * cellSize, worldY, cellSize, cellSize);
+            }
+
             ctx.strokeStyle = "rgba(255, 111, 0, 0.98)";
-            ctx.lineWidth = 1.4;
-            ctx.strokeRect(sx + 0.5, sy + 0.5, cellSize - 1, cellSize - 1);
-
-            ctx.strokeStyle = "rgba(255, 111, 0, 0.95)";
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(centerX - cellSize * 0.35, centerY);
-            ctx.lineTo(centerX + cellSize * 0.35, centerY);
-            ctx.moveTo(centerX, centerY - cellSize * 0.35);
-            ctx.lineTo(centerX, centerY + cellSize * 0.35);
-            ctx.stroke();
+            ctx.lineWidth = 2;
+            ctx.strokeRect(minX * cellSize + 1, minY * cellSize + 1, ((maxX - minX + 1) * cellSize) - 2, ((maxY - minY + 1) * cellSize) - 2);
         }
 
         disparoEnFotograma = false;
