@@ -1607,6 +1607,19 @@ const txtEventoElem = document.getElementById("txtEvento");
     const postSecondaryBtn = document.getElementById("postSecondaryBtn");
     const postMenuBtn = document.getElementById("postMenuBtn");
     const postHint = document.getElementById("postHint");
+    let editorState = {
+        active: false,
+        selectedTool: null,
+        selectedStructure: null,
+        selectedSection: "surfaces",
+        structureStartTile: null,
+        brushSize: 1,
+        fillMode: false,
+        mapWidthTiles: 100,
+        mapHeightTiles: 100,
+        settingsOverrides: {},
+        mapRows: []
+    };
 
     function linkInput(slider, number) {
         slider.addEventListener('input', () => number.value = slider.value);
@@ -1949,7 +1962,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     let postGameShown = false;
     let postWasVictory = false;
 
-    let editorState = {
+    editorState = {
         active: false,
         selectedTool: null,
         selectedStructure: null,
