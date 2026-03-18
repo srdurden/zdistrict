@@ -830,6 +830,10 @@
             <div id="editorEntitiesPopup" class="editor-menu-popup"></div>
         </div>
         <div class="editor-menu">
+            <button id="editorStructuresBtn" class="editor-chip">Estructuras</button>
+            <div id="editorStructuresPopup" class="editor-menu-popup"></div>
+        </div>
+        <div class="editor-menu">
             <button id="editorScenarioSettingsBtn" class="editor-chip">Ajustes</button>
             <div id="editorSettingsPopup" class="editor-menu-popup">
                 <div class="editor-row">
@@ -1544,9 +1548,11 @@ const txtEventoElem = document.getElementById("txtEvento");
     const editorOverlay = document.getElementById("editorOverlay");
     const editorSurfacesBtn = document.getElementById("editorSurfacesBtn");
     const editorEntitiesBtn = document.getElementById("editorEntitiesBtn");
+    const editorStructuresBtn = document.getElementById("editorStructuresBtn");
     const editorScenarioSettingsBtn = document.getElementById("editorScenarioSettingsBtn");
     const editorSurfacesPopup = document.getElementById("editorSurfacesPopup");
     const editorEntitiesPopup = document.getElementById("editorEntitiesPopup");
+    const editorStructuresPopup = document.getElementById("editorStructuresPopup");
     const editorSettingsPopup = document.getElementById("editorSettingsPopup");
     const editorWidthInput = document.getElementById("editorWidthInput");
     const editorHeightInput = document.getElementById("editorHeightInput");
@@ -1723,6 +1729,7 @@ const txtEventoElem = document.getElementById("txtEvento");
 
     if (editorSurfacesBtn) editorSurfacesBtn.addEventListener("click", () => toggleEditorPopup(editorSurfacesPopup));
     if (editorEntitiesBtn) editorEntitiesBtn.addEventListener("click", () => toggleEditorPopup(editorEntitiesPopup));
+    if (editorStructuresBtn) editorStructuresBtn.addEventListener("click", () => toggleEditorPopup(editorStructuresPopup));
     if (editorScenarioSettingsBtn) editorScenarioSettingsBtn.addEventListener("click", () => toggleEditorPopup(editorSettingsPopup));
 
     document.addEventListener("pointerdown", (e) => {
@@ -1731,9 +1738,11 @@ const txtEventoElem = document.getElementById("txtEvento");
         const insideMenus = (
             (editorSurfacesBtn && editorSurfacesBtn.contains(t)) ||
             (editorEntitiesBtn && editorEntitiesBtn.contains(t)) ||
+            (editorStructuresBtn && editorStructuresBtn.contains(t)) ||
             (editorScenarioSettingsBtn && editorScenarioSettingsBtn.contains(t)) ||
             (editorSurfacesPopup && editorSurfacesPopup.contains(t)) ||
             (editorEntitiesPopup && editorEntitiesPopup.contains(t)) ||
+            (editorStructuresPopup && editorStructuresPopup.contains(t)) ||
             (editorSettingsPopup && editorSettingsPopup.contains(t))
         );
         if (!insideMenus) closeEditorPopups();
@@ -1834,6 +1843,8 @@ const txtEventoElem = document.getElementById("txtEvento");
     let editorState = {
         active: false,
         selectedTool: null,
+        selectedStructure: null,
+        structureStartTile: null,
         mapWidthTiles: 100,
         mapHeightTiles: 100,
         settingsOverrides: {},
@@ -1850,6 +1861,9 @@ const txtEventoElem = document.getElementById("txtEvento");
     ];
     const EDITOR_SURFACE_TOOL_KEYS = ["floor", "wall", "door", "spawnZombie"];
     const EDITOR_ENTITY_TOOL_KEYS = ["citizen", "police"];
+    const EDITOR_STRUCTURES = [
+        { key: "rectangle", label: "Rectangulo" }
+    ];
 
     function createEditorRows(w, h) {
         const rows = [];
@@ -1897,6 +1911,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     function closeEditorPopups() {
         setEditorPopupVisible(editorSurfacesPopup, false);
         setEditorPopupVisible(editorEntitiesPopup, false);
+        setEditorPopupVisible(editorStructuresPopup, false);
         setEditorPopupVisible(editorSettingsPopup, false);
     }
 
@@ -1918,17 +1933,39 @@ const txtEventoElem = document.getElementById("txtEvento");
                 b.textContent = tool.label;
                 b.addEventListener("click", () => {
                     editorState.selectedTool = (editorState.selectedTool === tool.key) ? null : tool.key;
+                    editorState.selectedStructure = null;
+                    editorState.structureStartTile = null;
                     buildEditorPalette();
                 });
                 container.appendChild(b);
             });
     }
 
+    function buildEditorStructuresSection(container) {
+        if (!container) return;
+        container.innerHTML = "";
+        EDITOR_STRUCTURES.forEach((structure) => {
+            const b = document.createElement("button");
+            b.className = "editor-chip" + (structure.key === editorState.selectedStructure ? " active" : "");
+            b.textContent = structure.label;
+            b.addEventListener("click", () => {
+                const nextStructure = (editorState.selectedStructure === structure.key) ? null : structure.key;
+                editorState.selectedStructure = nextStructure;
+                editorState.selectedTool = null;
+                editorState.structureStartTile = null;
+                buildEditorPalette();
+            });
+            container.appendChild(b);
+        });
+    }
+
     function buildEditorPalette() {
         buildEditorPaletteSection(editorSurfacesPopup, EDITOR_SURFACE_TOOL_KEYS);
         buildEditorPaletteSection(editorEntitiesPopup, EDITOR_ENTITY_TOOL_KEYS);
+        buildEditorStructuresSection(editorStructuresPopup);
         if (editorSurfacesBtn) editorSurfacesBtn.classList.toggle("active", !!editorState.selectedTool && EDITOR_SURFACE_TOOL_KEYS.includes(editorState.selectedTool));
         if (editorEntitiesBtn) editorEntitiesBtn.classList.toggle("active", !!editorState.selectedTool && EDITOR_ENTITY_TOOL_KEYS.includes(editorState.selectedTool));
+        if (editorStructuresBtn) editorStructuresBtn.classList.toggle("active", !!editorState.selectedStructure);
     }
 
     function buildCampaignLevelFromEditor() {
@@ -2695,6 +2732,41 @@ const DOOR_BASE_HP = 70;
         return changed;
     }
 
+    function paintEditorWallRectangle(cornerA, cornerB) {
+        if (!cornerA || !cornerB) return false;
+        const minX = Math.min(cornerA.x, cornerB.x);
+        const maxX = Math.max(cornerA.x, cornerB.x);
+        const minY = Math.min(cornerA.y, cornerB.y);
+        const maxY = Math.max(cornerA.y, cornerB.y);
+        let changed = false;
+
+        for (let x = minX; x <= maxX; x += 1) {
+            changed = updateEditorRowsWithToken(x, minY, "#") || changed;
+            changed = updateEditorRowsWithToken(x, maxY, "#") || changed;
+        }
+        for (let y = minY; y <= maxY; y += 1) {
+            changed = updateEditorRowsWithToken(minX, y, "#") || changed;
+            changed = updateEditorRowsWithToken(maxX, y, "#") || changed;
+        }
+
+        return changed;
+    }
+
+    function applyEditorStructureAtTile(tx, ty) {
+        if (!editorState.active || !editorState.selectedStructure) return false;
+        if (tx < 0 || ty < 0 || tx >= editorState.mapWidthTiles || ty >= editorState.mapHeightTiles) return false;
+        if (editorState.selectedStructure === "rectangle") {
+            if (!editorState.structureStartTile) {
+                editorState.structureStartTile = { x: tx, y: ty };
+                return false;
+            }
+            const start = editorState.structureStartTile;
+            editorState.structureStartTile = null;
+            return paintEditorWallRectangle(start, { x: tx, y: ty });
+        }
+        return false;
+    }
+
     function getSelectedEditorTool() {
         if (!editorState.selectedTool) return null;
         return EDITOR_TOOLS.find(t => t.key === editorState.selectedTool) || null;
@@ -2805,7 +2877,10 @@ const DOOR_BASE_HP = 70;
 
     function registerTap(world, clientX, clientY, pointerType = "touch") {
         if (editorState.active) {
-            paintEditorTile(Math.floor(world.x / cellSize), Math.floor(world.y / cellSize));
+            const tx = Math.floor(world.x / cellSize);
+            const ty = Math.floor(world.y / cellSize);
+            const changed = applyEditorStructureAtTile(tx, ty);
+            if (changed) refreshEditorPreviewLevel();
             lastTapInfo = null;
             return;
         }
@@ -2939,7 +3014,7 @@ const DOOR_BASE_HP = 70;
                 } else {
                     // In navigation mode (no selected tile tool), keep editor drag behavior
                     // aligned with gameplay: drag pans camera with edge padding.
-                    editorInteraction = null;
+                    editorInteraction = { mode: "none", dirty: false, lastTx: tx, lastTy: ty };
                 }
             } else {
                 editorInteraction = null;
@@ -2989,6 +3064,10 @@ const DOOR_BASE_HP = 70;
                         }
                         editorInteraction.lastTx = tx;
                         editorInteraction.lastTy = ty;
+                    }
+                } else if (editorInteraction.mode === "none") {
+                    if (p.dragging) {
+                        panCameraByScreenDelta(dx, dy, true);
                     }
                 }
                 if (p.dragging) e.preventDefault();
