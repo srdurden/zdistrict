@@ -1859,8 +1859,13 @@ const txtEventoElem = document.getElementById("txtEvento");
     function hydrateEditorFromLevel(level) {
         const base = level || CAMPAIGN_LEVELS[0];
         const rows = parseRowsFromMapDef(base && base.mapDef);
-        const w = Math.max(15, Math.min(200, (base && base.settingsOverrides && base.settingsOverrides.mapWidthTiles) || (rows[0] ? rows[0].length : 100)));
-        const h = Math.max(15, Math.min(200, (base && base.settingsOverrides && base.settingsOverrides.mapHeightTiles) || rows.length || 100));
+        const inferred = inferAsciiMapSize(base && base.mapDef);
+        const configuredW = base && base.settingsOverrides && base.settingsOverrides.mapWidthTiles;
+        const configuredH = base && base.settingsOverrides && base.settingsOverrides.mapHeightTiles;
+        // Prefer the ASCII level dimensions when available. Some campaign levels
+        // still carry legacy 25x25 settings while their mapDef is much larger.
+        const w = Math.max(15, Math.min(200, (inferred && inferred.w) || configuredW || (rows[0] ? rows[0].length : 100)));
+        const h = Math.max(15, Math.min(200, (inferred && inferred.h) || configuredH || rows.length || 100));
         let finalRows = rows.length ? rows : createEditorRows(w, h);
         editorState.mapWidthTiles = w;
         editorState.mapHeightTiles = h;
