@@ -350,6 +350,26 @@
         }
         .editor-overlay.visible { display: grid; }
         .editor-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        .editor-menu {
+            position: relative;
+            display: inline-flex;
+        }
+        .editor-menu-popup {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            min-width: 210px;
+            background: rgba(255, 252, 245, 0.98);
+            border: 1px solid #e4d8cf;
+            border-radius: 10px;
+            box-shadow: 0 16px 36px rgba(0,0,0,0.15);
+            padding: 8px;
+            display: none;
+            z-index: 60;
+        }
+        .editor-menu-popup.visible { display: grid; gap: 6px; }
+        .editor-menu-popup .editor-row { gap: 6px; }
+        .editor-menu-popup .editor-chip { width: 100%; text-align: left; }
         .editor-chip {
             border: 1px solid #ccb9ad;
             background: #fff;
@@ -373,23 +393,8 @@
             overflow-y: auto;
         }
         body.editor-active canvas {
-            height: min(calc(var(--app-height) - 180px), calc(98vw * 0.6));
+            height: min(calc(var(--app-height) - 48px), calc(98vw * 0.6));
         }
-        .editor-bottom-bar {
-            width: min(96vw, 1020px);
-            margin-top: 10px;
-            background: rgba(255, 252, 245, 0.95);
-            border: 1px solid #e4d8cf;
-            border-radius: 12px;
-            box-shadow: 0 16px 40px rgba(0,0,0,0.12);
-            padding: 10px;
-            display: none;
-            gap: 8px;
-            z-index: 20;
-            position: sticky;
-            bottom: 8px;
-        }
-        .editor-bottom-bar.visible { display: grid; }
 
         .post-stats{
             margin: 10px 0 6px;
@@ -474,7 +479,7 @@
             }
 
             body.editor-active canvas {
-                height: max(280px, calc(var(--safe-block) - 112px));
+                height: max(280px, calc(var(--safe-block) - 24px));
             }
 
             #configPanel {
@@ -807,26 +812,38 @@
 </div>
 
 <div id="editorOverlay" class="editor-overlay">
-    <div class="editor-row" id="editorPaletteRow"></div>
+    <div class="editor-row">
+        <div class="editor-menu">
+            <button id="editorSurfacesBtn" class="editor-chip">Superficies</button>
+            <div id="editorSurfacesPopup" class="editor-menu-popup"></div>
+        </div>
+        <div class="editor-menu">
+            <button id="editorEntitiesBtn" class="editor-chip">Entidades</button>
+            <div id="editorEntitiesPopup" class="editor-menu-popup"></div>
+        </div>
+        <div class="editor-menu">
+            <button id="editorScenarioSettingsBtn" class="editor-chip">Ajustes</button>
+            <div id="editorSettingsPopup" class="editor-menu-popup">
+                <div class="editor-row">
+                    <span style="font:700 12px Nunito;color:#5d4037">Tamaño:</span>
+                    <input id="editorWidthInput" class="editor-mini-input" type="number" min="15" max="200" value="60">
+                    <span style="font:700 12px Nunito;color:#5d4037">x</span>
+                    <input id="editorHeightInput" class="editor-mini-input" type="number" min="15" max="200" value="40">
+                </div>
+                <button id="editorResizeBtn" class="editor-chip">Aplicar tamaño</button>
+                <button id="editorClearBtn" class="editor-chip">Vaciar nivel</button>
+                <button id="editorSaveBtn" class="editor-chip">Guardar nivel</button>
+                <button id="editorExportBtn" class="editor-chip">Exportar nivel</button>
+                <button id="editorLoadBtn" class="editor-chip">Cargar nivel</button>
+                <button id="editorExitBtn" class="editor-chip">Salir escenario</button>
+                <button id="editorOpenScenarioPanelBtn" class="editor-chip">Settings escenario</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div id="gameContainer">
     <canvas id="myCanvas" width="4500" height="2700"></canvas>
-    <div id="editorBottomBar" class="editor-bottom-bar">
-        <div class="editor-row">
-            <span style="font:700 12px Nunito;color:#5d4037">Tamaño:</span>
-            <input id="editorWidthInput" class="editor-mini-input" type="number" min="15" max="200" value="60">
-            <span style="font:700 12px Nunito;color:#5d4037">x</span>
-            <input id="editorHeightInput" class="editor-mini-input" type="number" min="15" max="200" value="40">
-            <button id="editorResizeBtn" class="editor-chip">Aplicar tamaño</button>
-            <button id="editorClearBtn" class="editor-chip">Vaciar nivel</button>
-            <button id="editorSaveBtn" class="editor-chip">Guardar nivel</button>
-            <button id="editorExportBtn" class="editor-chip">Exportar nivel</button>
-            <button id="editorLoadBtn" class="editor-chip">Cargar nivel</button>
-            <button id="editorScenarioSettingsBtn" class="editor-chip">Settings escenario</button>
-            <button id="editorExitBtn" class="editor-chip">Salir editor</button>
-        </div>
-    </div>
 </div>
 
 <script>
@@ -1516,8 +1533,12 @@ const txtEventoElem = document.getElementById("txtEvento");
     const editCampaignBtn = document.getElementById("editCampaignBtn");
 
     const editorOverlay = document.getElementById("editorOverlay");
-    const editorBottomBar = document.getElementById("editorBottomBar");
-    const editorPaletteRow = document.getElementById("editorPaletteRow");
+    const editorSurfacesBtn = document.getElementById("editorSurfacesBtn");
+    const editorEntitiesBtn = document.getElementById("editorEntitiesBtn");
+    const editorScenarioSettingsBtn = document.getElementById("editorScenarioSettingsBtn");
+    const editorSurfacesPopup = document.getElementById("editorSurfacesPopup");
+    const editorEntitiesPopup = document.getElementById("editorEntitiesPopup");
+    const editorSettingsPopup = document.getElementById("editorSettingsPopup");
     const editorWidthInput = document.getElementById("editorWidthInput");
     const editorHeightInput = document.getElementById("editorHeightInput");
     const editorResizeBtn = document.getElementById("editorResizeBtn");
@@ -1525,7 +1546,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     const editorSaveBtn = document.getElementById("editorSaveBtn");
     const editorExportBtn = document.getElementById("editorExportBtn");
     const editorLoadBtn = document.getElementById("editorLoadBtn");
-    const editorScenarioSettingsBtn = document.getElementById("editorScenarioSettingsBtn");
+    const editorOpenScenarioPanelBtn = document.getElementById("editorOpenScenarioPanelBtn");
     const editorExitBtn = document.getElementById("editorExitBtn");
 
     const postGameOverlay = document.getElementById("postGameOverlay");
@@ -1686,6 +1707,24 @@ const txtEventoElem = document.getElementById("txtEvento");
         closeDeployPopup();
     });
 
+    if (editorSurfacesBtn) editorSurfacesBtn.addEventListener("click", () => toggleEditorPopup(editorSurfacesPopup));
+    if (editorEntitiesBtn) editorEntitiesBtn.addEventListener("click", () => toggleEditorPopup(editorEntitiesPopup));
+    if (editorScenarioSettingsBtn) editorScenarioSettingsBtn.addEventListener("click", () => toggleEditorPopup(editorSettingsPopup));
+
+    document.addEventListener("pointerdown", (e) => {
+        if (!editorOverlay || !editorOverlay.classList.contains("visible")) return;
+        const t = e.target;
+        const insideMenus = (
+            (editorSurfacesBtn && editorSurfacesBtn.contains(t)) ||
+            (editorEntitiesBtn && editorEntitiesBtn.contains(t)) ||
+            (editorScenarioSettingsBtn && editorScenarioSettingsBtn.contains(t)) ||
+            (editorSurfacesPopup && editorSurfacesPopup.contains(t)) ||
+            (editorEntitiesPopup && editorEntitiesPopup.contains(t)) ||
+            (editorSettingsPopup && editorSettingsPopup.contains(t))
+        );
+        if (!insideMenus) closeEditorPopups();
+    });
+
     // Main Menu wiring
     if (homeBtn) homeBtn.addEventListener("click", () => showMainMenu());
     if (menuCampaignBtn) menuCampaignBtn.addEventListener("click", () => startCampaignMode(0));
@@ -1758,7 +1797,7 @@ const txtEventoElem = document.getElementById("txtEvento");
             alert("Definición inválida. Verifica el texto e inténtalo de nuevo.");
         }
     });
-    if (editorScenarioSettingsBtn) editorScenarioSettingsBtn.addEventListener("click", () => openEditorScenarioSettings());
+    if (editorOpenScenarioPanelBtn) editorOpenScenarioPanelBtn.addEventListener("click", () => openEditorScenarioSettings());
 
     // ===========================
     // Phase 0: Run definitions
@@ -1795,6 +1834,8 @@ const txtEventoElem = document.getElementById("txtEvento");
         { key: "police", label: "Policia", token: "O" },
         { key: "spawnZombie", label: "Spawn zombie", token: "S" }
     ];
+    const EDITOR_SURFACE_TOOL_KEYS = ["floor", "wall", "door", "spawnZombie"];
+    const EDITOR_ENTITY_TOOL_KEYS = ["citizen", "police"];
 
     function createEditorRows(w, h) {
         const rows = [];
@@ -1829,19 +1870,46 @@ const txtEventoElem = document.getElementById("txtEvento");
         if (editorHeightInput) editorHeightInput.value = String(h);
     }
 
-    function buildEditorPalette() {
-        if (!editorPaletteRow) return;
-        editorPaletteRow.innerHTML = "";
-        EDITOR_TOOLS.forEach(tool => {
-            const b = document.createElement("button");
-            b.className = "editor-chip" + (tool.key === editorState.selectedTool ? " active" : "");
-            b.textContent = tool.label;
-            b.addEventListener("click", () => {
-                editorState.selectedTool = (editorState.selectedTool === tool.key) ? null : tool.key;
-                buildEditorPalette();
+    function setEditorPopupVisible(popup, visible) {
+        if (!popup) return;
+        popup.classList.toggle("visible", !!visible);
+    }
+
+    function closeEditorPopups() {
+        setEditorPopupVisible(editorSurfacesPopup, false);
+        setEditorPopupVisible(editorEntitiesPopup, false);
+        setEditorPopupVisible(editorSettingsPopup, false);
+    }
+
+    function toggleEditorPopup(popup) {
+        if (!popup) return;
+        const nextVisible = !popup.classList.contains("visible");
+        closeEditorPopups();
+        setEditorPopupVisible(popup, nextVisible);
+    }
+
+    function buildEditorPaletteSection(container, toolKeys) {
+        if (!container) return;
+        container.innerHTML = "";
+        EDITOR_TOOLS
+            .filter(tool => toolKeys.includes(tool.key))
+            .forEach(tool => {
+                const b = document.createElement("button");
+                b.className = "editor-chip" + (tool.key === editorState.selectedTool ? " active" : "");
+                b.textContent = tool.label;
+                b.addEventListener("click", () => {
+                    editorState.selectedTool = (editorState.selectedTool === tool.key) ? null : tool.key;
+                    buildEditorPalette();
+                });
+                container.appendChild(b);
             });
-            editorPaletteRow.appendChild(b);
-        });
+    }
+
+    function buildEditorPalette() {
+        buildEditorPaletteSection(editorSurfacesPopup, EDITOR_SURFACE_TOOL_KEYS);
+        buildEditorPaletteSection(editorEntitiesPopup, EDITOR_ENTITY_TOOL_KEYS);
+        if (editorSurfacesBtn) editorSurfacesBtn.classList.toggle("active", !!editorState.selectedTool && EDITOR_SURFACE_TOOL_KEYS.includes(editorState.selectedTool));
+        if (editorEntitiesBtn) editorEntitiesBtn.classList.toggle("active", !!editorState.selectedTool && EDITOR_ENTITY_TOOL_KEYS.includes(editorState.selectedTool));
     }
 
     function buildCampaignLevelFromEditor() {
@@ -1924,9 +1992,9 @@ const txtEventoElem = document.getElementById("txtEvento");
         if (!editorOverlay) return;
         const isVisible = !!show;
         editorOverlay.classList.toggle("visible", isVisible);
-        if (editorBottomBar) editorBottomBar.classList.toggle("visible", isVisible);
         document.body.classList.toggle("editor-active", isVisible);
         if (!isVisible && configPanel) configPanel.classList.remove("visible");
+        if (!isVisible) closeEditorPopups();
         if (!isVisible) closeEditorScenarioSettingsIfNeeded();
         syncAppHeight();
         staticDirty = true;
