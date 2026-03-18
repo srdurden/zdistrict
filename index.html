@@ -2426,7 +2426,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     const timeSpeedOptions = [
         { label: 1, multiplier: 1 },
         { label: 2, multiplier: 5 },
-        { label: 5, multiplier: 20 },
+        { label: 5, multiplier: 10 },
     ];
     let timeSpeedIndex = 0;
     let timeSpeedMultiplier = timeSpeedOptions[timeSpeedIndex].multiplier;
@@ -4894,17 +4894,25 @@ drawDoorsWorld();
             const elapsedFrames = now - st.startFrame;
             const elapsedSeconds = Math.floor(elapsedFrames / BASE_FPS);
             if (elapsedSeconds >= 1 && elapsedSeconds > st.lastRollSecond) {
-                st.lastRollSecond = elapsedSeconds;
-                const roll = randInt(1, escapeInfo.attackForce + 1);
-                if (roll > getNpcStrength(npc)) {
-                    const npcType = getNpcTypeForEntity(npc);
-                    if (npcType === "cit" || npcType === "pol") {
-                        infectNpcFromZombie(npc, zombie);
-                    } else if (npcType === "mil") {
+                // When time is accelerated, elapsedSeconds can jump by more than 1 between frames.
+                // Resolve each missed second so tug outcomes stay consistent across time speeds.
+                let infected = false;
+                for (let sec = st.lastRollSecond + 1; sec <= elapsedSeconds; sec++) {
+                    st.lastRollSecond = sec;
+                    const roll = randInt(1, escapeInfo.attackForce + 1);
+                    if (roll > getNpcStrength(npc)) {
+                        const npcType = getNpcTypeForEntity(npc);
+                        if (npcType === "cit" || npcType === "pol") {
+                            infectNpcFromZombie(npc, zombie);
+                        } else if (npcType === "mil") {
+                        }
+                        releaseNpcFromTug(npc, attackers, { x: npc.x - zombie.x, y: npc.y - zombie.y });
+                        actualizarStatsUI();
+                        infected = true;
+                        break;
                     }
-                    releaseNpcFromTug(npc, attackers, { x: npc.x - zombie.x, y: npc.y - zombie.y });
-                    actualizarStatsUI();
                 }
+                if (infected) return false;
             }
             return true;
         };
