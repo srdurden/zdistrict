@@ -350,26 +350,6 @@
         }
         .editor-overlay.visible { display: grid; }
         .editor-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-        .editor-menu {
-            position: relative;
-            display: inline-flex;
-        }
-        .editor-menu-popup {
-            position: absolute;
-            top: calc(100% + 6px);
-            left: 0;
-            min-width: 210px;
-            background: rgba(255, 252, 245, 0.98);
-            border: 1px solid #e4d8cf;
-            border-radius: 10px;
-            box-shadow: 0 16px 36px rgba(0,0,0,0.15);
-            padding: 8px;
-            display: none;
-            z-index: 60;
-        }
-        .editor-menu-popup.visible { display: grid; gap: 6px; }
-        .editor-menu-popup .editor-row { gap: 6px; }
-        .editor-menu-popup .editor-chip { width: 100%; text-align: left; }
         .editor-chip {
             border: 1px solid #ccb9ad;
             background: #fff;
@@ -387,6 +367,30 @@
             padding: 4px 6px;
             font: 700 12px Nunito, sans-serif;
         }
+        .editor-side-menu {
+            position: fixed;
+            top: 88px;
+            right: 25px;
+            width: min(430px, calc(100vw - 32px));
+            background: linear-gradient(175deg, rgba(255, 252, 245, 0.98), rgba(255, 246, 236, 0.98));
+            border: 1px solid #e8d7cc;
+            border-radius: 18px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.16);
+            z-index: 1200;
+            padding: 14px;
+            display: none;
+        }
+        .editor-side-menu.visible { display: block; }
+        .editor-side-header h2 { margin: 0; font-size: 18px; color: #5d4037; }
+        .editor-side-header p { margin: 4px 0 10px; font-size: 12px; color: #8d6e63; }
+        .editor-side-grid { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 10px; }
+        .editor-side-nav { display: grid; gap: 8px; align-content: start; }
+        .editor-side-nav .editor-chip { text-align: left; padding: 8px 10px; }
+        .editor-side-section-title { margin: 0 0 8px; font-size: 14px; color: #5d4037; }
+        .editor-side-options { min-height: 230px; background: rgba(255,255,255,0.65); border: 1px solid #e6d4c8; border-radius: 12px; padding: 10px; }
+        .editor-side-panel { display: none; gap: 8px; }
+        .editor-side-panel.visible { display: grid; }
+        .editor-side-panel .editor-chip { text-align: left; padding: 9px 10px; }
         body.editor-active #gameContainer {
             padding-top: 108px;
             padding-bottom: 16px;
@@ -418,6 +422,13 @@
         .post-row:last-child{ border-bottom: none; }
         .post-row b{ font-weight: 900; }
 #settingsToggle:hover { transform: scale(1.1) rotate(90deg); color: var(--c-player); border-color: var(--c-player); }
+body.editor-active #configPanel {
+    left: 25px;
+    right: auto;
+    top: 88px;
+    z-index: 1250;
+    width: min(430px, calc(100vw - 32px));
+}
 
         #configPanel {
             position: fixed;
@@ -821,34 +832,50 @@
 
 <div id="editorOverlay" class="editor-overlay">
     <div class="editor-row">
-        <div class="editor-menu">
-            <button id="editorSurfacesBtn" class="editor-chip">Superficies</button>
-            <div id="editorSurfacesPopup" class="editor-menu-popup"></div>
+        <label for="editorBrushSizeInput" style="font:800 12px Nunito;color:#5d4037">Tamaño del pincel</label>
+        <input id="editorBrushSizeInput" class="editor-mini-input" type="number" min="1" max="10" value="1">
+        <button id="editorFillToolBtn" class="editor-chip">Fill Tool</button>
+        <input id="editorAddCiviliansInput" class="editor-mini-input" type="number" min="1" max="1" value="1">
+        <button id="editorAddCiviliansBtn" class="editor-chip">Añadir civiles</button>
+    </div>
+</div>
+
+<div id="editorSideMenu" class="editor-side-menu">
+    <div class="editor-side-header">
+        <h2>Editor de nivel</h2>
+        <p>Selecciona una categoría</p>
+    </div>
+    <div class="editor-side-grid">
+        <div class="editor-side-nav">
+            <button id="editorNavSurfacesBtn" class="editor-chip">Superficies</button>
+            <button id="editorNavEntitiesBtn" class="editor-chip">Entidades</button>
+            <button id="editorNavStructuresBtn" class="editor-chip">Estructuras</button>
+            <button id="editorNavProjectBtn" class="editor-chip">Proyecto</button>
+            <button id="editorNavSettingsBtn" class="editor-chip">Ajustes</button>
         </div>
-        <div class="editor-menu">
-            <button id="editorEntitiesBtn" class="editor-chip">Entidades</button>
-            <div id="editorEntitiesPopup" class="editor-menu-popup"></div>
-        </div>
-        <div class="editor-menu">
-            <button id="editorStructuresBtn" class="editor-chip">Estructuras</button>
-            <div id="editorStructuresPopup" class="editor-menu-popup"></div>
-        </div>
-        <div class="editor-menu">
-            <button id="editorScenarioSettingsBtn" class="editor-chip">Ajustes</button>
-            <div id="editorSettingsPopup" class="editor-menu-popup">
-                <div class="editor-row">
-                    <span style="font:700 12px Nunito;color:#5d4037">Tamaño:</span>
-                    <input id="editorWidthInput" class="editor-mini-input" type="number" min="15" max="200" value="60">
-                    <span style="font:700 12px Nunito;color:#5d4037">x</span>
-                    <input id="editorHeightInput" class="editor-mini-input" type="number" min="15" max="200" value="40">
+        <div>
+            <h3 id="editorSideSectionTitle" class="editor-side-section-title">Opciones</h3>
+            <div id="editorSideOptions" class="editor-side-options">
+                <div id="editorSurfacesPopup" class="editor-side-panel"></div>
+                <div id="editorEntitiesPopup" class="editor-side-panel"></div>
+                <div id="editorStructuresPopup" class="editor-side-panel"></div>
+                <div id="editorSettingsPopup" class="editor-side-panel">
+                    <div class="editor-row">
+                        <span style="font:700 12px Nunito;color:#5d4037">Tamaño:</span>
+                        <input id="editorWidthInput" class="editor-mini-input" type="number" min="15" max="200" value="60">
+                        <span style="font:700 12px Nunito;color:#5d4037">x</span>
+                        <input id="editorHeightInput" class="editor-mini-input" type="number" min="15" max="200" value="40">
+                    </div>
+                    <button id="editorResizeBtn" class="editor-chip">Aplicar tamaño</button>
+                    <button id="editorClearBtn" class="editor-chip">Vaciar nivel</button>
+                    <button id="editorSaveBtn" class="editor-chip">Guardar nivel</button>
+                    <button id="editorExportBtn" class="editor-chip">Exportar nivel</button>
+                    <button id="editorLoadBtn" class="editor-chip">Cargar nivel</button>
+                    <button id="editorExitBtn" class="editor-chip">Salir escenario</button>
                 </div>
-                <button id="editorResizeBtn" class="editor-chip">Aplicar tamaño</button>
-                <button id="editorClearBtn" class="editor-chip">Vaciar nivel</button>
-                <button id="editorSaveBtn" class="editor-chip">Guardar nivel</button>
-                <button id="editorExportBtn" class="editor-chip">Exportar nivel</button>
-                <button id="editorLoadBtn" class="editor-chip">Cargar nivel</button>
-                <button id="editorExitBtn" class="editor-chip">Salir escenario</button>
-                <button id="editorOpenScenarioPanelBtn" class="editor-chip">Settings escenario</button>
+                <div id="editorScenarioSettingsPanel" class="editor-side-panel">
+                    <button id="editorOpenScenarioPanelBtn" class="editor-chip">Abrir configuración avanzada</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1546,14 +1573,22 @@ const txtEventoElem = document.getElementById("txtEvento");
     const editCampaignBtn = document.getElementById("editCampaignBtn");
 
     const editorOverlay = document.getElementById("editorOverlay");
-    const editorSurfacesBtn = document.getElementById("editorSurfacesBtn");
-    const editorEntitiesBtn = document.getElementById("editorEntitiesBtn");
-    const editorStructuresBtn = document.getElementById("editorStructuresBtn");
-    const editorScenarioSettingsBtn = document.getElementById("editorScenarioSettingsBtn");
+    const editorSideMenu = document.getElementById("editorSideMenu");
+    const editorNavSurfacesBtn = document.getElementById("editorNavSurfacesBtn");
+    const editorNavEntitiesBtn = document.getElementById("editorNavEntitiesBtn");
+    const editorNavStructuresBtn = document.getElementById("editorNavStructuresBtn");
+    const editorNavProjectBtn = document.getElementById("editorNavProjectBtn");
+    const editorNavSettingsBtn = document.getElementById("editorNavSettingsBtn");
+    const editorSideSectionTitle = document.getElementById("editorSideSectionTitle");
     const editorSurfacesPopup = document.getElementById("editorSurfacesPopup");
     const editorEntitiesPopup = document.getElementById("editorEntitiesPopup");
     const editorStructuresPopup = document.getElementById("editorStructuresPopup");
     const editorSettingsPopup = document.getElementById("editorSettingsPopup");
+    const editorScenarioSettingsPanel = document.getElementById("editorScenarioSettingsPanel");
+    const editorBrushSizeInput = document.getElementById("editorBrushSizeInput");
+    const editorFillToolBtn = document.getElementById("editorFillToolBtn");
+    const editorAddCiviliansInput = document.getElementById("editorAddCiviliansInput");
+    const editorAddCiviliansBtn = document.getElementById("editorAddCiviliansBtn");
     const editorWidthInput = document.getElementById("editorWidthInput");
     const editorHeightInput = document.getElementById("editorHeightInput");
     const editorResizeBtn = document.getElementById("editorResizeBtn");
@@ -1646,7 +1681,17 @@ const txtEventoElem = document.getElementById("txtEvento");
         syncDeployAmount();
     }
 
-        settingsToggle.addEventListener("click", () => { configPanel.classList.toggle("visible"); closeEditorScenarioSettingsIfNeeded(); });
+    settingsToggle.addEventListener("click", () => {
+        if (editorState.active) {
+            if (editorSideMenu) editorSideMenu.classList.toggle("visible");
+            if (editorSideMenu && editorSideMenu.classList.contains("visible")) setEditorSection(editorState.selectedSection || "surfaces");
+            else if (configPanel) configPanel.classList.remove("visible");
+            closeEditorScenarioSettingsIfNeeded();
+            return;
+        }
+        configPanel.classList.toggle("visible");
+        closeEditorScenarioSettingsIfNeeded();
+    });
 
     function getCurrentTimeSpeedOption() {
         return timeSpeedOptions[timeSpeedIndex] || timeSpeedOptions[0];
@@ -1727,25 +1772,34 @@ const txtEventoElem = document.getElementById("txtEvento");
         closeDeployPopup();
     });
 
-    if (editorSurfacesBtn) editorSurfacesBtn.addEventListener("click", () => toggleEditorPopup(editorSurfacesPopup));
-    if (editorEntitiesBtn) editorEntitiesBtn.addEventListener("click", () => toggleEditorPopup(editorEntitiesPopup));
-    if (editorStructuresBtn) editorStructuresBtn.addEventListener("click", () => toggleEditorPopup(editorStructuresPopup));
-    if (editorScenarioSettingsBtn) editorScenarioSettingsBtn.addEventListener("click", () => toggleEditorPopup(editorSettingsPopup));
+    if (editorNavSurfacesBtn) editorNavSurfacesBtn.addEventListener("click", () => setEditorSection("surfaces"));
+    if (editorNavEntitiesBtn) editorNavEntitiesBtn.addEventListener("click", () => setEditorSection("entities"));
+    if (editorNavStructuresBtn) editorNavStructuresBtn.addEventListener("click", () => setEditorSection("structures"));
+    if (editorNavProjectBtn) editorNavProjectBtn.addEventListener("click", () => setEditorSection("project"));
+    if (editorNavSettingsBtn) editorNavSettingsBtn.addEventListener("click", () => setEditorSection("settings"));
+    if (editorBrushSizeInput) {
+        const syncBrush = () => {
+            const value = Math.max(1, Math.min(10, parseInt(editorBrushSizeInput.value, 10) || 1));
+            editorBrushSizeInput.value = String(value);
+            editorState.brushSize = value;
+        };
+        editorBrushSizeInput.addEventListener("input", syncBrush);
+        editorBrushSizeInput.addEventListener("change", syncBrush);
+        syncBrush();
+    }
+    if (editorFillToolBtn) {
+        editorFillToolBtn.addEventListener("click", () => {
+            editorState.fillMode = !editorState.fillMode;
+            buildEditorPalette();
+        });
+    }
 
     document.addEventListener("pointerdown", (e) => {
         if (!editorOverlay || !editorOverlay.classList.contains("visible")) return;
         const t = e.target;
-        const insideMenus = (
-            (editorSurfacesBtn && editorSurfacesBtn.contains(t)) ||
-            (editorEntitiesBtn && editorEntitiesBtn.contains(t)) ||
-            (editorStructuresBtn && editorStructuresBtn.contains(t)) ||
-            (editorScenarioSettingsBtn && editorScenarioSettingsBtn.contains(t)) ||
-            (editorSurfacesPopup && editorSurfacesPopup.contains(t)) ||
-            (editorEntitiesPopup && editorEntitiesPopup.contains(t)) ||
-            (editorStructuresPopup && editorStructuresPopup.contains(t)) ||
-            (editorSettingsPopup && editorSettingsPopup.contains(t))
-        );
-        if (!insideMenus) closeEditorPopups();
+        const insideMenus = (editorSideMenu && editorSideMenu.contains(t)) || (configPanel && configPanel.contains(t)) || (settingsToggle && settingsToggle.contains(t));
+        if (!insideMenus && editorSideMenu) editorSideMenu.classList.remove("visible");
+        if (!insideMenus && configPanel) configPanel.classList.remove("visible");
     });
 
     // Main Menu wiring
@@ -1785,6 +1839,48 @@ const txtEventoElem = document.getElementById("txtEvento");
         }
     }
 
+    function getEditorCivilianMax() {
+        const totalTiles = Math.max(1, editorState.mapWidthTiles * editorState.mapHeightTiles);
+        // Siguiendo el ejemplo solicitado: máximo del 80% de los tiles del escenario.
+        return Math.max(1, Math.floor(totalTiles * 0.8));
+    }
+
+    function syncEditorCivilianInput() {
+        if (!editorAddCiviliansInput) return;
+        const maxAllowed = getEditorCivilianMax();
+        editorAddCiviliansInput.max = String(maxAllowed);
+        const value = Math.max(1, Math.min(maxAllowed, parseInt(editorAddCiviliansInput.value, 10) || 1));
+        editorAddCiviliansInput.value = String(value);
+    }
+
+    function addRandomCiviliansToEditor(amount) {
+        if (!editorState.mapRows.length) return false;
+        const rows = editorState.mapRows.map(r => r.split(""));
+        const floorTiles = [];
+        for (let y = 1; y < editorState.mapHeightTiles - 1; y += 1) {
+            for (let x = 1; x < editorState.mapWidthTiles - 1; x += 1) {
+                if (rows[y] && rows[y][x] === ".") floorTiles.push({ x, y });
+            }
+        }
+        if (!floorTiles.length) return false;
+        const target = Math.max(1, Math.min(floorTiles.length, amount | 0));
+        for (let i = floorTiles.length - 1; i > 0; i -= 1) {
+            const j = (Math.random() * (i + 1)) | 0;
+            const tmp = floorTiles[i];
+            floorTiles[i] = floorTiles[j];
+            floorTiles[j] = tmp;
+        }
+        let changed = false;
+        for (let i = 0; i < target; i += 1) {
+            const t = floorTiles[i];
+            rows[t.y][t.x] = "C";
+            syncEditorTileToRuntime(t.x, t.y, "C");
+            changed = true;
+        }
+        if (changed) editorState.mapRows = rows.map(r => r.join(""));
+        return changed;
+    }
+
     if (editorExitBtn) editorExitBtn.addEventListener("click", () => {
         showEditorOverlay(false);
         editorState.active = false;
@@ -1796,10 +1892,12 @@ const txtEventoElem = document.getElementById("txtEvento");
         editorState.mapWidthTiles = w;
         editorState.mapHeightTiles = h;
         editorState.mapRows = ensureEditorMarkers(createEditorRows(w, h));
+        syncEditorCivilianInput();
         refreshEditorPreviewLevel();
     });
     if (editorClearBtn) editorClearBtn.addEventListener("click", () => {
         editorState.mapRows = ensureEditorMarkers(createEditorRows(editorState.mapWidthTiles, editorState.mapHeightTiles));
+        syncEditorCivilianInput();
         refreshEditorPreviewLevel();
     });
     if (editorSaveBtn) editorSaveBtn.addEventListener("click", () => {
@@ -1820,6 +1918,17 @@ const txtEventoElem = document.getElementById("txtEvento");
             alert("Definición inválida. Verifica el texto e inténtalo de nuevo.");
         }
     });
+    if (editorAddCiviliansInput) {
+        editorAddCiviliansInput.addEventListener("input", () => syncEditorCivilianInput());
+        editorAddCiviliansInput.addEventListener("change", () => syncEditorCivilianInput());
+    }
+    if (editorAddCiviliansBtn) {
+        editorAddCiviliansBtn.addEventListener("click", () => {
+            syncEditorCivilianInput();
+            const amount = parseInt(editorAddCiviliansInput && editorAddCiviliansInput.value, 10) || 1;
+            if (addRandomCiviliansToEditor(amount)) refreshEditorPreviewLevel();
+        });
+    }
     if (editorOpenScenarioPanelBtn) editorOpenScenarioPanelBtn.addEventListener("click", () => openEditorScenarioSettings());
 
     // ===========================
@@ -1844,7 +1953,10 @@ const txtEventoElem = document.getElementById("txtEvento");
         active: false,
         selectedTool: null,
         selectedStructure: null,
+        selectedSection: "surfaces",
         structureStartTile: null,
+        brushSize: 1,
+        fillMode: false,
         mapWidthTiles: 100,
         mapHeightTiles: 100,
         settingsOverrides: {},
@@ -1901,25 +2013,25 @@ const txtEventoElem = document.getElementById("txtEvento");
         editorState.settingsOverrides = Object.assign({}, (base && base.settingsOverrides) || {}, { mapWidthTiles: w, mapHeightTiles: h, structureAttempts: 0 });
         if (editorWidthInput) editorWidthInput.value = String(w);
         if (editorHeightInput) editorHeightInput.value = String(h);
+        syncEditorCivilianInput();
     }
 
-    function setEditorPopupVisible(popup, visible) {
-        if (!popup) return;
-        popup.classList.toggle("visible", !!visible);
-    }
-
-    function closeEditorPopups() {
-        setEditorPopupVisible(editorSurfacesPopup, false);
-        setEditorPopupVisible(editorEntitiesPopup, false);
-        setEditorPopupVisible(editorStructuresPopup, false);
-        setEditorPopupVisible(editorSettingsPopup, false);
-    }
-
-    function toggleEditorPopup(popup) {
-        if (!popup) return;
-        const nextVisible = !popup.classList.contains("visible");
-        closeEditorPopups();
-        setEditorPopupVisible(popup, nextVisible);
+    function setEditorSection(sectionKey) {
+        editorState.selectedSection = sectionKey;
+        const allPanels = [
+            { key: "surfaces", btn: editorNavSurfacesBtn, panel: editorSurfacesPopup, title: "Superficies" },
+            { key: "entities", btn: editorNavEntitiesBtn, panel: editorEntitiesPopup, title: "Entidades" },
+            { key: "structures", btn: editorNavStructuresBtn, panel: editorStructuresPopup, title: "Estructuras" },
+            { key: "project", btn: editorNavProjectBtn, panel: editorSettingsPopup, title: "Proyecto" },
+            { key: "settings", btn: editorNavSettingsBtn, panel: editorScenarioSettingsPanel, title: "Ajustes" }
+        ];
+        allPanels.forEach(({ key, btn, panel }) => {
+            if (btn) btn.classList.toggle("active", key === sectionKey);
+            if (panel) panel.classList.toggle("visible", key === sectionKey);
+        });
+        const active = allPanels.find(p => p.key === sectionKey);
+        if (editorSideSectionTitle) editorSideSectionTitle.textContent = active ? active.title : "Opciones";
+        if (configPanel) configPanel.classList.toggle("visible", sectionKey === "settings");
     }
 
     function buildEditorPaletteSection(container, toolKeys) {
@@ -1963,9 +2075,12 @@ const txtEventoElem = document.getElementById("txtEvento");
         buildEditorPaletteSection(editorSurfacesPopup, EDITOR_SURFACE_TOOL_KEYS);
         buildEditorPaletteSection(editorEntitiesPopup, EDITOR_ENTITY_TOOL_KEYS);
         buildEditorStructuresSection(editorStructuresPopup);
-        if (editorSurfacesBtn) editorSurfacesBtn.classList.toggle("active", !!editorState.selectedTool && EDITOR_SURFACE_TOOL_KEYS.includes(editorState.selectedTool));
-        if (editorEntitiesBtn) editorEntitiesBtn.classList.toggle("active", !!editorState.selectedTool && EDITOR_ENTITY_TOOL_KEYS.includes(editorState.selectedTool));
-        if (editorStructuresBtn) editorStructuresBtn.classList.toggle("active", !!editorState.selectedStructure);
+        if (editorNavSurfacesBtn) editorNavSurfacesBtn.classList.toggle("active", editorState.selectedSection === "surfaces");
+        if (editorNavEntitiesBtn) editorNavEntitiesBtn.classList.toggle("active", editorState.selectedSection === "entities");
+        if (editorNavStructuresBtn) editorNavStructuresBtn.classList.toggle("active", editorState.selectedSection === "structures");
+        if (editorNavProjectBtn) editorNavProjectBtn.classList.toggle("active", editorState.selectedSection === "project");
+        if (editorNavSettingsBtn) editorNavSettingsBtn.classList.toggle("active", editorState.selectedSection === "settings");
+        if (editorFillToolBtn) editorFillToolBtn.classList.toggle("active", !!editorState.fillMode);
     }
 
     function buildCampaignLevelFromEditor() {
@@ -2002,6 +2117,7 @@ const txtEventoElem = document.getElementById("txtEvento");
         editorState.settingsOverrides = Object.assign({}, editorState.settingsOverrides || {}, (definition && definition.settingsOverrides) || {}, { mapWidthTiles: w, mapHeightTiles: h, structureAttempts: 0 });
         if (editorWidthInput) editorWidthInput.value = String(w);
         if (editorHeightInput) editorHeightInput.value = String(h);
+        syncEditorCivilianInput();
         applySettings(editorState.settingsOverrides);
         refreshEditorPreviewLevel();
     }
@@ -2049,8 +2165,8 @@ const txtEventoElem = document.getElementById("txtEvento");
         const isVisible = !!show;
         editorOverlay.classList.toggle("visible", isVisible);
         document.body.classList.toggle("editor-active", isVisible);
+        if (editorSideMenu) editorSideMenu.classList.toggle("visible", false);
         if (!isVisible && configPanel) configPanel.classList.remove("visible");
-        if (!isVisible) closeEditorPopups();
         if (!isVisible) closeEditorScenarioSettingsIfNeeded();
         syncAppHeight();
         staticDirty = true;
@@ -2060,6 +2176,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     function setTopControlsForEditor(isEditor) {
         if (!isEditor) closeEditorScenarioSettingsIfNeeded();
         if (settingsToggle) settingsToggle.style.display = "";
+        if (!isEditor && editorSideMenu) editorSideMenu.classList.remove("visible");
         if (homeBtn) homeBtn.style.display = isEditor ? "none" : "";
         if (spawnZombieBtn) spawnZombieBtn.style.display = isEditor ? "none" : "";
         if (zombieLureBtn) zombieLureBtn.style.display = isEditor ? "none" : "";
@@ -2127,7 +2244,10 @@ const txtEventoElem = document.getElementById("txtEvento");
 
         const base = getActiveCampaignLevel() || CAMPAIGN_LEVELS[0];
         hydrateEditorFromLevel(base);
+        editorState.selectedSection = "surfaces";
+        editorState.fillMode = false;
         buildEditorPalette();
+        setEditorSection(editorState.selectedSection);
         showEditorOverlay(true);
 
         const tempLevel = buildCampaignLevelFromEditor();
@@ -2720,15 +2840,68 @@ const DOOR_BASE_HP = 70;
         return true;
     }
 
+    function paintEditorArea(tx, ty, token) {
+        const brushSize = Math.max(1, Math.min(10, editorState.brushSize || 1));
+        const half = Math.floor(brushSize / 2);
+        let changed = false;
+        for (let y = ty - half; y <= ty - half + brushSize - 1; y += 1) {
+            for (let x = tx - half; x <= tx - half + brushSize - 1; x += 1) {
+                changed = updateEditorRowsWithToken(x, y, token) || changed;
+            }
+        }
+        return changed;
+    }
+
+    function fillEditorArea(tx, ty, token) {
+        if (!editorState.mapRows.length) return false;
+        if (tx < 0 || ty < 0 || tx >= editorState.mapWidthTiles || ty >= editorState.mapHeightTiles) return false;
+        const rows = editorState.mapRows.map(r => r.split(""));
+        if (!rows[ty] || rows[ty][tx] == null) return false;
+        const sourceToken = rows[ty][tx];
+        if (sourceToken === token) return false;
+        const q = [{ x: tx, y: ty }];
+        const visited = new Set();
+        let changed = false;
+        while (q.length) {
+            const n = q.pop();
+            const key = `${n.x},${n.y}`;
+            if (visited.has(key)) continue;
+            visited.add(key);
+            if (n.x < 0 || n.y < 0 || n.x >= editorState.mapWidthTiles || n.y >= editorState.mapHeightTiles) continue;
+            if (!rows[n.y] || rows[n.y][n.x] !== sourceToken) continue;
+            rows[n.y][n.x] = token;
+            syncEditorTileToRuntime(n.x, n.y, token);
+            changed = true;
+            q.push({ x: n.x + 1, y: n.y });
+            q.push({ x: n.x - 1, y: n.y });
+            q.push({ x: n.x, y: n.y + 1 });
+            q.push({ x: n.x, y: n.y - 1 });
+        }
+        if (changed) editorState.mapRows = rows.map(r => r.join(""));
+        return changed;
+    }
+
     function paintEditorTile(tx, ty) {
         if (!editorState.active || !editorState.selectedTool) return false;
         const tool = EDITOR_TOOLS.find(t => t.key === editorState.selectedTool);
         if (!tool) return false;
-        const changed = updateEditorRowsWithToken(tx, ty, tool.token);
+        const isSurfaceTool = EDITOR_SURFACE_TOOL_KEYS.includes(tool.key);
+        let changed = false;
+        if (editorState.fillMode && isSurfaceTool) {
+            changed = fillEditorArea(tx, ty, tool.token);
+            editorState.fillMode = false;
+        } else {
+            changed = paintEditorArea(tx, ty, tool.token);
+        }
         if (changed && (tool.key === "citizen" || tool.key === "police")) {
             editorState.selectedTool = null;
             buildEditorPalette();
         }
+        if (!changed && editorState.fillMode) {
+            editorState.fillMode = false;
+            buildEditorPalette();
+        }
+        if (changed && !editorState.fillMode) buildEditorPalette();
         return changed;
     }
 
@@ -2741,12 +2914,12 @@ const DOOR_BASE_HP = 70;
         let changed = false;
 
         for (let x = minX; x <= maxX; x += 1) {
-            changed = updateEditorRowsWithToken(x, minY, "#") || changed;
-            changed = updateEditorRowsWithToken(x, maxY, "#") || changed;
+            changed = paintEditorArea(x, minY, "#") || changed;
+            changed = paintEditorArea(x, maxY, "#") || changed;
         }
         for (let y = minY; y <= maxY; y += 1) {
-            changed = updateEditorRowsWithToken(minX, y, "#") || changed;
-            changed = updateEditorRowsWithToken(maxX, y, "#") || changed;
+            changed = paintEditorArea(minX, y, "#") || changed;
+            changed = paintEditorArea(maxX, y, "#") || changed;
         }
 
         return changed;
