@@ -3530,6 +3530,54 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         return {x:0, y:0};
     }
 
+    function rotateUnitVector(vec, angleRad) {
+        const c = Math.cos(angleRad);
+        const s = Math.sin(angleRad);
+        return {
+            x: vec.x * c - vec.y * s,
+            y: vec.x * s + vec.y * c
+        };
+    }
+
+    function canAdvanceInDirection(entidad, dir, probeDistance) {
+        if (!entidad || !dir || !Number.isFinite(probeDistance) || probeDistance <= 0) return false;
+        const unit = normalizar(dir.x, dir.y);
+        if (!unit.x && !unit.y) return false;
+        const nextX = entidad.x + unit.x * probeDistance;
+        const nextY = entidad.y + unit.y * probeDistance;
+        if (!colisionConPared(nextX, nextY, tamanoEntidad, tamanoEntidad)) return true;
+        return !colisionConPared(nextX, entidad.y, tamanoEntidad, tamanoEntidad) ||
+               !colisionConPared(entidad.x, nextY, tamanoEntidad, tamanoEntidad);
+    }
+
+    function getSteeredDirection(entidad, desiredDir, totalDistance, aggressiveness = 1) {
+        if (!entidad || !desiredDir) return null;
+        const base = normalizar(desiredDir.x, desiredDir.y);
+        if (!base.x && !base.y) return null;
+
+        const probeDistance = Math.max(0.22, Math.min(cellSize * 0.65, totalDistance * (0.75 + 0.45 * aggressiveness)));
+        if (canAdvanceInDirection(entidad, base, probeDistance)) return base;
+
+        const turnBias = Math.max(0.75, Math.min(1.35, aggressiveness));
+        const testAngles = [18, -18, 32, -32, 48, -48, 65, -65, 85, -85, 110, -110, 145, -145]
+            .map((deg) => (deg * Math.PI / 180) * turnBias);
+        let best = null;
+        let bestScore = -Infinity;
+
+        for (const angle of testAngles) {
+            const candidate = rotateUnitVector(base, angle);
+            if (!canAdvanceInDirection(entidad, candidate, probeDistance)) continue;
+            const forward = (base.x * candidate.x + base.y * candidate.y);
+            const score = forward - Math.abs(angle) * 0.03;
+            if (score > bestScore) {
+                bestScore = score;
+                best = candidate;
+            }
+        }
+
+        return best ? normalizar(best.x, best.y) : base;
+    }
+
     function limitEntityToRoamRadius(entidad, maxRadius, centerKey = "spawn") {
         if (!entidad || !Number.isFinite(maxRadius) || maxRadius <= 0) return;
         const key = (centerKey === "fear" && entidad.lastThreatPos && Number.isFinite(entidad.lastThreatPos.x) && Number.isFinite(entidad.lastThreatPos.y))
@@ -3566,7 +3614,7 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         return false;
     }
 
-    function aplicarFuerzas(entidad, velocidad, timeScale) {
+    function aplicarFuerzas(entidad, velocidad, timeScale, options = null) {
         const wallRep = obtenerRepulsionParedes(entidad);
         let moveX = entidad.direccion.x + wallRep.x * wallRepulsionForce;
         let moveY = entidad.direccion.y + wallRep.y * wallRepulsionForce;
@@ -3580,6 +3628,17 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         const totalDistance = Math.max(0, velocidad * Math.max(0, timeScale));
         if (totalDistance <= 0) return false;
 
+        const steeringEnabled = !!(options && options.enableSteering);
+        const steeringAggressiveness = (options && Number.isFinite(options.steeringAggressiveness))
+            ? Math.max(0.2, options.steeringAggressiveness)
+            : 1;
+        const steeredDir = steeringEnabled
+            ? getSteeredDirection(entidad, normDir, totalDistance, steeringAggressiveness)
+            : normDir;
+        if (steeredDir && (steeredDir.x || steeredDir.y)) {
+            entidad.direccion = steeredDir;
+        }
+
         // Sub-step large moves (especially at accelerated time) to avoid tunneling/corner lock.
         const maxStepDistance = Math.max(0.35, tamanoEntidad * 0.35);
         const steps = Math.max(1, Math.ceil(totalDistance / maxStepDistance));
@@ -3587,7 +3646,7 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         let collided = false;
 
         for (let i = 0; i < steps; i++) {
-            if (moverEntidadIA(entidad, normDir.x, normDir.y, stepDistance)) collided = true;
+            if (moverEntidadIA(entidad, entidad.direccion.x, entidad.direccion.y, stepDistance)) collided = true;
         }
         return collided;
     }
@@ -5560,7 +5619,15 @@ drawDoorsWorld();
             if(Math.random() < 0.15) { const sep = obtenerFuerzaSeparacion(zombie, zombies, radioSeparacion); zombie.direccion.x += sep.x * 0.8; zombie.direccion.y += sep.y * 0.8; }
             const beforeX = zombie.x;
             const beforeY = zombie.y;
-            const choco = aplicarFuerzas(zombie, Number.isFinite(zombie.speed) ? zombie.speed : velocidadZombie, timeScale);
+            const choco = aplicarFuerzas(
+                zombie,
+                Number.isFinite(zombie.speed) ? zombie.speed : velocidadZombie,
+                timeScale,
+                {
+                    enableSteering: true,
+                    steeringAggressiveness: target ? 1.15 : 0.9
+                }
+            );
             const movedDist = Math.hypot(zombie.x - beforeX, zombie.y - beforeY);
             if (target) {
                 zombie.stuckScore = Number.isFinite(zombie.stuckScore) ? zombie.stuckScore : 0;
