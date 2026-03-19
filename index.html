@@ -5412,7 +5412,13 @@ drawDoorsWorld();
             return true;
         };
 
-        const applyZombieNpcTug = (zombie, npc) => {
+        const getTugStepScale = (timeScale) => {
+            if (!Number.isFinite(timeScale)) return 1;
+            // Keep tug motion in sync with simulation speed, but avoid huge teleports on extreme frame jumps.
+            return Math.max(0.75, Math.min(2.4, Math.pow(Math.max(0.2, timeScale), 0.82)));
+        };
+
+        const applyZombieNpcTug = (zombie, npc, timeScale = 1) => {
             if (!zombie || !npc) return false;
             const now = frameCount;
             if (Number.isFinite(zombie.regrabUntilFrame) && now < zombie.regrabUntilFrame) return false;
@@ -5438,6 +5444,7 @@ drawDoorsWorld();
 
             if (npc._tugResolvedFrame !== now) {
                 npc._tugResolvedFrame = now;
+                const tugStepScale = getTugStepScale(timeScale);
                 let sumX = 0;
                 let sumY = 0;
                 for (const a of attackers) {
@@ -5448,10 +5455,10 @@ drawDoorsWorld();
                 const centerX = sumX / count;
                 const centerY = sumY / count;
                 const toCenter = normalizar(centerX - npc.x, centerY - npc.y);
-                moveEntitySafely(npc, toCenter, 0.55, 3);
+                moveEntitySafely(npc, toCenter, 0.55 * tugStepScale, 3);
                 for (const a of attackers) {
                     const toNpc = normalizar(npc.x - a.x, npc.y - a.y);
-                    moveEntitySafely(a, toNpc, 0.42, 2);
+                    moveEntitySafely(a, toNpc, 0.42 * tugStepScale, 2);
                 }
             }
 
@@ -5792,7 +5799,7 @@ drawDoorsWorld();
 
                 if(target && !(target.vida !== undefined)) {
                     if (isNpcTarget) {
-                        if (!applyZombieNpcTug(zombie, target)) zombie.tugState = null;
+                        if (!applyZombieNpcTug(zombie, target, timeScale)) zombie.tugState = null;
                     } else {
                         zombie.tugState = null;
                     }
