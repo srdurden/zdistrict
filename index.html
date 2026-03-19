@@ -3806,8 +3806,10 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         const zombieCenter = { x: zombie.x + tamanoEntidad / 2, y: zombie.y + tamanoEntidad / 2 };
         const targetCenter = { x: target.x + tamanoEntidad / 2, y: target.y + tamanoEntidad / 2 };
         const start = worldToTile(zombieCenter.x, zombieCenter.y);
-        const goal = worldToTile(targetCenter.x, targetCenter.y);
-        const targetKey = keyForTile(goal.tx, goal.ty);
+        const goal = (target.pathGoalTile && Number.isFinite(target.pathGoalTile.tx) && Number.isFinite(target.pathGoalTile.ty))
+            ? { tx: target.pathGoalTile.tx | 0, ty: target.pathGoalTile.ty | 0 }
+            : worldToTile(targetCenter.x, targetCenter.y);
+        const targetKey = keyForTile(goal.tx, goal.ty) + (target.isDoorPoint && target.doorKey ? `|${target.doorKey}` : "");
         const recalcFrames = 6;
 
         const shouldRecalc = !zombie.pathCache ||
@@ -3854,6 +3856,44 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
             y: next.ty * cellSize + cellSize / 2 + jitter.y
         };
         return normalizar(waypoint.x - zombieCenter.x, waypoint.y - zombieCenter.y);
+    }
+
+    function getZombieDoorBreachTarget(zombie, npcTarget) {
+        if (!zombie || !npcTarget || !doorGroups || !doorGroups.length) return null;
+        const start = worldToTile(zombie.x + tamanoEntidad / 2, zombie.y + tamanoEntidad / 2);
+        const npcTile = worldToTile(npcTarget.x + tamanoEntidad / 2, npcTarget.y + tamanoEntidad / 2);
+        const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
+        let best = null;
+
+        for (const g of doorGroups) {
+            if (!g || g.broken || g.open || !Array.isArray(g.tiles)) continue;
+            for (const doorTile of g.tiles) {
+                const doorToNpc = Math.hypot(doorTile.x - npcTile.tx, doorTile.y - npcTile.ty);
+                for (const d of dirs) {
+                    const ax = doorTile.x + d.x;
+                    const ay = doorTile.y + d.y;
+                    if (isTilePathBlocked(ax, ay, start, { tx: ax, ty: ay })) continue;
+                    const path = findPathAStar(start, { tx: ax, ty: ay });
+                    if (!path || !path.length) continue;
+                    const score = (path.length - 1) + doorToNpc * 0.75;
+                    if (!best || score < best.score) {
+                        best = {
+                            score,
+                            doorTile,
+                            approachTile: { tx: ax, ty: ay }
+                        };
+                    }
+                }
+            }
+        }
+        if (!best) return null;
+        return {
+            x: best.doorTile.x * cellSize + cellSize / 2 - tamanoEntidad / 2,
+            y: best.doorTile.y * cellSize + cellSize / 2 - tamanoEntidad / 2,
+            isDoorPoint: true,
+            doorKey: keyForTile(best.doorTile.x, best.doorTile.y),
+            pathGoalTile: best.approachTile
+        };
     }
 
     function nearestDoorToPlayer(maxDistPx = 24) {
@@ -5529,7 +5569,20 @@ drawDoorsWorld();
             }
             if(target) {
                 const isNpcTarget = ciudadanos.includes(target) || policias.includes(target);
-                const shouldUsePathing = isNpcTarget || !!target.isLurePoint;
+                if (isNpcTarget) {
+                    const npcBlockedByDoor = !tieneLineaDeVision(
+                        zombie.x + tamanoEntidad / 2,
+                        zombie.y + tamanoEntidad / 2,
+                        target.x + tamanoEntidad / 2,
+                        target.y + tamanoEntidad / 2
+                    );
+                    if (npcBlockedByDoor) {
+                        const breachTarget = getZombieDoorBreachTarget(zombie, target);
+                        if (breachTarget) target = breachTarget;
+                    }
+                }
+
+                const shouldUsePathing = isNpcTarget || !!target.isLurePoint || !!target.isDoorPoint;
                 const pathDir = shouldUsePathing ? getZombiePathDirection(zombie, target) : null;
                 const hasDirectSight = tieneLineaDeVision(
                     zombie.x + tamanoEntidad / 2,
@@ -5541,6 +5594,9 @@ drawDoorsWorld();
                 if (pathDir) {
                     zombie.direccion = pathDir;
                 } else if (!shouldUsePathing || hasDirectSight) {
+                    zombie.direccion = normalizar(target.x - zombie.x, target.y - zombie.y);
+                } else if (target.isDoorPoint) {
+                    // We still want to face/press the blocked door so hits can land.
                     zombie.direccion = normalizar(target.x - zombie.x, target.y - zombie.y);
                 } else {
                     // If the target is behind walls and no path exists, force retarget instead of pushing into the wall.
