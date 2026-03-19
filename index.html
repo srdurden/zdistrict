@@ -2677,6 +2677,14 @@ const DOOR_BASE_HP = 70;
     const ENTITY_TURN_RATE = Math.PI / 50;
     const NPC_TUG_MAX_CONE_ROTATION = Math.PI / 2;
     const NPC_TUG_LOCK_GRACE_FRAMES = 3;
+    const PATH_SAFE_WAYPOINT_MARGIN_RATIO = 0.22;
+    const PATH_JITTER_OPEN_MIN_RATIO = 0.08;
+    const PATH_JITTER_OPEN_MAX_RATIO = 0.2;
+    const PATH_CORNER_SHARP_DOT = 0.4;
+    const ZOMBIE_STUCK_STAGE1_SCORE = 11;
+    const ZOMBIE_STUCK_STAGE2_SCORE = 22;
+    const ZOMBIE_CORRIDOR_MODE_FRAMES = 42;
+    const ZOMBIE_STUCK_PROGRESS_RATIO_MIN = 0.26;
 
     const director = {
         enabled: true,
@@ -2714,7 +2722,10 @@ const DOOR_BASE_HP = 70;
             npcObjective: null,
             forceRetargetNpc: false,
             tugState: null,
-            pathCache: null
+            pathCache: null,
+            pathFollowInfo: null,
+            travelDir: { x: 0, y: 0 },
+            corridorModeUntilFrame: 0
         });
     }
 
@@ -3507,6 +3518,101 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         return choco;
     }
 
+    function canMoveEntityTo(entidad, x, y) {
+        return !colisionConPared(x, y, tamanoEntidad, tamanoEntidad);
+    }
+
+    function pickBestSlideDir(preferred, options) {
+        if (!options || !options.length) return null;
+        const pref = normalizar(preferred.x, preferred.y);
+        let best = options[0];
+        let bestScore = -Infinity;
+        for (const option of options) {
+            const n = normalizar(option.x, option.y);
+            const score = (pref.x * n.x + pref.y * n.y);
+            if (score > bestScore) {
+                bestScore = score;
+                best = option;
+            }
+        }
+        return best;
+    }
+
+    function tryMoveAlong(entidad, dir, distance) {
+        if (!entidad || !dir || distance <= 0) return { moved: false, dx: 0, dy: 0 };
+        const n = normalizar(dir.x, dir.y);
+        if (!n.x && !n.y) return { moved: false, dx: 0, dy: 0 };
+        const beforeX = entidad.x;
+        const beforeY = entidad.y;
+        const nx = beforeX + n.x * distance;
+        const ny = beforeY + n.y * distance;
+        if (!canMoveEntityTo(entidad, nx, ny)) return { moved: false, dx: 0, dy: 0 };
+        entidad.x = nx;
+        entidad.y = ny;
+        return { moved: true, dx: entidad.x - beforeX, dy: entidad.y - beforeY };
+    }
+
+    function moverEntidadIAConSlide(entidad, desiredDir, stepDistance, pathHintDir = null) {
+        const unit = normalizar(desiredDir.x, desiredDir.y);
+        if (!unit.x && !unit.y) return { collided: false, moved: false };
+        const beforeX = entidad.x;
+        const beforeY = entidad.y;
+        const preferred = (pathHintDir && (pathHintDir.x || pathHintDir.y)) ? normalizar(pathHintDir.x, pathHintDir.y) : unit;
+
+        const fullX = beforeX + unit.x * stepDistance;
+        const fullY = beforeY + unit.y * stepDistance;
+        if (canMoveEntityTo(entidad, fullX, fullY)) {
+            entidad.x = fullX;
+            entidad.y = fullY;
+        } else {
+            const tryX = unit.x !== 0 && canMoveEntityTo(entidad, fullX, beforeY);
+            const tryY = unit.y !== 0 && canMoveEntityTo(entidad, beforeX, fullY);
+            if (tryX && tryY) {
+                const xChoice = { x: Math.sign(unit.x), y: 0 };
+                const yChoice = { x: 0, y: Math.sign(unit.y) };
+                const choice = pickBestSlideDir(preferred, [xChoice, yChoice]);
+                if (choice && choice.x !== 0) entidad.x = fullX;
+                else if (choice && choice.y !== 0) entidad.y = fullY;
+            } else if (tryX) {
+                entidad.x = fullX;
+            } else if (tryY) {
+                entidad.y = fullY;
+            } else {
+                const wallRep = obtenerRepulsionParedes(entidad);
+                const tangents = [];
+                const perpPreferredA = normalizar(-preferred.y, preferred.x);
+                const perpPreferredB = normalizar(preferred.y, -preferred.x);
+                tangents.push(perpPreferredA, perpPreferredB);
+                if (wallRep.x || wallRep.y) {
+                    tangents.push(
+                        normalizar(-wallRep.y, wallRep.x),
+                        normalizar(wallRep.y, -wallRep.x)
+                    );
+                }
+                const tangent = pickBestSlideDir(preferred, tangents.filter(t => t && (t.x || t.y)));
+                if (tangent) {
+                    const tangentTry = tryMoveAlong(entidad, tangent, stepDistance);
+                    if (!tangentTry.moved) {
+                        const softTry = tryMoveAlong(entidad, tangent, stepDistance * 0.55);
+                        if (!softTry.moved) {
+                            entidad.x = beforeX;
+                            entidad.y = beforeY;
+                        }
+                    }
+                }
+            }
+        }
+
+        const world = getWorldPixelSize();
+        entidad.x = Math.max(0, Math.min(world.width - tamanoEntidad, entidad.x));
+        entidad.y = Math.max(0, Math.min(world.height - tamanoEntidad, entidad.y));
+        const dx = entidad.x - beforeX;
+        const dy = entidad.y - beforeY;
+        const moved = Math.hypot(dx, dy) > 0.0001;
+        if (moved) entidad.travelDir = normalizar(dx, dy);
+        return { collided: !moved || !canMoveEntityTo(entidad, fullX, fullY), moved };
+    }
+
     // --- REPULSIÓN DE PAREDES ---
     function obtenerRepulsionParedes(entidad) {
         let fx = 0, fy = 0;
@@ -3620,11 +3726,12 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         let moveY = entidad.direccion.y + wallRep.y * wallRepulsionForce;
 
         const final = normalizar(moveX, moveY);
-        entidad.direccion.x = entidad.direccion.x * 0.8 + final.x * 0.2;
-        entidad.direccion.y = entidad.direccion.y * 0.8 + final.y * 0.2;
+        const intendedDir = {
+            x: entidad.direccion.x * 0.8 + final.x * 0.2,
+            y: entidad.direccion.y * 0.8 + final.y * 0.2
+        };
         
-        const normDir = normalizar(entidad.direccion.x, entidad.direccion.y);
-        entidad.direccion = normDir;
+        let normDir = normalizar(intendedDir.x, intendedDir.y);
         const totalDistance = Math.max(0, velocidad * Math.max(0, timeScale));
         if (totalDistance <= 0) return false;
 
@@ -3636,17 +3743,27 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
             ? getSteeredDirection(entidad, normDir, totalDistance, steeringAggressiveness)
             : normDir;
         if (steeredDir && (steeredDir.x || steeredDir.y)) {
-            entidad.direccion = steeredDir;
+            normDir = steeredDir;
         }
+        // Keep facing/intention stable for hit interactions; locomotion can slide separately.
+        entidad.direccion = normDir;
 
         // Sub-step large moves (especially at accelerated time) to avoid tunneling/corner lock.
         const maxStepDistance = Math.max(0.35, tamanoEntidad * 0.35);
         const steps = Math.max(1, Math.ceil(totalDistance / maxStepDistance));
         const stepDistance = totalDistance / steps;
         let collided = false;
+        const pathHint = (entidad.pathFollowInfo && entidad.pathFollowInfo.futureTile && entidad.pathFollowInfo.nextTile)
+            ? normalizar(
+                entidad.pathFollowInfo.futureTile.tx - entidad.pathFollowInfo.nextTile.tx,
+                entidad.pathFollowInfo.futureTile.ty - entidad.pathFollowInfo.nextTile.ty
+            )
+            : normDir;
+        entidad.travelDir = entidad.travelDir || { x: 0, y: 0 };
 
         for (let i = 0; i < steps; i++) {
-            if (moverEntidadIA(entidad, entidad.direccion.x, entidad.direccion.y, stepDistance)) collided = true;
+            const stepResult = moverEntidadIAConSlide(entidad, normDir, stepDistance, pathHint);
+            if (stepResult.collided) collided = true;
         }
         return collided;
     }
@@ -3816,6 +3933,46 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         return true;
     }
 
+    function getTileCardinalBlockInfo(tx, ty) {
+        const up = isTilePathBlocked(tx, ty - 1, null, null);
+        const down = isTilePathBlocked(tx, ty + 1, null, null);
+        const left = isTilePathBlocked(tx - 1, ty, null, null);
+        const right = isTilePathBlocked(tx + 1, ty, null, null);
+        const blockedCount = (up ? 1 : 0) + (down ? 1 : 0) + (left ? 1 : 0) + (right ? 1 : 0);
+        return { up, down, left, right, blockedCount };
+    }
+
+    function hasDoorNearbyTile(tx, ty, radius = 1) {
+        for (let y = ty - radius; y <= ty + radius; y++) {
+            for (let x = tx - radius; x <= tx + radius; x++) {
+                if (getDoorGroupAtTile(x, y)) return true;
+            }
+        }
+        return false;
+    }
+
+    function getPathTurnDot(tiles, idx) {
+        if (!tiles || idx <= 0 || idx + 1 >= tiles.length) return 1;
+        const a = tiles[idx - 1];
+        const b = tiles[idx];
+        const c = tiles[idx + 1];
+        const ab = normalizar(b.tx - a.tx, b.ty - a.ty);
+        const bc = normalizar(c.tx - b.tx, c.ty - b.ty);
+        return (ab.x * bc.x) + (ab.y * bc.y);
+    }
+
+    function getTileWaypoint(tx, ty, desiredOffsetX, desiredOffsetY, marginPx) {
+        const half = cellSize * 0.5;
+        const clamp = Math.max(0, Math.min(half - 0.15, marginPx));
+        const maxOffset = Math.max(0, half - clamp);
+        const ox = Math.max(-maxOffset, Math.min(maxOffset, desiredOffsetX));
+        const oy = Math.max(-maxOffset, Math.min(maxOffset, desiredOffsetY));
+        return {
+            x: tx * cellSize + half + ox,
+            y: ty * cellSize + half + oy
+        };
+    }
+
     function getZombiePathDirection(zombie, target) {
         if (!zombie || !target) return null;
         const zombieCenter = { x: zombie.x + tamanoEntidad / 2, y: zombie.y + tamanoEntidad / 2 };
@@ -3843,21 +4000,10 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         const tiles = zombie.pathCache && zombie.pathCache.tiles;
         if (!tiles || tiles.length < 2) return null;
 
-        const jitterRecalcFrames = 24;
-        const shouldRefreshJitter = !zombie.pathJitter || (frameCount - zombie.pathJitter.lastFrame) >= jitterRecalcFrames;
-        if (shouldRefreshJitter) {
-            const angle = Math.random() * Math.PI * 2;
-            const radius = (0.12 + Math.random() * 0.23) * cellSize;
-            zombie.pathJitter = {
-                x: Math.cos(angle) * radius,
-                y: Math.sin(angle) * radius,
-                lastFrame: frameCount
-            };
-        }
-
         const lookAheadTiles = Math.min(7, tiles.length - 1);
+        const lookAheadCap = (getPathTurnDot(tiles, 1) < PATH_CORNER_SHARP_DOT) ? Math.min(2, lookAheadTiles) : lookAheadTiles;
         let nextIndex = 1;
-        for (let i = lookAheadTiles; i >= 1; i--) {
+        for (let i = lookAheadCap; i >= 1; i--) {
             if (hasDirectPathBetweenTiles(start, tiles[i], start, goal)) {
                 nextIndex = i;
                 break;
@@ -3865,10 +4011,44 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         }
 
         const next = tiles[nextIndex];
-        const jitter = zombie.pathJitter || { x: 0, y: 0 };
-        const waypoint = {
-            x: next.tx * cellSize + cellSize / 2 + jitter.x,
-            y: next.ty * cellSize + cellSize / 2 + jitter.y
+        const tileInfo = getTileCardinalBlockInfo(next.tx, next.ty);
+        const narrowCorridor = (tileInfo.left && tileInfo.right && !tileInfo.up && !tileInfo.down) ||
+            (tileInfo.up && tileInfo.down && !tileInfo.left && !tileInfo.right);
+        const isCorner = (tileInfo.up && tileInfo.left) || (tileInfo.up && tileInfo.right) ||
+            (tileInfo.down && tileInfo.left) || (tileInfo.down && tileInfo.right);
+        const adjacentWall = tileInfo.blockedCount >= 1;
+        const nearDoor = !!target.isDoorPoint || hasDoorNearbyTile(next.tx, next.ty, 1);
+        const sharpTurnAhead = getPathTurnDot(tiles, nextIndex) < PATH_CORNER_SHARP_DOT;
+        const forcedCorridorMode = Number.isFinite(zombie.corridorModeUntilFrame) && frameCount < zombie.corridorModeUntilFrame;
+        const safeMode = narrowCorridor || isCorner || adjacentWall || nearDoor || sharpTurnAhead || forcedCorridorMode;
+
+        let jitter = { x: 0, y: 0 };
+        if (!safeMode) {
+            const jitterRecalcFrames = 24;
+            const shouldRefreshJitter = !zombie.pathJitter || (frameCount - zombie.pathJitter.lastFrame) >= jitterRecalcFrames;
+            const minRadius = cellSize * PATH_JITTER_OPEN_MIN_RATIO;
+            const maxRadius = cellSize * PATH_JITTER_OPEN_MAX_RATIO;
+            if (shouldRefreshJitter) {
+                const angle = Math.random() * Math.PI * 2;
+                const radius = minRadius + Math.random() * (maxRadius - minRadius);
+                zombie.pathJitter = {
+                    x: Math.cos(angle) * radius,
+                    y: Math.sin(angle) * radius,
+                    lastFrame: frameCount
+                };
+            }
+            jitter = zombie.pathJitter || jitter;
+        } else {
+            zombie.pathJitter = null;
+        }
+
+        const marginPx = Math.max(tamanoEntidad * 0.5 + 0.2, cellSize * PATH_SAFE_WAYPOINT_MARGIN_RATIO);
+        const waypoint = getTileWaypoint(next.tx, next.ty, jitter.x, jitter.y, marginPx);
+        const future = tiles[Math.min(tiles.length - 1, nextIndex + 1)];
+        zombie.pathFollowInfo = {
+            nextTile: next,
+            futureTile: future,
+            safeMode
         };
         return normalizar(waypoint.x - zombieCenter.x, waypoint.y - zombieCenter.y);
     }
@@ -5581,23 +5761,27 @@ drawDoorsWorld();
                 if (pathDir) {
                     zombie.direccion = pathDir;
                 } else if (!shouldUsePathing || canDirectChase) {
+                    zombie.pathFollowInfo = null;
                     zombie.direccion = normalizar(target.x - zombie.x, target.y - zombie.y);
                 } else if (target.isDoorPoint) {
                     const doorDist = distancia(zombie.x, zombie.y, target.x, target.y);
                     if (doorDist <= cellSize * 1.6) {
                         // Close enough to keep pressing the door (so hits can land).
+                        zombie.pathFollowInfo = null;
                         zombie.direccion = normalizar(target.x - zombie.x, target.y - zombie.y);
                     } else {
                         // If we can't path to the breach approach point, don't keep trying to
                         // phase through a random wall: force a retarget/repath on next frames.
                         zombie.pathCache = null;
                         zombie.pathJitter = null;
+                        zombie.pathFollowInfo = null;
                         zombie.forceRetargetNpc = true;
                         target = null;
                     }
                 } else {
                     // If the target is behind walls and no path exists, force retarget instead of pushing into the wall.
                     if (isNpcTarget) zombie.forceRetargetNpc = true;
+                    zombie.pathFollowInfo = null;
                     target = null;
                 }
 
@@ -5614,6 +5798,7 @@ drawDoorsWorld();
                     }
                 }
             } else {
+                zombie.pathFollowInfo = null;
                 if(Math.random() < 0.05) zombie.direccion = normalizar(zombie.direccion.x + (Math.random()-0.5), zombie.direccion.y + (Math.random()-0.5));
             }
             if(Math.random() < 0.15) { const sep = obtenerFuerzaSeparacion(zombie, zombies, radioSeparacion); zombie.direccion.x += sep.x * 0.8; zombie.direccion.y += sep.y * 0.8; }
@@ -5631,24 +5816,58 @@ drawDoorsWorld();
             const movedDist = Math.hypot(zombie.x - beforeX, zombie.y - beforeY);
             if (target) {
                 zombie.stuckScore = Number.isFinite(zombie.stuckScore) ? zombie.stuckScore : 0;
-                const lowProgress = movedDist < 0.06;
-                if (choco || lowProgress) zombie.stuckScore += Math.max(1, timeScale);
-                else zombie.stuckScore = Math.max(0, zombie.stuckScore - (2 * timeScale));
+                zombie.stuckStage = Number.isFinite(zombie.stuckStage) ? zombie.stuckStage : 0;
+                zombie.goodProgressFrames = Number.isFinite(zombie.goodProgressFrames) ? zombie.goodProgressFrames : 0;
+                const expectedDist = Math.max(0.001, (Number.isFinite(zombie.speed) ? zombie.speed : velocidadZombie) * Math.max(0.35, timeScale));
+                const progressRatio = movedDist / expectedDist;
+                const lowProgress = progressRatio < ZOMBIE_STUCK_PROGRESS_RATIO_MIN;
+                if (choco || lowProgress) {
+                    zombie.goodProgressFrames = 0;
+                    zombie.stuckScore += (choco ? 1.2 : 0.8) * Math.max(1, timeScale);
+                } else {
+                    zombie.goodProgressFrames += timeScale;
+                    zombie.stuckScore = Math.max(0, zombie.stuckScore - (2.2 * timeScale));
+                }
 
-                if (zombie.stuckScore >= 16) {
+                if (zombie.goodProgressFrames >= 10) {
                     zombie.stuckScore = 0;
+                    zombie.stuckStage = 0;
+                }
+
+                if (zombie.stuckScore >= ZOMBIE_STUCK_STAGE1_SCORE && zombie.stuckStage < 1) {
+                    zombie.pathCache = null;
+                    zombie.pathJitter = null;
+                    zombie.pathFollowInfo = null;
+                    zombie.corridorModeUntilFrame = frameCount + ZOMBIE_CORRIDOR_MODE_FRAMES;
+                    zombie.stuckStage = 1;
+                }
+
+                if (zombie.stuckScore >= ZOMBIE_STUCK_STAGE2_SCORE) {
+                    zombie.stuckScore = 0;
+                    zombie.goodProgressFrames = 0;
+                    zombie.stuckStage = 0;
                     zombie.pathCache = null;
                     zombie.pathJitter = null;
                     zombie.npcObjective = null;
                     zombie.forceRetargetNpc = true;
-                    const rep = obtenerRepulsionParedes(zombie);
-                    const rnd = direccionAleatoria();
-                    const escapeDir = normalizar((rep.x * 1.4) + (rnd.x * 0.6), (rep.y * 1.4) + (rnd.y * 0.6));
+                    const desired = normalizar(zombie.direccion.x, zombie.direccion.y);
+                    const tangentA = normalizar(-desired.y, desired.x);
+                    const tangentB = normalizar(desired.y, -desired.x);
+                    const pathHint = (zombie.pathFollowInfo && zombie.pathFollowInfo.futureTile && zombie.pathFollowInfo.nextTile)
+                        ? normalizar(
+                            zombie.pathFollowInfo.futureTile.tx - zombie.pathFollowInfo.nextTile.tx,
+                            zombie.pathFollowInfo.futureTile.ty - zombie.pathFollowInfo.nextTile.ty
+                        )
+                        : desired;
+                    const escapeDir = pickBestSlideDir(pathHint, [tangentA, tangentB]) || tangentA;
                     const recoverDistance = Math.min(cellSize * 0.55, Math.max(0.6, (Number.isFinite(zombie.speed) ? zombie.speed : velocidadZombie) * Math.max(0.35, timeScale)));
                     moveEntitySafely(zombie, escapeDir, recoverDistance, 6);
+                    zombie.corridorModeUntilFrame = frameCount + ZOMBIE_CORRIDOR_MODE_FRAMES;
                 }
             } else {
                 zombie.stuckScore = 0;
+                zombie.stuckStage = 0;
+                zombie.goodProgressFrames = 0;
             }
 
             if(choco) {
