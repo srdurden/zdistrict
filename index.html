@@ -4117,24 +4117,49 @@ function bestNoiseFor(x, y) {
     }
 
     function zombieTryHitDoor(zombie) {
-        // look at tile in front of zombie
         const zx = zombie.x + tamanoEntidad / 2;
         const zy = zombie.y + tamanoEntidad / 2;
         const fx = zx + zombie.direccion.x * (cellSize * 0.65);
         const fy = zy + zombie.direccion.y * (cellSize * 0.65);
-        const tx = Math.floor(fx / cellSize);
-        const ty = Math.floor(fy / cellSize);
-        const g = getDoorGroupAtTile(tx, ty);
-        if (!g || g.broken || g.open) return false;
-        if (frameCount - g.lastHitFrame < DOOR_HIT_COOLDOWN) return true;
-        g.lastHitFrame = frameCount;
-        g.hp -= DOOR_HIT_DAMAGE;
-        addNoise(tx * cellSize + cellSize / 2, ty * cellSize + cellSize / 2, 120, 18);
-        if (g.hp <= 0) {
-            g.broken = true;
-            g.open = true;
-            g.barricaded = false;
-            addNoise(tx * cellSize, ty * cellSize, 180, 25);
+        const frontTx = Math.floor(fx / cellSize);
+        const frontTy = Math.floor(fy / cellSize);
+        const centerTx = Math.floor(zx / cellSize);
+        const centerTy = Math.floor(zy / cellSize);
+
+        let hitTile = null;
+        let group = null;
+        const checked = new Set();
+        const tryDoorTile = (tx, ty) => {
+            const key = `${tx},${ty}`;
+            if (checked.has(key)) return false;
+            checked.add(key);
+            const g = getDoorGroupAtTile(tx, ty);
+            if (!g || g.broken || g.open) return false;
+            hitTile = { tx, ty };
+            group = g;
+            return true;
+        };
+
+        if (!tryDoorTile(frontTx, frontTy)) {
+            // Fallback: if zombie is already pressed against a doorway/wall seam,
+            // allow hitting nearby closed door tiles even if facing is slightly off.
+            for (let oy = -1; oy <= 1 && !group; oy++) {
+                for (let ox = -1; ox <= 1 && !group; ox++) {
+                    tryDoorTile(centerTx + ox, centerTy + oy);
+                }
+            }
+        }
+
+        if (!group || !hitTile) return false;
+        if (frameCount - group.lastHitFrame < DOOR_HIT_COOLDOWN) return true;
+        group.lastHitFrame = frameCount;
+        group.hp -= DOOR_HIT_DAMAGE;
+        addNoise(hitTile.tx * cellSize + cellSize / 2, hitTile.ty * cellSize + cellSize / 2, 120, 18);
+        if (group.hp <= 0) {
+            group.broken = true;
+            group.open = true;
+            group.barricaded = false;
+            addNoise(hitTile.tx * cellSize, hitTile.ty * cellSize, 180, 25);
         }
         return true;
     }
@@ -5613,8 +5638,18 @@ drawDoorsWorld();
                 } else if (!shouldUsePathing || hasDirectSight) {
                     zombie.direccion = normalizar(target.x - zombie.x, target.y - zombie.y);
                 } else if (target.isDoorPoint) {
-                    // We still want to face/press the blocked door so hits can land.
-                    zombie.direccion = normalizar(target.x - zombie.x, target.y - zombie.y);
+                    const doorDist = distancia(zombie.x, zombie.y, target.x, target.y);
+                    if (doorDist <= cellSize * 1.6) {
+                        // Close enough to keep pressing the door (so hits can land).
+                        zombie.direccion = normalizar(target.x - zombie.x, target.y - zombie.y);
+                    } else {
+                        // If we can't path to the breach approach point, don't keep trying to
+                        // phase through a random wall: force a retarget/repath on next frames.
+                        zombie.pathCache = null;
+                        zombie.pathJitter = null;
+                        zombie.forceRetargetNpc = true;
+                        target = null;
+                    }
                 } else {
                     // If the target is behind walls and no path exists, force retarget instead of pushing into the wall.
                     if (isNpcTarget) zombie.forceRetargetNpc = true;
