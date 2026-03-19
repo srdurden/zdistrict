@@ -5529,10 +5529,26 @@ drawDoorsWorld();
             }
             if(target) {
                 const isNpcTarget = ciudadanos.includes(target) || policias.includes(target);
-                const pathDir = isNpcTarget ? getZombiePathDirection(zombie, target) : null;
-                zombie.direccion = pathDir || normalizar(target.x - zombie.x, target.y - zombie.y);
+                const shouldUsePathing = isNpcTarget || !!target.isLurePoint;
+                const pathDir = shouldUsePathing ? getZombiePathDirection(zombie, target) : null;
+                const hasDirectSight = tieneLineaDeVision(
+                    zombie.x + tamanoEntidad / 2,
+                    zombie.y + tamanoEntidad / 2,
+                    target.x + tamanoEntidad / 2,
+                    target.y + tamanoEntidad / 2
+                );
 
-                if (target.isLurePoint && target.lureId && distancia(zombie.x, zombie.y, target.x, target.y) <= cellSize * 0.6) {
+                if (pathDir) {
+                    zombie.direccion = pathDir;
+                } else if (!shouldUsePathing || hasDirectSight) {
+                    zombie.direccion = normalizar(target.x - zombie.x, target.y - zombie.y);
+                } else {
+                    // If the target is behind walls and no path exists, force retarget instead of pushing into the wall.
+                    if (isNpcTarget) zombie.forceRetargetNpc = true;
+                    target = null;
+                }
+
+                if (target && target.isLurePoint && target.lureId && distancia(zombie.x, zombie.y, target.x, target.y) <= cellSize * 0.6) {
                     zombie.ignoredLureId = target.lureId;
                     target = null;
                 }
