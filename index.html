@@ -1960,6 +1960,10 @@ const txtEventoElem = document.getElementById("txtEvento");
         if (configPanel) configPanel.classList.toggle("visible", sectionKey === "settings");
     }
 
+    function closeEditorPalettePopup() {
+        if (editorSideMenu) editorSideMenu.classList.remove("visible");
+    }
+
     function buildEditorPaletteSection(container, toolKeys) {
         if (!container) return;
         container.innerHTML = "";
@@ -1974,6 +1978,7 @@ const txtEventoElem = document.getElementById("txtEvento");
                     editorState.selectedStructure = null;
                     editorState.structureStartTile = null;
                     buildEditorPalette();
+                    if (editorState.selectedTool) closeEditorPalettePopup();
                 });
                 container.appendChild(b);
             });
@@ -1992,6 +1997,7 @@ const txtEventoElem = document.getElementById("txtEvento");
                 editorState.selectedTool = null;
                 editorState.structureStartTile = null;
                 buildEditorPalette();
+                if (editorState.selectedStructure) closeEditorPalettePopup();
             });
             container.appendChild(b);
         });
