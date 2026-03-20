@@ -5784,7 +5784,8 @@ drawDoorsWorld();
             }
             if(target) {
                 const isNpcTarget = ciudadanos.includes(target) || policias.includes(target);
-                if (isNpcTarget) {
+                const isLureTarget = !!target.isLurePoint;
+                if (isNpcTarget || isLureTarget) {
                     const zombieTile = worldToTile(zombie.x + tamanoEntidad / 2, zombie.y + tamanoEntidad / 2);
                     const npcTile = worldToTile(target.x + tamanoEntidad / 2, target.y + tamanoEntidad / 2);
                     const npcBlockedByDoor = !hasDirectPathBetweenTiles(zombieTile, npcTile, zombieTile, npcTile);
