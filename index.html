@@ -727,8 +727,8 @@ body.editor-active #configPanel {
     <button id="restartBtn">Reiniciar Simulación</button>
 
     <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Radio movimiento (tiles)</span><input type="number" id="npcRoamRadiusTilesNum" min="1" max="80" step="1" value="5"></div>
-        <input type="range" id="npcRoamRadiusTilesSlider" min="1" max="80" step="1" value="5">
+        <div class="slider-header"><span class="slider-label">Radio movimiento (tiles)</span><input type="number" id="npcRoamRadiusTilesNum" min="1" max="80" step="1" value="2"></div>
+        <input type="range" id="npcRoamRadiusTilesSlider" min="1" max="80" step="1" value="2">
     </div>
     
     <div class="slider-group">
@@ -901,7 +901,7 @@ body.editor-active #configPanel {
                 policeStrength: 3,
                 npcVisionConeDeg: 95,
                 citizenSpeed: 1,
-                npcRoamRadiusTiles: 5,
+                npcRoamRadiusTiles: 2,
                 npcTugResolveSec: 0.8,
                 zombieRegrabCooldownSec: 0.9,
                 npcEscapeCooldownSec: 1.1,
@@ -918,27 +918,27 @@ body.editor-active #configPanel {
                 h: 25,
                 data: `
 #########################
-#.......#.......#.......#
-#.......#.......#.......#
+#...............#.......#
+#............C..#.......#
 #.........C.............#
-#...C...............C...#
-#.......................#
-#.......#....C..#.......#
+#...#####...........C...#
+#.......#...............#
+#....O..#....C..#.......#
 #.......#.......#.......#
-###...#############DDD###
+###########...#####DDD###
 #...............###DDD###
 #...............#.......#
 #...............#.......#
 #...........C...#.......#
 #...............#.......#
-#...............#...O...#
+#...............#...C...#
 #...............#.......#
-###DDD###.......#.......#
-#.......#.......#...C...#
-#.......#.......#.......#
-#.......#SSSSSSS#.....O.#
-#.......#SSSSSSS#.......#
-#...O...#SSSSSSS#.O.....#
+#...#####.......#.......#
+#...#...#.......#...C...#
+#...#.C.#.......#.......#
+#...#...#SSSSSSS#.....O.#
+#...#...#SSSSSSS#.......#
+#.......#SSSSSSS#.O.....#
 #.......#SSSSSSS#.......#
 #.......#SSSSSSS#.......#
 #########################
@@ -2429,7 +2429,7 @@ const txtEventoElem = document.getElementById("txtEvento");
             policeStrength: toInt(policeStrengthNum, 3),
             npcVisionConeDeg: toFloat(npcVisionConeNum, 95),
             citizenSpeed: toFloat(citizenSpeedSlider, 1.0),
-            npcRoamRadiusTiles: toFloat(npcRoamRadiusTilesNum, 5),
+            npcRoamRadiusTiles: toFloat(npcRoamRadiusTilesNum, 2),
             npcTugResolveSec: toFloat(npcTugResolveSecNum, 0.8),
             zombieRegrabCooldownSec: toFloat(zombieRegrabCooldownSecNum, 0.9),
             npcEscapeCooldownSec: toFloat(npcEscapeCooldownSecNum, 1.1),
@@ -2464,7 +2464,7 @@ const txtEventoElem = document.getElementById("txtEvento");
         fuegoAmigo = settings.friendlyFire;
 
 
-        npcRoamRadiusPx = Math.max(cellSize, (Number.isFinite(settings.npcRoamRadiusTiles) ? settings.npcRoamRadiusTiles : 5) * cellSize);
+        npcRoamRadiusPx = Math.max(cellSize, (Number.isFinite(settings.npcRoamRadiusTiles) ? settings.npcRoamRadiusTiles : 2) * cellSize);
         npcTugResolveFrames = BASE_FPS * Math.max(0.1, Number.isFinite(settings.npcTugResolveSec) ? settings.npcTugResolveSec : 0.8);
         zombieRegrabCooldownFrames = BASE_FPS * (Number.isFinite(settings.zombieRegrabCooldownSec) ? settings.zombieRegrabCooldownSec : 0.9);
         npcEscapeCooldownFrames = BASE_FPS * (Number.isFinite(settings.npcEscapeCooldownSec) ? settings.npcEscapeCooldownSec : 1.1);
@@ -3029,28 +3029,14 @@ const DOOR_BASE_HP = 70;
             return;
         }
 
-        if (zombieLureArmed) {
-            const tx = Math.floor(world.x / cellSize);
-            const ty = Math.floor(world.y / cellSize);
-            if (tx >= 0 && tx < gridWidth && ty >= 0 && ty < gridHeight) {
-                createZombieLureAt(tx * cellSize + cellSize / 2, ty * cellSize + cellSize / 2);
-            }
-            setZombieLureArmed(false);
-            lastTapInfo = null;
-            return;
-        }
-
-        if (zombieLureTarget) {
-            const tx = Math.floor(world.x / cellSize);
-            const ty = Math.floor(world.y / cellSize);
-            if (tx >= 0 && tx < gridWidth && ty >= 0 && ty < gridHeight) {
-                moveZombieLureTo(tx * cellSize + cellSize / 2, ty * cellSize + cellSize / 2);
-            }
-            lastTapInfo = null;
-            return;
-        }
-
-        if (pointerType === "mouse") {
+        const tx = Math.floor(world.x / cellSize);
+        const ty = Math.floor(world.y / cellSize);
+        if (tx >= 0 && tx < gridWidth && ty >= 0 && ty < gridHeight) {
+            const targetX = tx * cellSize + cellSize / 2;
+            const targetY = ty * cellSize + cellSize / 2;
+            if (zombieLureTarget) moveZombieLureTo(targetX, targetY);
+            else createZombieLureAt(targetX, targetY);
+            if (zombieLureArmed) setZombieLureArmed(false);
             lastTapInfo = null;
             return;
         }
@@ -5956,7 +5942,7 @@ drawDoorsWorld();
             const isNpcTool = selectedTool && (selectedTool.key === "citizen" || selectedTool.key === "police");
 
             if (editorState.active && isNpcTool) {
-                const roamTiles = Math.max(1, Math.min(80, parseFloat(npcRoamRadiusTilesNum && npcRoamRadiusTilesNum.value) || 5));
+                const roamTiles = Math.max(1, Math.min(80, parseFloat(npcRoamRadiusTilesNum && npcRoamRadiusTilesNum.value) || 2));
                 const roamPx = roamTiles * cellSize;
                 const cxh = hx + cellSize / 2;
                 const cyh = hy + cellSize / 2;
