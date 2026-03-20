@@ -4068,7 +4068,14 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         if (!tiles || tiles.length < 2) return null;
 
         const lookAheadTiles = Math.min(7, tiles.length - 1);
-        const lookAheadCap = (getPathTurnDot(tiles, 1) < PATH_CORNER_SHARP_DOT) ? Math.min(2, lookAheadTiles) : lookAheadTiles;
+        const startTileInfo = getTileCardinalBlockInfo(start.tx, start.ty);
+        const startIsCorner = (startTileInfo.up && startTileInfo.left) || (startTileInfo.up && startTileInfo.right) ||
+            (startTileInfo.down && startTileInfo.left) || (startTileInfo.down && startTileInfo.right);
+        const startNearWall = startTileInfo.blockedCount >= 1;
+        const cautiousLookAhead = startNearWall || startIsCorner;
+        const lookAheadCap = cautiousLookAhead
+            ? 1
+            : ((getPathTurnDot(tiles, 1) < PATH_CORNER_SHARP_DOT) ? Math.min(2, lookAheadTiles) : lookAheadTiles);
         let nextIndex = 1;
         for (let i = lookAheadCap; i >= 1; i--) {
             if (hasDirectPathBetweenTiles(start, tiles[i], start, goal)) {
