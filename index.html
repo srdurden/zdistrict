@@ -5789,7 +5789,8 @@ drawDoorsWorld();
                     const zombieTile = worldToTile(zombie.x + tamanoEntidad / 2, zombie.y + tamanoEntidad / 2);
                     const npcTile = worldToTile(target.x + tamanoEntidad / 2, target.y + tamanoEntidad / 2);
                     const npcBlockedByDoor = !hasDirectPathBetweenTiles(zombieTile, npcTile, zombieTile, npcTile);
-                    if (npcBlockedByDoor) {
+                    const shouldBreachDoor = !lureActive || isLureTarget;
+                    if (npcBlockedByDoor && shouldBreachDoor) {
                         const breachTarget = getZombieDoorBreachTarget(zombie, target);
                         if (breachTarget) target = breachTarget;
                     }
