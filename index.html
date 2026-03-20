@@ -4117,24 +4117,24 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         return normalizar(waypoint.x - zombieCenter.x, waypoint.y - zombieCenter.y);
     }
 
-    function getZombieDoorBreachTarget(zombie, npcTarget) {
-        if (!zombie || !npcTarget || !doorGroups || !doorGroups.length) return null;
+    function getZombieDoorBreachTargetForPoint(zombie, targetPoint) {
+        if (!zombie || !targetPoint || !doorGroups || !doorGroups.length) return null;
         const start = worldToTile(zombie.x + tamanoEntidad / 2, zombie.y + tamanoEntidad / 2);
-        const npcTile = worldToTile(npcTarget.x + tamanoEntidad / 2, npcTarget.y + tamanoEntidad / 2);
+        const pointTile = worldToTile(targetPoint.x + tamanoEntidad / 2, targetPoint.y + tamanoEntidad / 2);
         const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
         let best = null;
 
         for (const g of doorGroups) {
             if (!g || g.broken || g.open || !Array.isArray(g.tiles)) continue;
             for (const doorTile of g.tiles) {
-                const doorToNpc = Math.hypot(doorTile.x - npcTile.tx, doorTile.y - npcTile.ty);
+                const doorToPoint = Math.hypot(doorTile.x - pointTile.tx, doorTile.y - pointTile.ty);
                 for (const d of dirs) {
                     const ax = doorTile.x + d.x;
                     const ay = doorTile.y + d.y;
                     if (isTilePathBlocked(ax, ay, start, { tx: ax, ty: ay })) continue;
                     const path = findPathAStar(start, { tx: ax, ty: ay });
                     if (!path || !path.length) continue;
-                    const score = (path.length - 1) + doorToNpc * 0.75;
+                    const score = (path.length - 1) + doorToPoint * 0.75;
                     if (!best || score < best.score) {
                         best = {
                             score,
@@ -4153,6 +4153,10 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
             doorKey: keyForTile(best.doorTile.x, best.doorTile.y),
             pathGoalTile: best.approachTile
         };
+    }
+
+    function getZombieDoorBreachTarget(zombie, npcTarget) {
+        return getZombieDoorBreachTargetForPoint(zombie, npcTarget);
     }
 
     function nearestDoorToPlayer(maxDistPx = 24) {
@@ -5835,7 +5839,7 @@ drawDoorsWorld();
                     const npcBlockedByDoor = !hasDirectPathBetweenTiles(zombieTile, npcTile, zombieTile, npcTile);
                     const shouldBreachDoor = !lureActive || isLureTarget;
                     if (npcBlockedByDoor && shouldBreachDoor) {
-                        const breachTarget = getZombieDoorBreachTarget(zombie, target);
+                        const breachTarget = getZombieDoorBreachTargetForPoint(zombie, target);
                         if (breachTarget) target = breachTarget;
                     }
                 }
