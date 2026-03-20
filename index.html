@@ -809,7 +809,7 @@ body.editor-active #configPanel {
         <input type="range" id="bengalaDuracionSlider" value="15">
     </div>
 
-    <div class="hint">Usa 🧟 para desplegar zombies y 🎯 para marcar una diana temporal de atracción.</div>
+    <div class="hint">Usa 🧟 para desplegar zombies y 🎯 para marcar una diana de atracción.</div>
 </div>
 
 <div id="editorOverlay" class="editor-overlay">
@@ -1676,6 +1676,10 @@ const txtEventoElem = document.getElementById("txtEvento");
     if (zombieLureBtn) {
         zombieLureBtn.addEventListener("click", () => {
             closeDeployPopup();
+            if (!zombieLureArmed && zombieLureTarget) {
+                zombieLureTarget = null;
+                return;
+            }
             setZombieLureArmed(!zombieLureArmed);
         });
     }
@@ -2650,7 +2654,7 @@ let ciudadanos = [];
 
     let reachableTiles = [];         // set at reset for director spawning
     let zombieDeploySpawnTiles = new Set();
-    let zombieLureTarget = null; // {id,x,y,expiresAtFrame,moveFromX,moveFromY,moveToX,moveToY,moveStartFrame,moveEndFrame}
+    let zombieLureTarget = null; // {id,x,y,moveFromX,moveFromY,moveToX,moveToY,moveStartFrame,moveEndFrame}
     let zombieLureIdCounter = 0;
     const ZOMBIE_LURE_MOVE_FRAMES = BASE_FPS * 0.35;
 let frameCount = 0;
@@ -2740,8 +2744,7 @@ const DOOR_BASE_HP = 70;
         zombieLureTarget = {
             id: ++zombieLureIdCounter,
             x: worldX,
-            y: worldY,
-            expiresAtFrame: frameCount + zombieLureDurationFrames
+            y: worldY
         };
     }
 
@@ -3037,7 +3040,7 @@ const DOOR_BASE_HP = 70;
             return;
         }
 
-        if (zombieLureTarget && frameCount <= zombieLureTarget.expiresAtFrame) {
+        if (zombieLureTarget) {
             const tx = Math.floor(world.x / cellSize);
             const ty = Math.floor(world.y / cellSize);
             if (tx >= 0 && tx < gridWidth && ty >= 0 && ty < gridHeight) {
@@ -5102,7 +5105,6 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
                 zombieLureTarget.y = zombieLureTarget.moveFromY + (zombieLureTarget.moveToY - zombieLureTarget.moveFromY) * easeOut;
             }
         }
-        if (zombieLureTarget && frameCount > zombieLureTarget.expiresAtFrame) zombieLureTarget = null;
 
         updateNoises(simStep);
         directorTick(simStep);
@@ -5728,7 +5730,7 @@ drawDoorsWorld();
 
         if (!editorState.active) zombies.forEach(zombie => {
             let target = null; let minDist = Infinity;
-            const lureActive = zombieLureTarget && frameCount <= zombieLureTarget.expiresAtFrame;
+            const lureActive = zombieLureTarget;
             const lureNpcPriorityPx = zombieLureNpcPriorityTiles * cellSize;
             if (lureActive) {
                 const checkNpcNearLure = (e) => {
@@ -5920,7 +5922,7 @@ drawDoorsWorld();
             drawEnt(zombie, PALETA.zombie, radioVisual);
         });
 
-        if (zombieLureTarget && frameCount <= zombieLureTarget.expiresAtFrame) {
+        if (zombieLureTarget) {
             const lx = zombieLureTarget.x;
             const ly = zombieLureTarget.y;
             ctx.save();
