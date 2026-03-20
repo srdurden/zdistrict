@@ -3786,8 +3786,11 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
 
     function aplicarFuerzas(entidad, velocidad, timeScale, options = null) {
         const wallRep = obtenerRepulsionParedes(entidad);
-        let moveX = entidad.direccion.x + wallRep.x * wallRepulsionForce;
-        let moveY = entidad.direccion.y + wallRep.y * wallRepulsionForce;
+        const wallRepulsionScale = (options && Number.isFinite(options.wallRepulsionScale))
+            ? Math.max(0, options.wallRepulsionScale)
+            : 1;
+        let moveX = entidad.direccion.x + wallRep.x * wallRepulsionForce * wallRepulsionScale;
+        let moveY = entidad.direccion.y + wallRep.y * wallRepulsionForce * wallRepulsionScale;
 
         const final = normalizar(moveX, moveY);
         const intendedDir = {
@@ -4107,7 +4110,18 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         }
 
         const marginPx = Math.max(tamanoEntidad * 0.5 + 0.2, cellSize * PATH_SAFE_WAYPOINT_MARGIN_RATIO);
-        const waypoint = getTileWaypoint(next.tx, next.ty, jitter.x, jitter.y, marginPx);
+        // Keep path-follow waypoints slightly separated from nearby walls so zombies
+        // don't scrape corners and get repeatedly stuck when following shortest paths.
+        const wallOffsetStrength = cellSize * 0.34;
+        const wallOffsetX = ((tileInfo.left ? 1 : 0) - (tileInfo.right ? 1 : 0)) * wallOffsetStrength;
+        const wallOffsetY = ((tileInfo.up ? 1 : 0) - (tileInfo.down ? 1 : 0)) * wallOffsetStrength;
+        const waypoint = getTileWaypoint(
+            next.tx,
+            next.ty,
+            jitter.x + wallOffsetX,
+            jitter.y + wallOffsetY,
+            marginPx
+        );
         const future = tiles[Math.min(tiles.length - 1, nextIndex + 1)];
         zombie.pathFollowInfo = {
             nextTile: next,
@@ -5907,7 +5921,10 @@ drawDoorsWorld();
                 timeScale,
                 {
                     enableSteering: true,
-                    steeringAggressiveness: target ? 1.15 : 0.9
+                    steeringAggressiveness: target ? 1.15 : 0.9,
+                    wallRepulsionScale: (target && zombie.pathFollowInfo)
+                        ? (zombie.pathFollowInfo.safeMode ? 2.4 : 1.8)
+                        : 1.15
                 }
             );
             const movedDist = Math.hypot(zombie.x - beforeX, zombie.y - beforeY);
