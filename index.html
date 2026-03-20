@@ -4107,7 +4107,18 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         }
 
         const marginPx = Math.max(tamanoEntidad * 0.5 + 0.2, cellSize * PATH_SAFE_WAYPOINT_MARGIN_RATIO);
-        const waypoint = getTileWaypoint(next.tx, next.ty, jitter.x, jitter.y, marginPx);
+        // Keep path-follow waypoints slightly separated from nearby walls so zombies
+        // don't scrape corners and get repeatedly stuck when following shortest paths.
+        const wallOffsetStrength = cellSize * 0.34;
+        const wallOffsetX = ((tileInfo.left ? 1 : 0) - (tileInfo.right ? 1 : 0)) * wallOffsetStrength;
+        const wallOffsetY = ((tileInfo.up ? 1 : 0) - (tileInfo.down ? 1 : 0)) * wallOffsetStrength;
+        const waypoint = getTileWaypoint(
+            next.tx,
+            next.ty,
+            jitter.x + wallOffsetX,
+            jitter.y + wallOffsetY,
+            marginPx
+        );
         const future = tiles[Math.min(tiles.length - 1, nextIndex + 1)];
         zombie.pathFollowInfo = {
             nextTile: next,
