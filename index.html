@@ -3710,12 +3710,56 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         const dist = Math.hypot(dx, dy);
         if (dist <= maxRadius || dist <= 0.001) return;
 
-        // Avoid hard snaps (visible "teleports") when NPCs briefly go outside their roam radius.
-        // Bring them back in small, collision-aware steps so they keep continuity near walls.
-        const overflow = dist - maxRadius;
-        const correction = Math.min(overflow, Math.max(0.15, cellSize * 0.35));
+        // Strongly enforce roam limits even at high simulation speed (e.g. x5), where a single
+        // frame can advance many pixels. We still move in small collision-aware chunks so NPCs
+        // slide naturally around walls instead of snapping/teleporting.
         const toCenter = normalizar(cx - entidad.x, cy - entidad.y);
-        moverEntidadIA(entidad, toCenter.x, toCenter.y, correction);
+        if (!toCenter.x && !toCenter.y) return;
+
+        const overflow = dist - maxRadius;
+        const maxStep = Math.max(0.2, cellSize * 0.45);
+        let remaining = overflow;
+        let guard = 0;
+
+        while (remaining > 0.01 && guard < 72) {
+            guard += 1;
+            const step = Math.min(maxStep, remaining);
+            const beforeX = entidad.x;
+            const beforeY = entidad.y;
+            moverEntidadIA(entidad, toCenter.x, toCenter.y, step);
+            const moved = Math.hypot(entidad.x - beforeX, entidad.y - beforeY);
+            if (moved <= 0.001) break;
+            remaining -= moved;
+        }
+
+        // Final safety clamp: if collision jitter still leaves entity out of bounds, place it on
+        // the nearest valid point along the segment towards the roam-center.
+        const finalDx = entidad.x - cx;
+        const finalDy = entidad.y - cy;
+        const finalDist = Math.hypot(finalDx, finalDy);
+        if (finalDist > maxRadius + 0.01) {
+            const radial = normalizar(finalDx, finalDy);
+            const targetX = cx + radial.x * maxRadius;
+            const targetY = cy + radial.y * maxRadius;
+            if (canMoveEntityTo(entidad, targetX, targetY)) {
+                entidad.x = targetX;
+                entidad.y = targetY;
+            } else {
+                let low = 0;
+                let high = 1;
+                for (let i = 0; i < 12; i += 1) {
+                    const mid = (low + high) * 0.5;
+                    const testX = entidad.x + (targetX - entidad.x) * mid;
+                    const testY = entidad.y + (targetY - entidad.y) * mid;
+                    if (canMoveEntityTo(entidad, testX, testY)) low = mid;
+                    else high = mid;
+                }
+                if (low > 0) {
+                    entidad.x = entidad.x + (targetX - entidad.x) * low;
+                    entidad.y = entidad.y + (targetY - entidad.y) * low;
+                }
+            }
+        }
     }
 
     function isEntityFleeingZombie(entidad, requiresVisionCone = false) {
