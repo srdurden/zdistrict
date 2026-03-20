@@ -3786,8 +3786,11 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
 
     function aplicarFuerzas(entidad, velocidad, timeScale, options = null) {
         const wallRep = obtenerRepulsionParedes(entidad);
-        let moveX = entidad.direccion.x + wallRep.x * wallRepulsionForce;
-        let moveY = entidad.direccion.y + wallRep.y * wallRepulsionForce;
+        const wallRepulsionScale = (options && Number.isFinite(options.wallRepulsionScale))
+            ? Math.max(0, options.wallRepulsionScale)
+            : 1;
+        let moveX = entidad.direccion.x + wallRep.x * wallRepulsionForce * wallRepulsionScale;
+        let moveY = entidad.direccion.y + wallRep.y * wallRepulsionForce * wallRepulsionScale;
 
         const final = normalizar(moveX, moveY);
         const intendedDir = {
@@ -5918,7 +5921,10 @@ drawDoorsWorld();
                 timeScale,
                 {
                     enableSteering: true,
-                    steeringAggressiveness: target ? 1.15 : 0.9
+                    steeringAggressiveness: target ? 1.15 : 0.9,
+                    wallRepulsionScale: (target && zombie.pathFollowInfo)
+                        ? (zombie.pathFollowInfo.safeMode ? 2.4 : 1.8)
+                        : 1.15
                 }
             );
             const movedDist = Math.hypot(zombie.x - beforeX, zombie.y - beforeY);
