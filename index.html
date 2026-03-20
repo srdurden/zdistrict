@@ -5833,19 +5833,9 @@ drawDoorsWorld();
             if(target) {
                 const isNpcTarget = ciudadanos.includes(target) || policias.includes(target);
                 const isLureTarget = !!target.isLurePoint;
-                if (isNpcTarget || isLureTarget) {
-                    const zombieTile = worldToTile(zombie.x + tamanoEntidad / 2, zombie.y + tamanoEntidad / 2);
-                    const npcTile = worldToTile(target.x + tamanoEntidad / 2, target.y + tamanoEntidad / 2);
-                    const npcBlockedByDoor = !hasDirectPathBetweenTiles(zombieTile, npcTile, zombieTile, npcTile);
-                    const shouldBreachDoor = !lureActive || isLureTarget;
-                    if (npcBlockedByDoor && shouldBreachDoor) {
-                        const breachTarget = getZombieDoorBreachTargetForPoint(zombie, target);
-                        if (breachTarget) target = breachTarget;
-                    }
-                }
 
-                const shouldUsePathing = isNpcTarget || !!target.isLurePoint || !!target.isDoorPoint;
-                const pathDir = shouldUsePathing ? getZombiePathDirection(zombie, target) : null;
+                let shouldUsePathing = isNpcTarget || !!target.isLurePoint || !!target.isDoorPoint;
+                let pathDir = shouldUsePathing ? getZombiePathDirection(zombie, target) : null;
                 const hasDirectSight = tieneLineaDeVision(
                     zombie.x + tamanoEntidad / 2,
                     zombie.y + tamanoEntidad / 2,
@@ -5856,6 +5846,18 @@ drawDoorsWorld();
                 const directGoalTile = worldToTile(target.x + tamanoEntidad / 2, target.y + tamanoEntidad / 2);
                 const hasDirectTilePath = hasDirectPathBetweenTiles(directStartTile, directGoalTile, directStartTile, directGoalTile);
                 const canDirectChase = hasDirectSight && hasDirectTilePath;
+                const shouldBreachDoor = !lureActive || isLureTarget;
+
+                // Only breach doors when the target is genuinely unreachable:
+                // no pathfinding route and no direct tile path.
+                if (!target.isDoorPoint && (isNpcTarget || isLureTarget) && !pathDir && !hasDirectTilePath && shouldBreachDoor) {
+                    const breachTarget = getZombieDoorBreachTargetForPoint(zombie, target);
+                    if (breachTarget) {
+                        target = breachTarget;
+                        shouldUsePathing = true;
+                        pathDir = getZombiePathDirection(zombie, target);
+                    }
+                }
 
                 if (pathDir) {
                     zombie.direccion = pathDir;
@@ -5885,7 +5887,8 @@ drawDoorsWorld();
                 }
 
                 if(target && !(target.vida !== undefined)) {
-                    if (isNpcTarget) {
+                    const currentIsNpcTarget = ciudadanos.includes(target) || policias.includes(target);
+                    if (currentIsNpcTarget) {
                         if (!applyZombieNpcTug(zombie, target, timeScale)) zombie.tugState = null;
                     } else {
                         zombie.tugState = null;
