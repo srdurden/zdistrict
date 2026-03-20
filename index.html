@@ -3035,6 +3035,15 @@ const DOOR_BASE_HP = 70;
             for (let i = 0; i < deployAmount; i += 1) {
                 spawnZombieAtWorld(world.x, world.y, zombieType);
             }
+            if (!zombieLureTarget) {
+                const tx = Math.floor(world.x / cellSize);
+                const ty = Math.floor(world.y / cellSize);
+                if (tx >= 0 && tx < gridWidth && ty >= 0 && ty < gridHeight) {
+                    const targetX = tx * cellSize + cellSize / 2;
+                    const targetY = ty * cellSize + cellSize / 2;
+                    createZombieLureAt(targetX, targetY);
+                }
+            }
             setDeployArmed(false);
             lastTapInfo = null;
             return;
