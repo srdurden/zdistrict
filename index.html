@@ -2845,10 +2845,6 @@ const DOOR_BASE_HP = 70;
         } else {
             changed = paintEditorArea(tx, ty, tool.token);
         }
-        if (changed && (tool.key === "citizen" || tool.key === "police")) {
-            editorState.selectedTool = null;
-            buildEditorPalette();
-        }
         if (!changed && editorState.fillMode) {
             editorState.fillMode = false;
             buildEditorPalette();
@@ -2895,6 +2891,10 @@ const DOOR_BASE_HP = 70;
     function getSelectedEditorTool() {
         if (!editorState.selectedTool) return null;
         return EDITOR_TOOLS.find(t => t.key === editorState.selectedTool) || null;
+    }
+
+    function isEditorEntityToolKey(toolKey) {
+        return toolKey === "citizen" || toolKey === "police";
     }
 
     function moveEditorEntity(fromTx, fromTy, toTx, toTy) {
@@ -3129,8 +3129,10 @@ const DOOR_BASE_HP = 70;
             if (editorState.active) {
                 const { tx, ty } = updateHoverFromClientPoint(e.clientX, e.clientY);
                 if (editorState.selectedTool) {
+                    const selectedTool = getSelectedEditorTool();
                     const changed = paintEditorTile(tx, ty);
-                    editorInteraction = { mode: "paint", dirty: !!changed, lastTx: tx, lastTy: ty };
+                    const interactionMode = selectedTool && isEditorEntityToolKey(selectedTool.key) ? "paint-single" : "paint";
+                    editorInteraction = { mode: interactionMode, dirty: !!changed, lastTx: tx, lastTy: ty };
                 } else {
                     // In navigation mode (no selected tile tool), keep editor drag behavior
                     // aligned with gameplay: drag pans camera with edge padding.
