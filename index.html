@@ -2915,6 +2915,7 @@ const DOOR_BASE_HP = 70;
 
     const pointerState = new Map();
     let hoverTile = null;
+    let lureMovePreviewTile = null;
     const TAP_MOVE_THRESHOLD = 8;
     const DOUBLE_TAP_MS = 280;
     const DOUBLE_TAP_DIST = 26;
@@ -2988,14 +2989,17 @@ const DOOR_BASE_HP = 70;
         };
     }
 
-    function updateHoverFromClientPoint(clientX, clientY) {
+    function updateHoverFromClientPoint(clientX, clientY, pointerType = null) {
         const world = screenToWorld(clientX, clientY);
         const tx = Math.floor(world.x / cellSize);
         const ty = Math.floor(world.y / cellSize);
-        const canHoverEditor = editorState.active && tx >= 0 && tx < gridWidth && ty >= 0 && ty < gridHeight;
-        const canHoverDeploy = deployZombieArmed && tx >= 0 && tx < gridWidth && ty >= 0 && ty < gridHeight;
-        const canHoverLure = zombieLureArmed && tx >= 0 && tx < gridWidth && ty >= 0 && ty < gridHeight;
+        const isInsideGrid = tx >= 0 && tx < gridWidth && ty >= 0 && ty < gridHeight;
+        const canHoverEditor = editorState.active && isInsideGrid;
+        const canHoverDeploy = deployZombieArmed && isInsideGrid;
+        const canHoverLure = zombieLureArmed && isInsideGrid;
+        const canPreviewLureMove = !!zombieLureTarget && !zombieLureArmed && !editorState.active && !deployZombieArmed && pointerType === "mouse" && isInsideGrid;
         hoverTile = (canHoverEditor || canHoverDeploy || canHoverLure) ? { x: tx, y: ty } : null;
+        lureMovePreviewTile = canPreviewLureMove ? { x: tx, y: ty } : null;
         return { world, tx, ty };
     }
 
@@ -3114,7 +3118,7 @@ const DOOR_BASE_HP = 70;
         });
 
         stopCameraInertia();
-        updateHoverFromClientPoint(e.clientX, e.clientY);
+        updateHoverFromClientPoint(e.clientX, e.clientY, e.pointerType || 'mouse');
 
         if (pointerState.size >= 2) {
             editorInteraction = null;
@@ -3138,7 +3142,7 @@ const DOOR_BASE_HP = 70;
     }, { passive: true });
 
     canvas.addEventListener('pointermove', (e) => {
-        updateHoverFromClientPoint(e.clientX, e.clientY);
+        updateHoverFromClientPoint(e.clientX, e.clientY, e.pointerType || 'mouse');
         const p = pointerState.get(e.pointerId);
         if (!p) return;
 
@@ -3200,7 +3204,7 @@ const DOOR_BASE_HP = 70;
         if (!p) return;
 
         const justTapped = !p.moved && pointerState.size === 1;
-        const world = updateHoverFromClientPoint(e.clientX, e.clientY).world;
+        const world = updateHoverFromClientPoint(e.clientX, e.clientY, p.pointerType).world;
         releasePointer(e.pointerId);
 
         if (editorState.active && editorInteraction && pointerState.size === 0) {
@@ -3229,6 +3233,7 @@ const DOOR_BASE_HP = 70;
     });
     canvas.addEventListener('pointerleave', () => {
         hoverTile = null;
+        lureMovePreviewTile = null;
     });
 
     canvas.addEventListener('dblclick', (e) => {
@@ -5929,6 +5934,30 @@ drawDoorsWorld();
             ctx.lineTo(lx, ly + cellSize * 1.25);
             ctx.stroke();
             ctx.restore();
+        }
+
+        if (lureMovePreviewTile && zombieLureTarget) {
+            const previewX = (lureMovePreviewTile.x * cellSize) + cellSize / 2;
+            const previewY = (lureMovePreviewTile.y * cellSize) + cellSize / 2;
+            const isSameSpot = Math.hypot(previewX - zombieLureTarget.x, previewY - zombieLureTarget.y) < 0.1;
+            if (!isSameSpot) {
+                ctx.save();
+                ctx.strokeStyle = "rgba(158, 158, 158, 0.62)";
+                ctx.lineWidth = 1.2;
+                ctx.beginPath();
+                ctx.arc(previewX, previewY, cellSize * 0.9, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(previewX, previewY, cellSize * 0.45, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(previewX - cellSize * 1.25, previewY);
+                ctx.lineTo(previewX + cellSize * 1.25, previewY);
+                ctx.moveTo(previewX, previewY - cellSize * 1.25);
+                ctx.lineTo(previewX, previewY + cellSize * 1.25);
+                ctx.stroke();
+                ctx.restore();
+            }
         }
 
         cadaveres.forEach(c => { ctx.fillStyle="#d7ccc8"; ctx.beginPath(); ctx.arc(c.x+1.5,c.y+1.5,1.5,0,Math.PI*2); ctx.fill(); });
