@@ -404,7 +404,8 @@
             overflow-y: auto;
         }
         body.editor-active canvas {
-            height: min(calc(var(--app-height) - 48px), calc(98vw * 0.6));
+            /* Reserve vertical space for editor toolbar so full map border remains visible. */
+            height: min(calc(var(--app-height) - 148px), calc(98vw * 0.6));
         }
 
         .post-stats{
