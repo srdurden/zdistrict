@@ -1312,6 +1312,7 @@ body.editor-active #configPanel {
                 size: size * (0.7 + Math.random() * 0.8),
                 color,
                 alpha,
+                collideWithWalls: !!opts.collideWithWalls,
                 stretch: Number.isFinite(opts.stretch) ? opts.stretch * (0.7 + Math.random() * 0.7) : 0,
                 rotation: a,
                 gravity: Number.isFinite(opts.gravity) ? opts.gravity : 0,
@@ -1348,17 +1349,20 @@ body.editor-active #configPanel {
         const varianceBoost = 1 + Math.random() * 1.9;
         const ellipseBase = 1.6 + Math.random() * (4.4 + power * 3.8) * varianceBoost;
         const alpha = Math.min(0.52, (0.14 + Math.random() * 0.22) + (opts.alphaBoost || 0));
+        const canPlaceBloodAt = (bx, by) => hasWallLineOfSightPx(x, y, bx, by, { ignoreStartTile: true, ignoreEndTile: false });
 
-        bloodStains.push({
-            x,
-            y,
-            r: ellipseBase,
-            rx: ellipseBase * (dir ? (1.1 + Math.random() * 0.7) : 1),
-            ry: ellipseBase * (dir ? (0.55 + Math.random() * 0.35) : 1),
-            rot: dir ? Math.atan2(dir.y, dir.x) + ((Math.random() - 0.5) * 0.35) : (Math.random() * Math.PI),
-            alpha,
-            kind: dir ? "splash" : "pool"
-        });
+        if (canPlaceBloodAt(x, y)) {
+            bloodStains.push({
+                x,
+                y,
+                r: ellipseBase,
+                rx: ellipseBase * (dir ? (1.1 + Math.random() * 0.7) : 1),
+                ry: ellipseBase * (dir ? (0.55 + Math.random() * 0.35) : 1),
+                rot: dir ? Math.atan2(dir.y, dir.x) + ((Math.random() - 0.5) * 0.35) : (Math.random() * Math.PI),
+                alpha,
+                kind: dir ? "splash" : "pool"
+            });
+        }
 
         if (dir && opts.spray !== false) {
             const dropletCount = Math.max(2, Math.round(2 + power * 3.6));
@@ -1369,6 +1373,7 @@ body.editor-active #configPanel {
                 const oy = y + dir.y * distance + (dir.x) * jitter * 2.3;
                 const rx = 0.8 + Math.random() * (1.4 + power * 0.5);
                 const ry = 0.45 + Math.random() * 0.9;
+                if (!canPlaceBloodAt(ox, oy)) continue;
                 bloodStains.push({
                     x: ox,
                     y: oy,
@@ -1386,9 +1391,12 @@ body.editor-active #configPanel {
             const smearCount = Math.max(1, Math.round(power * 1.5));
             for (let i = 0; i < smearCount; i++) {
                 const smearDist = 1.2 + Math.random() * (3.5 + power * 3.2);
+                const smearX = x - dir.x * smearDist * 0.45;
+                const smearY = y - dir.y * smearDist * 0.45;
+                if (!canPlaceBloodAt(smearX, smearY)) continue;
                 bloodStains.push({
-                    x: x - dir.x * smearDist * 0.45,
-                    y: y - dir.y * smearDist * 0.45,
+                    x: smearX,
+                    y: smearY,
                     r: ellipseBase * 0.7,
                     rx: ellipseBase * (1.1 + Math.random() * 0.9),
                     ry: ellipseBase * (0.28 + Math.random() * 0.22),
@@ -1407,12 +1415,14 @@ body.editor-active #configPanel {
             stretch: 2.7,
             gravity: 0.025,
             shrink: 0.9,
-            startOffset: 0.5
+            startOffset: 0.5,
+            collideWithWalls: true
         } : {
             gravity: 0.03,
-            shrink: 0.91
+            shrink: 0.91,
+            collideWithWalls: true
         });
-        spawnParticles(x, y, "rgba(255, 205, 210, 0.5)", 2 + Math.round(power), 0.9 + (power * 0.15), Math.PI * 2, 10 + power, 0.7, 0.55, dir ? { direction: dir, arc: 0.65, stretch: 1.4, gravity: 0.012 } : null);
+        spawnParticles(x, y, "rgba(255, 205, 210, 0.5)", 2 + Math.round(power), 0.9 + (power * 0.15), Math.PI * 2, 10 + power, 0.7, 0.55, dir ? { direction: dir, arc: 0.65, stretch: 1.4, gravity: 0.012, collideWithWalls: true } : { collideWithWalls: true });
     }
 
     function addFloatText(text, x, y, color = "rgba(62,39,35,0.85)") {
@@ -1424,8 +1434,14 @@ body.editor-active #configPanel {
         for (let i = particles.length - 1; i >= 0; i--) {
             const p = particles[i];
             p.ttl -= step;
-            p.x += p.vx * step;
-            p.y += p.vy * step;
+            const nextX = p.x + p.vx * step;
+            const nextY = p.y + p.vy * step;
+            if (p.collideWithWalls && isPointBlockedByWall(nextX, nextY)) {
+                particles.splice(i, 1);
+                continue;
+            }
+            p.x = nextX;
+            p.y = nextY;
             p.vy += (p.gravity || 0) * step;
             const drag = Math.pow(Number.isFinite(p.shrink) ? p.shrink : 0.92, step);
             p.vx *= drag;
@@ -1447,26 +1463,63 @@ body.editor-active #configPanel {
     }
 
     function drawBloodStains() {
+        const drawClippedToWalkableTiles = (stain, painter) => {
+            const rx = Math.max(0.3, stain.rx || stain.r || 0.3);
+            const ry = Math.max(0.25, stain.ry || stain.r || 0.25);
+            const minTx = Math.max(0, Math.floor((stain.x - rx) / cellSize));
+            const maxTx = Math.min(gridWidth - 1, Math.floor((stain.x + rx) / cellSize));
+            const minTy = Math.max(0, Math.floor((stain.y - ry) / cellSize));
+            const maxTy = Math.min(gridHeight - 1, Math.floor((stain.y + ry) / cellSize));
+            let hasBlockedTiles = false;
+            for (let ty = minTy; ty <= maxTy && !hasBlockedTiles; ty++) {
+                for (let tx = minTx; tx <= maxTx; tx++) {
+                    if (isTileBlocked(tx, ty)) {
+                        hasBlockedTiles = true;
+                        break;
+                    }
+                }
+            }
+            if (!hasBlockedTiles) {
+                painter();
+                return;
+            }
+            for (let ty = minTy; ty <= maxTy; ty++) {
+                for (let tx = minTx; tx <= maxTx; tx++) {
+                    if (isTileBlocked(tx, ty)) continue;
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.rect(tx * cellSize, ty * cellSize, cellSize, cellSize);
+                    ctx.clip();
+                    painter();
+                    ctx.restore();
+                }
+            }
+        };
+
         for (const s of bloodStains) {
             const a = Math.max(0.08, Math.min(0.52, s.alpha || 0.2));
             ctx.fillStyle = `rgba(183,28,28,${a})`;
-            ctx.beginPath();
-            if (s.rx && s.ry && typeof ctx.ellipse === "function") {
-                ctx.ellipse(s.x, s.y, Math.max(0.3, s.rx), Math.max(0.25, s.ry), s.rot || 0, 0, Math.PI * 2);
-            } else {
-                ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-            }
-            ctx.fill();
+            drawClippedToWalkableTiles(s, () => {
+                ctx.beginPath();
+                if (s.rx && s.ry && typeof ctx.ellipse === "function") {
+                    ctx.ellipse(s.x, s.y, Math.max(0.3, s.rx), Math.max(0.25, s.ry), s.rot || 0, 0, Math.PI * 2);
+                } else {
+                    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+                }
+                ctx.fill();
+            });
 
             if (s.kind === "pool" || s.kind === "splash") {
                 ctx.fillStyle = `rgba(255,205,210,${Math.max(0.02, a * 0.16)})`;
-                ctx.beginPath();
-                if (s.rx && s.ry && typeof ctx.ellipse === "function") {
-                    ctx.ellipse(s.x - ((s.rx || s.r) * 0.15), s.y - ((s.ry || s.r) * 0.18), Math.max(0.2, (s.rx || s.r) * 0.35), Math.max(0.15, (s.ry || s.r) * 0.18), s.rot || 0, 0, Math.PI * 2);
-                } else {
-                    ctx.arc(s.x - (s.r * 0.18), s.y - (s.r * 0.2), Math.max(0.15, s.r * 0.22), 0, Math.PI * 2);
-                }
-                ctx.fill();
+                drawClippedToWalkableTiles(s, () => {
+                    ctx.beginPath();
+                    if (s.rx && s.ry && typeof ctx.ellipse === "function") {
+                        ctx.ellipse(s.x - ((s.rx || s.r) * 0.15), s.y - ((s.ry || s.r) * 0.18), Math.max(0.2, (s.rx || s.r) * 0.35), Math.max(0.15, (s.ry || s.r) * 0.18), s.rot || 0, 0, Math.PI * 2);
+                    } else {
+                        ctx.arc(s.x - (s.r * 0.18), s.y - (s.r * 0.2), Math.max(0.15, s.r * 0.22), 0, Math.PI * 2);
+                    }
+                    ctx.fill();
+                });
             }
         }
     }
@@ -3208,7 +3261,7 @@ const DOOR_BASE_HP = 70;
             const strengthRating = Math.max(1, Math.min(10, parseInt(deployStrengthNum.value, 10) || zombieBaseStrength));
             const resistanceRating = Math.max(1, Math.min(10, parseInt(deployResistanceNum.value, 10) || 1));
             const zombieType = {
-                speed: 0.2 + ((speedRating - 1) / 9) * (3 - 0.2),
+                speed: getDeployZombieSpeedFromRating(speedRating),
                 propagationSec: 10 - infectRating,
                 strength: clampStrength(strengthRating, zombieBaseStrength),
                 resistance: resistanceRating
@@ -3585,6 +3638,14 @@ const DOOR_BASE_HP = 70;
         return Math.max(1, Math.min(10, n));
     }
 
+    function getDeployZombieSpeedFromRating(rating) {
+        const clampedRating = Math.max(1, Math.min(10, parseInt(rating, 10) || 1));
+        // Requested rebalance: level 1 speed now matches previous level 3 speed.
+        // Keep increasing from there with the same step as before.
+        const shiftedLevel = clampedRating + 2;
+        return 0.2 + ((shiftedLevel - 1) / 9) * (3 - 0.2);
+    }
+
     function isPointInsideVisionCone(observer, target, range, angle) {
         const ox = observer.x + 1.5, oy = observer.y + 1.5;
         const tx = target.x + 1.5, ty = target.y + 1.5;
@@ -3595,21 +3656,53 @@ const DOOR_BASE_HP = 70;
         return Math.abs(anguloNormalizado(toTarget - facing)) <= angle / 2;
     }
 
-    function tieneLineaDeVision(x1, y1, x2, y2) {
+    function isPointBlockedByWall(x, y) {
+        const tx = Math.floor(x / cellSize);
+        const ty = Math.floor(y / cellSize);
+        if (tx < 0 || tx >= gridWidth || ty < 0 || ty >= gridHeight) return true;
+        return isTileBlocked(tx, ty);
+    }
+
+    function hasWallLineOfSightPx(x1, y1, x2, y2, options = null) {
+        const opts = options || {};
+        const ignoreStartTile = opts.ignoreStartTile !== false;
+        const ignoreEndTile = !!opts.ignoreEndTile;
         let x0 = Math.floor(x1 / cellSize), y0 = Math.floor(y1 / cellSize);
-        let xEnd = Math.floor(x2 / cellSize), yEnd = Math.floor(y2 / cellSize);
-        let dx = Math.abs(xEnd - x0), dy = Math.abs(yEnd - y0);
-        let sx = (x0 < xEnd) ? 1 : -1, sy = (y0 < yEnd) ? 1 : -1;
+        const xEnd = Math.floor(x2 / cellSize), yEnd = Math.floor(y2 / cellSize);
+        const dx = Math.abs(xEnd - x0), dy = Math.abs(yEnd - y0);
+        const sx = (x0 < xEnd) ? 1 : -1, sy = (y0 < yEnd) ? 1 : -1;
         let err = dx - dy;
+        let firstTile = true;
         while (true) {
             if (x0 < 0 || x0 >= gridWidth || y0 < 0 || y0 >= gridHeight) return false;
-            if (isTileBlocked(x0, y0)) return false; 
-            if (x0 === xEnd && y0 === yEnd) break;
-            let e2 = 2 * err;
+            const isStart = firstTile;
+            const isEnd = (x0 === xEnd && y0 === yEnd);
+            const shouldIgnore = (isStart && ignoreStartTile) || (isEnd && ignoreEndTile);
+            if (!shouldIgnore && isTileBlocked(x0, y0)) return false;
+            if (isEnd) break;
+            firstTile = false;
+            const e2 = 2 * err;
             if (e2 > -dy) { err -= dy; x0 += sx; }
             if (e2 < dx) { err += dx; y0 += sy; }
         }
         return true;
+    }
+
+    function rayDistanceUntilWall(x, y, angle, maxRange, step = 0.65) {
+        let traveled = 0;
+        while (traveled < maxRange) {
+            const nx = x + Math.cos(angle) * traveled;
+            const ny = y + Math.sin(angle) * traveled;
+            if (isPointBlockedByWall(nx, ny)) {
+                return Math.max(0, traveled - step);
+            }
+            traveled += step;
+        }
+        return maxRange;
+    }
+
+    function tieneLineaDeVision(x1, y1, x2, y2) {
+        return hasWallLineOfSightPx(x1, y1, x2, y2, { ignoreStartTile: true, ignoreEndTile: true });
     }
 
     function colisionConParedBase(x, y, w, h) {
@@ -5454,11 +5547,19 @@ drawDoorsWorld();
         const drawVisionCone = (e, range, angle, fillColor) => {
             const cx = e.x + 1.5, cy = e.y + 1.5;
             const facing = updateEntityFacingAngle(e, timeScale);
+            const startAngle = facing - angle / 2;
+            const segments = Math.max(12, Math.min(56, Math.round(angle / (Math.PI / 26))));
             ctx.save();
-            ctx.translate(cx, cy);
             ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.arc(0, 0, range, facing - angle / 2, facing + angle / 2);
+            ctx.moveTo(cx, cy);
+            for (let i = 0; i <= segments; i++) {
+                const t = i / segments;
+                const rayAngle = startAngle + (angle * t);
+                const rayDist = rayDistanceUntilWall(cx, cy, rayAngle, range);
+                const px = cx + Math.cos(rayAngle) * rayDist;
+                const py = cy + Math.sin(rayAngle) * rayDist;
+                ctx.lineTo(px, py);
+            }
             ctx.closePath();
             ctx.fillStyle = fillColor;
             ctx.fill();
@@ -5890,7 +5991,8 @@ drawDoorsWorld();
                 arc: opts.initial ? 0.55 : 0.38,
                 stretch: 2.4,
                 gravity: 0.03,
-                shrink: 0.9
+                shrink: 0.9,
+                collideWithWalls: true
             });
             pushScreenShake(opts.initial ? 1.65 : 0.55 + intensity * 0.08);
         };
