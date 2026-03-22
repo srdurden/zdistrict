@@ -1470,6 +1470,19 @@ body.editor-active #configPanel {
             const maxTx = Math.min(gridWidth - 1, Math.floor((stain.x + rx) / cellSize));
             const minTy = Math.max(0, Math.floor((stain.y - ry) / cellSize));
             const maxTy = Math.min(gridHeight - 1, Math.floor((stain.y + ry) / cellSize));
+            let hasBlockedTiles = false;
+            for (let ty = minTy; ty <= maxTy && !hasBlockedTiles; ty++) {
+                for (let tx = minTx; tx <= maxTx; tx++) {
+                    if (isTileBlocked(tx, ty)) {
+                        hasBlockedTiles = true;
+                        break;
+                    }
+                }
+            }
+            if (!hasBlockedTiles) {
+                painter();
+                return;
+            }
             for (let ty = minTy; ty <= maxTy; ty++) {
                 for (let tx = minTx; tx <= maxTx; tx++) {
                     if (isTileBlocked(tx, ty)) continue;
