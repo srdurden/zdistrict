@@ -3667,23 +3667,24 @@ const DOOR_BASE_HP = 70;
         const opts = options || {};
         const ignoreStartTile = opts.ignoreStartTile !== false;
         const ignoreEndTile = !!opts.ignoreEndTile;
-        let x0 = Math.floor(x1 / cellSize), y0 = Math.floor(y1 / cellSize);
-        const xEnd = Math.floor(x2 / cellSize), yEnd = Math.floor(y2 / cellSize);
-        const dx = Math.abs(xEnd - x0), dy = Math.abs(yEnd - y0);
-        const sx = (x0 < xEnd) ? 1 : -1, sy = (y0 < yEnd) ? 1 : -1;
-        let err = dx - dy;
-        let firstTile = true;
-        while (true) {
-            if (x0 < 0 || x0 >= gridWidth || y0 < 0 || y0 >= gridHeight) return false;
-            const isStart = firstTile;
-            const isEnd = (x0 === xEnd && y0 === yEnd);
-            const shouldIgnore = (isStart && ignoreStartTile) || (isEnd && ignoreEndTile);
-            if (!shouldIgnore && isTileBlocked(x0, y0)) return false;
-            if (isEnd) break;
-            firstTile = false;
-            const e2 = 2 * err;
-            if (e2 > -dy) { err -= dy; x0 += sx; }
-            if (e2 < dx) { err += dx; y0 += sy; }
+        const startTx = Math.floor(x1 / cellSize), startTy = Math.floor(y1 / cellSize);
+        const endTx = Math.floor(x2 / cellSize), endTy = Math.floor(y2 / cellSize);
+        const dist = Math.hypot(x2 - x1, y2 - y1);
+        const stepSize = 0.35; // supercover-like sampling in world pixels (prevents diagonal corner leaks)
+        const steps = Math.max(1, Math.ceil(dist / stepSize));
+
+        for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            const px = x1 + (x2 - x1) * t;
+            const py = y1 + (y2 - y1) * t;
+            const tx = Math.floor(px / cellSize);
+            const ty = Math.floor(py / cellSize);
+            if (tx < 0 || tx >= gridWidth || ty < 0 || ty >= gridHeight) return false;
+            const isStart = (tx === startTx && ty === startTy);
+            const isEnd = (tx === endTx && ty === endTy);
+            if (isStart && ignoreStartTile) continue;
+            if (isEnd && ignoreEndTile) continue;
+            if (isTileBlocked(tx, ty)) return false;
         }
         return true;
     }
