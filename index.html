@@ -6392,7 +6392,8 @@ drawDoorsWorld();
                 const hitDoor = (!hitBox) ? zombieTryHitDoor(zombie) : false;
                 if(!hitBox && !hitDoor && !target) zombie.direccion = direccionAleatoria();
             }
-            if ((zombie.bloodiness || 0) > 0.18 && chance(0.012 * (1 + zombie.bloodiness), timeScale)) {
+            const zombieIsTuggingNpc = !!(zombie.tugState && zombie.tugState.target);
+            if (zombieIsTuggingNpc && (zombie.bloodiness || 0) > 0.18 && chance(0.012 * (1 + zombie.bloodiness), timeScale)) {
                 addBlood(zombie.x + 1.5, zombie.y + 1.5, {
                     intensity: 0.24 + zombie.bloodiness * 0.45,
                     dir: zombie.direccion,
