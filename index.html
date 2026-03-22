@@ -1463,26 +1463,50 @@ body.editor-active #configPanel {
     }
 
     function drawBloodStains() {
+        const drawClippedToWalkableTiles = (stain, painter) => {
+            const rx = Math.max(0.3, stain.rx || stain.r || 0.3);
+            const ry = Math.max(0.25, stain.ry || stain.r || 0.25);
+            const minTx = Math.max(0, Math.floor((stain.x - rx) / cellSize));
+            const maxTx = Math.min(gridWidth - 1, Math.floor((stain.x + rx) / cellSize));
+            const minTy = Math.max(0, Math.floor((stain.y - ry) / cellSize));
+            const maxTy = Math.min(gridHeight - 1, Math.floor((stain.y + ry) / cellSize));
+            for (let ty = minTy; ty <= maxTy; ty++) {
+                for (let tx = minTx; tx <= maxTx; tx++) {
+                    if (isTileBlocked(tx, ty)) continue;
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.rect(tx * cellSize, ty * cellSize, cellSize, cellSize);
+                    ctx.clip();
+                    painter();
+                    ctx.restore();
+                }
+            }
+        };
+
         for (const s of bloodStains) {
             const a = Math.max(0.08, Math.min(0.52, s.alpha || 0.2));
             ctx.fillStyle = `rgba(183,28,28,${a})`;
-            ctx.beginPath();
-            if (s.rx && s.ry && typeof ctx.ellipse === "function") {
-                ctx.ellipse(s.x, s.y, Math.max(0.3, s.rx), Math.max(0.25, s.ry), s.rot || 0, 0, Math.PI * 2);
-            } else {
-                ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-            }
-            ctx.fill();
+            drawClippedToWalkableTiles(s, () => {
+                ctx.beginPath();
+                if (s.rx && s.ry && typeof ctx.ellipse === "function") {
+                    ctx.ellipse(s.x, s.y, Math.max(0.3, s.rx), Math.max(0.25, s.ry), s.rot || 0, 0, Math.PI * 2);
+                } else {
+                    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+                }
+                ctx.fill();
+            });
 
             if (s.kind === "pool" || s.kind === "splash") {
                 ctx.fillStyle = `rgba(255,205,210,${Math.max(0.02, a * 0.16)})`;
-                ctx.beginPath();
-                if (s.rx && s.ry && typeof ctx.ellipse === "function") {
-                    ctx.ellipse(s.x - ((s.rx || s.r) * 0.15), s.y - ((s.ry || s.r) * 0.18), Math.max(0.2, (s.rx || s.r) * 0.35), Math.max(0.15, (s.ry || s.r) * 0.18), s.rot || 0, 0, Math.PI * 2);
-                } else {
-                    ctx.arc(s.x - (s.r * 0.18), s.y - (s.r * 0.2), Math.max(0.15, s.r * 0.22), 0, Math.PI * 2);
-                }
-                ctx.fill();
+                drawClippedToWalkableTiles(s, () => {
+                    ctx.beginPath();
+                    if (s.rx && s.ry && typeof ctx.ellipse === "function") {
+                        ctx.ellipse(s.x - ((s.rx || s.r) * 0.15), s.y - ((s.ry || s.r) * 0.18), Math.max(0.2, (s.rx || s.r) * 0.35), Math.max(0.15, (s.ry || s.r) * 0.18), s.rot || 0, 0, Math.PI * 2);
+                    } else {
+                        ctx.arc(s.x - (s.r * 0.18), s.y - (s.r * 0.2), Math.max(0.15, s.r * 0.22), 0, Math.PI * 2);
+                    }
+                    ctx.fill();
+                });
             }
         }
     }
