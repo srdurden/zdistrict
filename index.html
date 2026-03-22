@@ -1271,23 +1271,148 @@ body.editor-active #configPanel {
     let particles = [];
     let bloodStains = [];
     let floatingTexts = [];
+    let attackBursts = [];
 
-    function spawnParticles(x, y, color, count = 8, speed = 1.2, spread = Math.PI * 2, life = 18, size = 1.2, alpha = 1) {
-        for (let i = 0; i < count; i++) {
-            const a = (Math.random() * spread);
-            const s = speed * (0.4 + Math.random() * 0.9);
-            particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life, ttl: life, size: size * (0.7 + Math.random() * 0.8), color, alpha });
-        }
-        if (particles.length > 900) particles.splice(0, particles.length - 900);
+    const clamp01 = (v) => Math.max(0, Math.min(1, v));
+
+    function ensureCombatVisualState(entidad) {
+        if (!entidad) return entidad;
+        entidad.bloodiness = Number.isFinite(entidad.bloodiness) ? entidad.bloodiness : 0;
+        entidad.lastAttackFrame = Number.isFinite(entidad.lastAttackFrame) ? entidad.lastAttackFrame : -9999;
+        entidad.lastHitFrame = Number.isFinite(entidad.lastHitFrame) ? entidad.lastHitFrame : -9999;
+        entidad.lastAttackAngle = Number.isFinite(entidad.lastAttackAngle) ? entidad.lastAttackAngle : 0;
+        entidad.hitFromAngle = Number.isFinite(entidad.hitFromAngle) ? entidad.hitFromAngle : 0;
+        entidad.tugFxCooldownFrame = Number.isFinite(entidad.tugFxCooldownFrame) ? entidad.tugFxCooldownFrame : 0;
+        return entidad;
     }
 
-    function addBlood(x, y, intensity = 1) {
+    function stainEntity(entidad, amount = 0.15) {
+        if (!entidad) return;
+        ensureCombatVisualState(entidad);
+        entidad.bloodiness = Math.min(1.35, Math.max(0, entidad.bloodiness + amount));
+    }
+
+    function spawnParticles(x, y, color, count = 8, speed = 1.2, spread = Math.PI * 2, life = 18, size = 1.2, alpha = 1, options = null) {
+        const opts = options || {};
+        const dirAngle = (opts.direction && (Number.isFinite(opts.direction.x) || Number.isFinite(opts.direction.y)))
+            ? Math.atan2(opts.direction.y || 0, opts.direction.x || 0)
+            : 0;
+        const arc = Number.isFinite(opts.arc) ? opts.arc : spread;
+        const startOffset = Number.isFinite(opts.startOffset) ? opts.startOffset : 0;
+        for (let i = 0; i < count; i++) {
+            const a = dirAngle + ((Math.random() - 0.5) * arc);
+            const s = speed * (0.4 + Math.random() * 0.9);
+            particles.push({
+                x: x + (Math.cos(a) * startOffset),
+                y: y + (Math.sin(a) * startOffset),
+                vx: Math.cos(a) * s,
+                vy: Math.sin(a) * s,
+                life,
+                ttl: life,
+                size: size * (0.7 + Math.random() * 0.8),
+                color,
+                alpha,
+                stretch: Number.isFinite(opts.stretch) ? opts.stretch * (0.7 + Math.random() * 0.7) : 0,
+                rotation: a,
+                gravity: Number.isFinite(opts.gravity) ? opts.gravity : 0,
+                shrink: Number.isFinite(opts.shrink) ? opts.shrink : 0.92
+            });
+        }
+        if (particles.length > 1400) particles.splice(0, particles.length - 1400);
+    }
+
+    function addAttackBurst(x, y, options = null) {
+        const opts = options || {};
+        attackBursts.push({
+            x,
+            y,
+            radius: Number.isFinite(opts.radius) ? opts.radius : 12,
+            darkAlpha: Number.isFinite(opts.darkAlpha) ? opts.darkAlpha : 0.2,
+            ringAlpha: Number.isFinite(opts.ringAlpha) ? opts.ringAlpha : 0.28,
+            ttl: Number.isFinite(opts.ttl) ? opts.ttl : 9,
+            life: Number.isFinite(opts.ttl) ? opts.ttl : 9,
+            intensity: Number.isFinite(opts.intensity) ? opts.intensity : 1,
+            color: opts.color || "rgba(120, 0, 0, 1)"
+        });
+        if (attackBursts.length > 36) attackBursts.splice(0, attackBursts.length - 36);
+    }
+
+    function pushScreenShake(amount = 1.1) {
+        screenShake = Math.min(12, screenShake + amount);
+    }
+
+    function addBlood(x, y, intensity = 1, options = null) {
+        const opts = (typeof intensity === "object" && intensity !== null) ? intensity : (options || {});
+        const power = (typeof intensity === "number") ? intensity : (Number.isFinite(opts.intensity) ? opts.intensity : 1);
+        const dir = opts.dir ? normalizar(opts.dir.x, opts.dir.y) : null;
         const varianceBoost = 1 + Math.random() * 1.9;
-        const r = 1.6 + Math.random() * (4.4 + intensity * 3.8) * varianceBoost;
-        const alpha = 0.14 + Math.random() * 0.22;
-        bloodStains.push({ x, y, r, alpha });
-        if (bloodStains.length > 280) bloodStains.splice(0, bloodStains.length - 280);
-        spawnParticles(x, y, "rgba(229, 57, 53, 0.9)", 5 + (intensity | 0) * 3, 1.9, Math.PI * 2, 16, 1.05, 0.95);
+        const ellipseBase = 1.6 + Math.random() * (4.4 + power * 3.8) * varianceBoost;
+        const alpha = Math.min(0.52, (0.14 + Math.random() * 0.22) + (opts.alphaBoost || 0));
+
+        bloodStains.push({
+            x,
+            y,
+            r: ellipseBase,
+            rx: ellipseBase * (dir ? (1.1 + Math.random() * 0.7) : 1),
+            ry: ellipseBase * (dir ? (0.55 + Math.random() * 0.35) : 1),
+            rot: dir ? Math.atan2(dir.y, dir.x) + ((Math.random() - 0.5) * 0.35) : (Math.random() * Math.PI),
+            alpha,
+            kind: dir ? "splash" : "pool"
+        });
+
+        if (dir && opts.spray !== false) {
+            const dropletCount = Math.max(2, Math.round(2 + power * 3.6));
+            for (let i = 0; i < dropletCount; i++) {
+                const distance = (2 + Math.random() * (6 + power * 6));
+                const jitter = (Math.random() - 0.5) * (0.5 + power * 0.12);
+                const ox = x + dir.x * distance + (-dir.y) * jitter * 2.3;
+                const oy = y + dir.y * distance + (dir.x) * jitter * 2.3;
+                const rx = 0.8 + Math.random() * (1.4 + power * 0.5);
+                const ry = 0.45 + Math.random() * 0.9;
+                bloodStains.push({
+                    x: ox,
+                    y: oy,
+                    r: Math.max(rx, ry),
+                    rx,
+                    ry,
+                    rot: Math.atan2(dir.y, dir.x) + ((Math.random() - 0.5) * 0.6),
+                    alpha: Math.min(0.44, alpha * (0.72 + Math.random() * 0.28)),
+                    kind: "droplet"
+                });
+            }
+        }
+
+        if (dir && opts.smear) {
+            const smearCount = Math.max(1, Math.round(power * 1.5));
+            for (let i = 0; i < smearCount; i++) {
+                const smearDist = 1.2 + Math.random() * (3.5 + power * 3.2);
+                bloodStains.push({
+                    x: x - dir.x * smearDist * 0.45,
+                    y: y - dir.y * smearDist * 0.45,
+                    r: ellipseBase * 0.7,
+                    rx: ellipseBase * (1.1 + Math.random() * 0.9),
+                    ry: ellipseBase * (0.28 + Math.random() * 0.22),
+                    rot: Math.atan2(dir.y, dir.x) + ((Math.random() - 0.5) * 0.25),
+                    alpha: Math.min(0.32, alpha * 0.78),
+                    kind: "smear"
+                });
+            }
+        }
+
+        if (bloodStains.length > 520) bloodStains.splice(0, bloodStains.length - 520);
+
+        spawnParticles(x, y, "rgba(183, 28, 28, 0.92)", 5 + Math.round(power) * 3, 1.9 + (power * 0.35), Math.PI * 2, 18 + (power * 2), 1.05 + (power * 0.12), 0.95, dir ? {
+            direction: dir,
+            arc: Math.max(0.55, Math.PI * (0.24 + power * 0.04)),
+            stretch: 2.7,
+            gravity: 0.025,
+            shrink: 0.9,
+            startOffset: 0.5
+        } : {
+            gravity: 0.03,
+            shrink: 0.91
+        });
+        spawnParticles(x, y, "rgba(255, 205, 210, 0.5)", 2 + Math.round(power), 0.9 + (power * 0.15), Math.PI * 2, 10 + power, 0.7, 0.55, dir ? { direction: dir, arc: 0.65, stretch: 1.4, gravity: 0.012 } : null);
     }
 
     function addFloatText(text, x, y, color = "rgba(62,39,35,0.85)") {
@@ -1301,8 +1426,10 @@ body.editor-active #configPanel {
             p.ttl -= step;
             p.x += p.vx * step;
             p.y += p.vy * step;
-            p.vx *= Math.pow(0.92, step);
-            p.vy *= Math.pow(0.92, step);
+            p.vy += (p.gravity || 0) * step;
+            const drag = Math.pow(Number.isFinite(p.shrink) ? p.shrink : 0.92, step);
+            p.vx *= drag;
+            p.vy *= drag;
             if (p.ttl <= 0) particles.splice(i, 1);
         }
         for (let i = floatingTexts.length - 1; i >= 0; i--) {
@@ -1312,26 +1439,80 @@ body.editor-active #configPanel {
             t.y += t.vy * step;
             if (t.ttl <= 0) floatingTexts.splice(i, 1);
         }
+        for (let i = attackBursts.length - 1; i >= 0; i--) {
+            const b = attackBursts[i];
+            b.ttl -= step;
+            if (b.ttl <= 0) attackBursts.splice(i, 1);
+        }
     }
 
     function drawBloodStains() {
         for (const s of bloodStains) {
-            const a = Math.max(0.08, Math.min(0.4, s.alpha || 0.2));
-            ctx.fillStyle = `rgba(229,57,53,${a})`;
+            const a = Math.max(0.08, Math.min(0.52, s.alpha || 0.2));
+            ctx.fillStyle = `rgba(183,28,28,${a})`;
             ctx.beginPath();
-            ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+            if (s.rx && s.ry && typeof ctx.ellipse === "function") {
+                ctx.ellipse(s.x, s.y, Math.max(0.3, s.rx), Math.max(0.25, s.ry), s.rot || 0, 0, Math.PI * 2);
+            } else {
+                ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+            }
             ctx.fill();
+
+            if (s.kind === "pool" || s.kind === "splash") {
+                ctx.fillStyle = `rgba(255,205,210,${Math.max(0.02, a * 0.16)})`;
+                ctx.beginPath();
+                if (s.rx && s.ry && typeof ctx.ellipse === "function") {
+                    ctx.ellipse(s.x - ((s.rx || s.r) * 0.15), s.y - ((s.ry || s.r) * 0.18), Math.max(0.2, (s.rx || s.r) * 0.35), Math.max(0.15, (s.ry || s.r) * 0.18), s.rot || 0, 0, Math.PI * 2);
+                } else {
+                    ctx.arc(s.x - (s.r * 0.18), s.y - (s.r * 0.2), Math.max(0.15, s.r * 0.22), 0, Math.PI * 2);
+                }
+                ctx.fill();
+            }
+        }
+    }
+
+    function drawAttackBursts() {
+        for (const b of attackBursts) {
+            const t = clamp01(b.ttl / b.life);
+            const radius = b.radius * (1 + ((1 - t) * 0.42));
+            const dark = (b.darkAlpha || 0.2) * t * (b.intensity || 1);
+            const ring = (b.ringAlpha || 0.28) * t * (b.intensity || 1);
+
+            const darkGrad = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, radius);
+            darkGrad.addColorStop(0, `rgba(40,0,0,${(dark * 0.85).toFixed(3)})`);
+            darkGrad.addColorStop(0.45, `rgba(120,0,0,${(dark * 0.45).toFixed(3)})`);
+            darkGrad.addColorStop(1, "rgba(0,0,0,0)");
+            ctx.fillStyle = darkGrad;
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = `rgba(255,82,82,${ring.toFixed(3)})`;
+            ctx.lineWidth = Math.max(0.8, 1.4 * t);
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, radius * (0.5 + ((1 - t) * 0.35)), 0, Math.PI * 2);
+            ctx.stroke();
         }
     }
 
     function drawParticles() {
         for (const p of particles) {
             const a = Math.max(0, Math.min(1, p.ttl / p.life)) * p.alpha;
+            ctx.save();
             ctx.globalAlpha = a;
             ctx.fillStyle = p.color;
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-            ctx.fill();
+            if (p.stretch && p.stretch > 0.2 && typeof ctx.ellipse === "function") {
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rotation || 0);
+                ctx.beginPath();
+                ctx.ellipse(0, 0, p.size * (1 + p.stretch), Math.max(0.3, p.size * 0.55), 0, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
         }
         ctx.globalAlpha = 1;
     }
@@ -2729,7 +2910,8 @@ const DOOR_BASE_HP = 70;
             pathCache: null,
             pathFollowInfo: null,
             travelDir: { x: 0, y: 0 },
-            corridorModeUntilFrame: 0
+            corridorModeUntilFrame: 0,
+            bloodiness: Number.isFinite(custom.bloodiness) ? custom.bloodiness : 0.08
         });
     }
 
@@ -3379,6 +3561,7 @@ const DOOR_BASE_HP = 70;
         if (!entidad) return entidad;
         entidad.turnRate = Number.isFinite(entidad.turnRate) ? entidad.turnRate : ENTITY_TURN_RATE;
         entidad.facingAngle = Number.isFinite(entidad.facingAngle) ? entidad.facingAngle : getDirectionAngle(entidad);
+        ensureCombatVisualState(entidad);
         return entidad;
     }
     function updateEntityFacingAngle(entidad, timeScale = 1) {
@@ -5228,7 +5411,7 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
         if (screenShake > 0) {
             const mag = screenShake;
             ctx.translate((Math.random()*2-1) * mag, (Math.random()*2-1) * mag);
-            screenShake = Math.max(0, screenShake - 0.9 * simStep);
+            screenShake = Math.max(0, screenShake - 0.72 * simStep);
         }
 
 
@@ -5284,40 +5467,175 @@ drawDoorsWorld();
 
         const drawEnt = (e, color, radius, kind = "generic") => {
             const cx = e.x + 1.5, cy = e.y + 1.5;
+            ensureCombatVisualState(e);
+
+            const inferredKind = (kind !== "generic")
+                ? kind
+                : (zombies.includes(e) ? "zombie" : (policias.includes(e) ? "police" : (ciudadanos.includes(e) ? "citizen" : "generic")));
+            const facing = Number.isFinite(e.facingAngle) ? e.facingAngle : getDirectionAngle(e);
+            const attackAge = frameCount - (e.lastAttackFrame || -9999);
+            const hitAge = frameCount - (e.lastHitFrame || -9999);
+            const attackPulse = (attackAge >= 0 && attackAge < 8) ? (1 - attackAge / 8) : 0;
+            const hitPulse = (hitAge >= 0 && hitAge < 10) ? (1 - hitAge / 10) : 0;
+            const zombieTugging = inferredKind === "zombie" && !!(e.tugState && e.tugState.target);
+            const npcPanicking = (inferredKind === "citizen" || inferredKind === "police") && isNpcInTug(e);
+            const scaleX = zombieTugging ? (1.12 + attackPulse * 0.16) : (npcPanicking ? (0.92 - hitPulse * 0.04) : (1 + attackPulse * 0.03));
+            const scaleY = zombieTugging ? (0.92 - attackPulse * 0.08) : (npcPanicking ? (1.08 + hitPulse * 0.1) : (1 + hitPulse * 0.04));
+            const tilt = zombieTugging
+                ? (0.12 + (Math.sin(frameCount * 0.85) * 0.08))
+                : (npcPanicking ? (-0.16 - (Math.cos(frameCount * 0.9) * 0.05)) : (attackPulse > 0 ? 0.03 : 0));
+            const bloodiness = clamp01((e.bloodiness || 0) / 1.1);
+            const outlineAlpha = npcPanicking ? 0.42 : 0.22;
 
             ctx.save();
-            ctx.shadowColor = "rgba(0,0,0,0.22)";
-            ctx.shadowBlur = 6;
-            ctx.shadowOffsetY = 3;
+            ctx.translate(cx, cy);
+            if (tilt) ctx.rotate(tilt);
+            ctx.scale(scaleX, scaleY);
 
+            ctx.shadowColor = zombieTugging ? "rgba(82, 0, 0, 0.42)" : "rgba(0,0,0,0.22)";
+            ctx.shadowBlur = zombieTugging ? 10 : 6;
+            ctx.shadowOffsetY = zombieTugging ? 4 : 3;
+
+            const bodyRadiusX = radius * (inferredKind === "zombie" ? 1.02 : 1);
+            const bodyRadiusY = radius * (inferredKind === "zombie" ? 0.96 : 1);
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            if (typeof ctx.ellipse === "function") {
+                ctx.ellipse(0, 0, bodyRadiusX, bodyRadiusY, 0, 0, Math.PI * 2);
+            } else {
+                ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            }
             ctx.fill();
 
             ctx.shadowBlur = 0;
             ctx.shadowOffsetY = 0;
 
-            // highlight
-            ctx.fillStyle = "rgba(255,255,255,0.22)";
+            if (hitPulse > 0.01 || zombieTugging) {
+                ctx.fillStyle = `rgba(255,82,82,${(0.12 + (Math.max(hitPulse, attackPulse) * 0.22)).toFixed(3)})`;
+                ctx.beginPath();
+                if (typeof ctx.ellipse === "function") {
+                    ctx.ellipse(0, 0, radius * 1.18, radius * 1.06, 0, 0, Math.PI * 2);
+                } else {
+                    ctx.arc(0, 0, radius * 1.12, 0, Math.PI * 2);
+                }
+                ctx.fill();
+            }
+
+            ctx.fillStyle = inferredKind === "zombie" ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.22)";
             ctx.beginPath();
-            ctx.arc(cx - radius * 0.25, cy - radius * 0.25, Math.max(1.0, radius * 0.55), 0, Math.PI * 2);
+            if (typeof ctx.ellipse === "function") {
+                ctx.ellipse(-radius * 0.24, -radius * 0.28, Math.max(0.9, radius * 0.5), Math.max(0.45, radius * 0.32), -0.3, 0, Math.PI * 2);
+            } else {
+                ctx.arc(-radius * 0.25, -radius * 0.25, Math.max(1.0, radius * 0.55), 0, Math.PI * 2);
+            }
             ctx.fill();
 
-            // outline
-            ctx.strokeStyle = "rgba(62,39,35,0.22)";
-            ctx.lineWidth = 1;
+            if (bloodiness > 0.02) {
+                const spots = 1 + Math.round(bloodiness * 5);
+                for (let i = 0; i < spots; i++) {
+                    const a = -Math.PI * 0.2 + (Math.random() * Math.PI * 1.2);
+                    const dist = radius * (0.18 + Math.random() * 0.7);
+                    const sx = Math.cos(a) * dist;
+                    const sy = Math.sin(a) * dist;
+                    ctx.fillStyle = `rgba(136,14,14,${(0.2 + bloodiness * 0.28).toFixed(3)})`;
+                    ctx.beginPath();
+                    if (typeof ctx.ellipse === "function") {
+                        ctx.ellipse(sx, sy, 0.45 + (bloodiness * 0.6), 0.25 + (bloodiness * 0.28), a, 0, Math.PI * 2);
+                    } else {
+                        ctx.arc(sx, sy, 0.35 + (bloodiness * 0.38), 0, Math.PI * 2);
+                    }
+                    ctx.fill();
+                }
+            }
+
+            ctx.strokeStyle = `rgba(62,39,35,${outlineAlpha.toFixed(3)})`;
+            ctx.lineWidth = npcPanicking ? 1.2 : 1;
             ctx.beginPath();
-            ctx.arc(cx, cy, radius - 0.5, 0, Math.PI * 2);
+            if (typeof ctx.ellipse === "function") {
+                ctx.ellipse(0, 0, Math.max(0.5, bodyRadiusX - 0.45), Math.max(0.45, bodyRadiusY - 0.45), 0, 0, Math.PI * 2);
+            } else {
+                ctx.arc(0, 0, radius - 0.5, 0, Math.PI * 2);
+            }
             ctx.stroke();
 
-            // tiny face cues for zombies (subtle)
-            if (kind === "zombie" && radius >= 3) {
-                ctx.fillStyle = "rgba(38,50,56,0.55)";
+            if (inferredKind === "zombie" && radius >= 3) {
+                ctx.fillStyle = zombieTugging ? "rgba(20,20,20,0.78)" : "rgba(38,50,56,0.6)";
                 ctx.beginPath();
-                ctx.arc(cx - 1.0, cy - 0.3, 0.6, 0, Math.PI * 2);
-                ctx.arc(cx + 0.8, cy - 0.3, 0.6, 0, Math.PI * 2);
+                ctx.arc(-1.0, -0.35, 0.6, 0, Math.PI * 2);
+                ctx.arc(0.9, -0.25, 0.6, 0, Math.PI * 2);
                 ctx.fill();
+
+                ctx.save();
+                ctx.rotate(facing);
+                ctx.fillStyle = zombieTugging ? "rgba(84, 0, 0, 0.92)" : "rgba(62,39,35,0.78)";
+                ctx.beginPath();
+                ctx.moveTo(radius * 0.22, 0);
+                ctx.lineTo(radius * 0.98, -radius * 0.34);
+                ctx.lineTo(radius * 0.98, radius * 0.34);
+                ctx.closePath();
+                ctx.fill();
+                if (zombieTugging || bloodiness > 0.18) {
+                    ctx.strokeStyle = "rgba(183,28,28,0.78)";
+                    ctx.lineWidth = 0.8;
+                    ctx.beginPath();
+                    ctx.moveTo(radius * 0.9, radius * 0.1);
+                    ctx.lineTo(radius * 1.18, radius * 0.36);
+                    ctx.moveTo(radius * 0.84, -radius * 0.04);
+                    ctx.lineTo(radius * 1.1, -radius * 0.24);
+                    ctx.stroke();
+                }
+                ctx.strokeStyle = "rgba(62,39,35,0.34)";
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(-radius * 0.2, -radius * 0.08);
+                ctx.lineTo(radius * 0.5, -radius * 0.78);
+                ctx.moveTo(-radius * 0.18, radius * 0.12);
+                ctx.lineTo(radius * 0.48, radius * 0.82);
+                ctx.stroke();
+                ctx.restore();
+            } else if ((inferredKind === "citizen" || inferredKind === "police") && radius >= 3) {
+                ctx.fillStyle = npcPanicking ? "rgba(62,39,35,0.82)" : "rgba(62,39,35,0.58)";
+                ctx.beginPath();
+                ctx.arc(-0.82, -0.3, npcPanicking ? 0.52 : 0.42, 0, Math.PI * 2);
+                ctx.arc(0.78, -0.3, npcPanicking ? 0.52 : 0.42, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = npcPanicking ? "rgba(62,39,35,0.76)" : "rgba(62,39,35,0.55)";
+                ctx.lineWidth = 0.8;
+                ctx.beginPath();
+                if (npcPanicking) {
+                    ctx.moveTo(-0.8, 0.75);
+                    ctx.quadraticCurveTo(0, 1.35, 0.78, 0.78);
+                } else {
+                    ctx.moveTo(-0.55, 0.74);
+                    ctx.lineTo(0.55, 0.74);
+                }
+                ctx.stroke();
+
+                if (npcPanicking) {
+                    ctx.save();
+                    ctx.rotate(-facing * 0.18);
+                    ctx.strokeStyle = "rgba(62,39,35,0.44)";
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(-radius * 0.18, -radius * 0.05);
+                    ctx.lineTo(-radius * 0.85, -radius * 0.82);
+                    ctx.moveTo(radius * 0.12, -radius * 0.02);
+                    ctx.lineTo(radius * 0.82, -radius * 0.85);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                if (inferredKind === "police") {
+                    ctx.fillStyle = "rgba(48,63,159,0.34)";
+                    ctx.beginPath();
+                    if (typeof ctx.ellipse === "function") {
+                        ctx.ellipse(0, -radius * 0.18, radius * 0.82, radius * 0.38, 0, Math.PI, 0, true);
+                    } else {
+                        ctx.arc(0, -radius * 0.1, radius * 0.75, Math.PI, 0);
+                    }
+                    ctx.fill();
+                }
             }
 
             ctx.restore();
@@ -5506,7 +5824,12 @@ drawDoorsWorld();
             target.hp = Number.isFinite(target.hp) ? target.hp : maxHp;
             target.hp = Math.max(0, target.hp - 1);
 
-            addBlood(target.x + 1.5, target.y + 1.5, 2);
+            const shotDir = normalizar(target.x - poli.x, target.y - poli.y);
+            addBlood(target.x + 1.5, target.y + 1.5, { intensity: 2, dir: shotDir, spray: true, smear: true, alphaBoost: 0.06 });
+            addAttackBurst(target.x + 1.5, target.y + 1.5, { radius: 10, ttl: 7, darkAlpha: 0.12, ringAlpha: 0.16, intensity: 0.8 });
+            stainEntity(target, 0.1);
+            target.lastHitFrame = frameCount;
+            pushScreenShake(0.55);
             if (target.hp <= 0) {
                 zombies.splice(targetIndex, 1);
                 cadaveres.push({ x: target.x, y: target.y });
@@ -5533,6 +5856,45 @@ drawDoorsWorld();
             return Math.max(0.75, Math.min(2.4, Math.pow(Math.max(0.2, timeScale), 0.82)));
         };
 
+        const triggerBiteImpact = (zombie, npc, intensity = 1, options = null) => {
+            if (!zombie || !npc) return;
+            const opts = options || {};
+            ensureCombatVisualState(zombie);
+            ensureCombatVisualState(npc);
+            const dir = normalizar((npc.x - zombie.x), (npc.y - zombie.y));
+            const centerX = npc.x + 1.5 - (dir.x * 0.55);
+            const centerY = npc.y + 1.5 - (dir.y * 0.55);
+            const burstRadius = 8 + (intensity * 4.8);
+            zombie.lastAttackFrame = frameCount;
+            npc.lastHitFrame = frameCount;
+            zombie.lastAttackAngle = Math.atan2(dir.y || 0, dir.x || 0);
+            npc.hitFromAngle = Math.atan2(dir.y || 0, dir.x || 0);
+            stainEntity(zombie, opts.initial ? 0.16 : 0.06 + (intensity * 0.04));
+            stainEntity(npc, 0.08 + (intensity * 0.05));
+            addBlood(centerX, centerY, {
+                intensity,
+                dir,
+                spray: true,
+                smear: true,
+                alphaBoost: opts.initial ? 0.08 : 0.03
+            });
+            addAttackBurst(centerX, centerY, {
+                radius: burstRadius,
+                ttl: opts.initial ? 10 : 7,
+                darkAlpha: opts.initial ? 0.24 : 0.14,
+                ringAlpha: opts.initial ? 0.24 : 0.14,
+                intensity: Math.min(1.5, 0.85 + intensity * 0.24)
+            });
+            spawnParticles(centerX, centerY, "rgba(183, 28, 28, 0.92)", Math.max(4, 4 + Math.round(intensity * 2)), 1.8 + intensity * 0.32, Math.PI * 2, 12 + intensity * 2, 0.9 + intensity * 0.1, 0.92, {
+                direction: dir,
+                arc: opts.initial ? 0.55 : 0.38,
+                stretch: 2.4,
+                gravity: 0.03,
+                shrink: 0.9
+            });
+            pushScreenShake(opts.initial ? 1.65 : 0.55 + intensity * 0.08);
+        };
+
         const applyZombieNpcTug = (zombie, npc, timeScale = 1) => {
             if (!zombie || !npc) return false;
             const now = frameCount;
@@ -5545,6 +5907,8 @@ drawDoorsWorld();
 
             if (!zombie.tugState || zombie.tugState.target !== npc) {
                 zombie.tugState = { target: npc, startFrame: now };
+                triggerBiteImpact(zombie, npc, 1.25, { initial: true });
+                npc.tugFxCooldownFrame = now + 5;
             }
             if (!Number.isFinite(npc._tugStartFrame)) npc._tugStartFrame = now;
             if (!Number.isFinite(npc._tugResolveAtFrame)) npc._tugResolveAtFrame = now + Math.max(1, npcTugResolveFrames);
@@ -5577,10 +5941,23 @@ drawDoorsWorld();
                 }
             }
 
+            if (!Number.isFinite(npc.tugFxCooldownFrame) || now >= npc.tugFxCooldownFrame) {
+                triggerBiteImpact(zombie, npc, 0.62 + (Math.min(3, attackers.length) * 0.12), { initial: false });
+                npc.tugFxCooldownFrame = now + Math.max(3, Math.round(6 / Math.max(0.75, Math.min(2.4, timeScale))));
+            }
+
             if (now >= npc._tugResolveAtFrame) {
                 const outcome = resolveNpcTugOutcome(npc, attackers);
                 if (outcome.zombieWins) {
                     const infectionSource = attackers.find(a => a && (a.tugState && a.tugState.target === npc)) || attackers[0] || zombie;
+                    triggerBiteImpact(infectionSource, npc, 1.9 + Math.min(0.8, attackers.length * 0.18), { initial: true });
+                    addBlood(npc.x + 1.5, npc.y + 1.5, {
+                        intensity: 2.4,
+                        dir: normalizar(npc.x - infectionSource.x, npc.y - infectionSource.y),
+                        spray: true,
+                        smear: true,
+                        alphaBoost: 0.12
+                    });
                     const npcType = getNpcTypeForEntity(npc);
                     if (npcType === "cit" || npcType === "pol") {
                         infectNpcFromZombie(npc, infectionSource);
@@ -5607,12 +5984,12 @@ drawDoorsWorld();
         if (editorState.active) {
             ciudadanos.forEach(cit => {
                 const citizenColor = (cit.infectionFramesLeft && cit.infectionFramesLeft > 0) ? PALETA.ciudadanoEnfermo : PALETA.ciudadano;
-                drawEnt(cit, citizenColor, radioVisual);
+                drawEnt(cit, citizenColor, radioVisual, "citizen");
             });
             policias.forEach(poli => {
-                drawEnt(poli, PALETA.policia, radioVisual);
+                drawEnt(poli, PALETA.policia, radioVisual, "police");
             });
-            zombies.forEach(zombie => drawEnt(zombie, PALETA.zombie, radioVisual));
+            zombies.forEach(zombie => drawEnt(zombie, PALETA.zombie, radioVisual, "zombie"));
         } else ciudadanos.forEach(cit => {
             if (cit.infectionFramesLeft && cit.infectionFramesLeft > 0) {
                 cit.infectionFramesLeft = Math.max(0, cit.infectionFramesLeft - (1 * timeScale));
@@ -5666,7 +6043,7 @@ drawDoorsWorld();
             const citizenColor = (cit.infectionFramesLeft && cit.infectionFramesLeft > 0) ? PALETA.ciudadanoEnfermo : PALETA.ciudadano;
             const baseConeColor = cit.panicking ? "rgba(229, 57, 53, 0.24)" : (cit.scared ? "rgba(229, 57, 53, 0.16)" : "rgba(121, 134, 203, 0.08)");
             drawVisionCone(cit, rangoVisionNPC, anguloVisionNPC, isNpcInTug(cit) ? "rgba(229, 57, 53, 0.28)" : baseConeColor);
-            drawEnt(cit, citizenColor, radioVisual);
+            drawEnt(cit, citizenColor, radioVisual, "citizen");
         });
 
         if (!editorState.active) policias.forEach(poli => {
@@ -5697,7 +6074,7 @@ drawDoorsWorld();
                 poli.boarding = 0;
                 const infectedConeColor = poli.panicking ? "rgba(229, 57, 53, 0.24)" : (poli.scared ? "rgba(229, 57, 53, 0.16)" : "rgba(121, 134, 203, 0.08)");
                 drawVisionCone(poli, rangoVisionNPC, anguloVisionNPC, isNpcInTug(poli) ? "rgba(229, 57, 53, 0.28)" : infectedConeColor);
-                drawEnt(poli, PALETA.ciudadanoEnfermo, radioVisual);
+                drawEnt(poli, PALETA.ciudadanoEnfermo, radioVisual, "police");
                 return;
             }
 
@@ -5782,7 +6159,7 @@ drawDoorsWorld();
             poli.boarding = 0;
             const baseConeColor = poli.panicking ? "rgba(229, 57, 53, 0.24)" : (poli.scared ? "rgba(229, 57, 53, 0.16)" : "rgba(121, 134, 203, 0.08)");
             drawVisionCone(poli, rangoVisionNPC, anguloVisionNPC, isNpcInTug(poli) ? "rgba(229, 57, 53, 0.28)" : baseConeColor);
-            drawEnt(poli, PALETA.policia, radioVisual);
+            drawEnt(poli, PALETA.policia, radioVisual, "police");
         });
 
         if (!editorState.active && pendingZombieTransforms.length) {
@@ -5792,10 +6169,20 @@ drawDoorsWorld();
                 const citIdx = ciudadanos.indexOf(npc);
                 const polIdx = policias.indexOf(npc);
                 if (citIdx === -1 && polIdx === -1) continue;
+                addBlood(npc.x + 1.5, npc.y + 1.5, {
+                    intensity: 2.6,
+                    dir: { x: Math.cos(frameCount * 0.17), y: Math.sin(frameCount * 0.21) },
+                    spray: true,
+                    smear: true,
+                    alphaBoost: 0.12
+                });
+                addAttackBurst(npc.x + 1.5, npc.y + 1.5, { radius: 15, ttl: 11, darkAlpha: 0.22, ringAlpha: 0.18, intensity: 1.15 });
+                pushScreenShake(1.1);
                 const newZombie = createZombieEntity(npc.x, npc.y, {
                     speed: entry.infectedBy.speed,
                     propagationSec: entry.infectedBy.propagationSec,
-                    strength: clampStrength(entry.infectedBy.strength, zombieBaseStrength)
+                    strength: clampStrength(entry.infectedBy.strength, zombieBaseStrength),
+                    bloodiness: 0.58
                 });
                 zombies.push(newZombie);
                 if (citIdx !== -1) ciudadanos.splice(citIdx, 1);
@@ -6005,7 +6392,16 @@ drawDoorsWorld();
                 const hitDoor = (!hitBox) ? zombieTryHitDoor(zombie) : false;
                 if(!hitBox && !hitDoor && !target) zombie.direccion = direccionAleatoria();
             }
-            drawEnt(zombie, PALETA.zombie, radioVisual);
+            if ((zombie.bloodiness || 0) > 0.18 && chance(0.012 * (1 + zombie.bloodiness), timeScale)) {
+                addBlood(zombie.x + 1.5, zombie.y + 1.5, {
+                    intensity: 0.24 + zombie.bloodiness * 0.45,
+                    dir: zombie.direccion,
+                    spray: false,
+                    smear: true,
+                    alphaBoost: -0.04
+                });
+            }
+            drawEnt(zombie, PALETA.zombie, radioVisual, "zombie");
         });
 
         if (zombieLureTarget) {
@@ -6075,7 +6471,7 @@ drawDoorsWorld();
                 ctx.strokeStyle = "rgba(56, 142, 60, 0.68)";
                 ctx.lineWidth = 1;
                 ctx.stroke();
-                drawEnt({ x: hx + (cellSize - tamanoEntidad) / 2, y: hy + (cellSize - tamanoEntidad) / 2, direccion: { x: 1, y: 0 } }, selectedTool.key === "police" ? PALETA.policia : PALETA.ciudadano, radioVisual);
+                drawEnt({ x: hx + (cellSize - tamanoEntidad) / 2, y: hy + (cellSize - tamanoEntidad) / 2, direccion: { x: 1, y: 0 } }, selectedTool.key === "police" ? PALETA.policia : PALETA.ciudadano, radioVisual, selectedTool.key === "police" ? "police" : "citizen");
             } else {
                 const isEditorBrushPreview = editorState.active && !!selectedTool && !editorState.fillMode;
                 if (isEditorBrushPreview) {
@@ -6141,6 +6537,7 @@ drawDoorsWorld();
             estadoJuego = "VICTORY";
         }
 
+        drawAttackBursts();
         drawParticles();
         drawFloatingTexts();
 
