@@ -1342,6 +1342,70 @@ body.editor-active #configPanel {
         screenShake = Math.min(12, screenShake + amount);
     }
 
+    function getBloodEllipseSamplePoint(stain, angle, radialScale = 1) {
+        const rx = Math.max(0.18, stain.rx || stain.r || 0.18);
+        const ry = Math.max(0.18, stain.ry || stain.r || 0.18);
+        const rot = stain.rot || 0;
+        const cosA = Math.cos(angle);
+        const sinA = Math.sin(angle);
+        const localX = cosA * rx * radialScale;
+        const localY = sinA * ry * radialScale;
+        const cosR = Math.cos(rot);
+        const sinR = Math.sin(rot);
+        return {
+            x: stain.x + (localX * cosR - localY * sinR),
+            y: stain.y + (localX * sinR + localY * cosR)
+        };
+    }
+
+    function canPlaceBloodShape(stain) {
+        if (!stain || isPointBlockedByWall(stain.x, stain.y)) return false;
+        const sampleAngles = [0, Math.PI * 0.25, Math.PI * 0.5, Math.PI * 0.75, Math.PI, Math.PI * 1.25, Math.PI * 1.5, Math.PI * 1.75];
+        const radialScales = [1, 0.76, 0.46];
+        for (const scale of radialScales) {
+            for (const angle of sampleAngles) {
+                const p = getBloodEllipseSamplePoint(stain, angle, scale);
+                if (isPointBlockedByWall(p.x, p.y)) return false;
+                if (!hasWallLineOfSightPx(stain.x, stain.y, p.x, p.y, { ignoreStartTile: true, ignoreEndTile: false })) return false;
+            }
+        }
+        return true;
+    }
+
+    function pushBloodStainSafely(stain) {
+        if (!stain) return false;
+        let candidate = {
+            ...stain,
+            r: Math.max(0.18, stain.r || 0.18),
+            rx: Math.max(0.18, stain.rx || stain.r || 0.18),
+            ry: Math.max(0.18, stain.ry || stain.r || 0.18)
+        };
+
+        for (let i = 0; i < 7; i++) {
+            if (canPlaceBloodShape(candidate)) {
+                bloodStains.push(candidate);
+                return true;
+            }
+            candidate = {
+                ...candidate,
+                r: Math.max(0.18, candidate.r * 0.78),
+                rx: Math.max(0.18, candidate.rx * 0.78),
+                ry: Math.max(0.18, candidate.ry * 0.78)
+            };
+        }
+
+        if (!isPointBlockedByWall(candidate.x, candidate.y)) {
+            bloodStains.push({
+                ...candidate,
+                r: Math.max(0.16, candidate.r * 0.55),
+                rx: Math.max(0.16, candidate.rx * 0.55),
+                ry: Math.max(0.16, candidate.ry * 0.55)
+            });
+            return true;
+        }
+        return false;
+    }
+
     function addBlood(x, y, intensity = 1, options = null) {
         const opts = (typeof intensity === "object" && intensity !== null) ? intensity : (options || {});
         const power = (typeof intensity === "number") ? intensity : (Number.isFinite(opts.intensity) ? opts.intensity : 1);
@@ -1352,7 +1416,7 @@ body.editor-active #configPanel {
         const canPlaceBloodAt = (bx, by) => hasWallLineOfSightPx(x, y, bx, by, { ignoreStartTile: true, ignoreEndTile: false });
 
         if (canPlaceBloodAt(x, y)) {
-            bloodStains.push({
+            pushBloodStainSafely({
                 x,
                 y,
                 r: ellipseBase,
@@ -1374,7 +1438,7 @@ body.editor-active #configPanel {
                 const rx = 0.8 + Math.random() * (1.4 + power * 0.5);
                 const ry = 0.45 + Math.random() * 0.9;
                 if (!canPlaceBloodAt(ox, oy)) continue;
-                bloodStains.push({
+                pushBloodStainSafely({
                     x: ox,
                     y: oy,
                     r: Math.max(rx, ry),
@@ -1394,7 +1458,7 @@ body.editor-active #configPanel {
                 const smearX = x - dir.x * smearDist * 0.45;
                 const smearY = y - dir.y * smearDist * 0.45;
                 if (!canPlaceBloodAt(smearX, smearY)) continue;
-                bloodStains.push({
+                pushBloodStainSafely({
                     x: smearX,
                     y: smearY,
                     r: ellipseBase * 0.7,
@@ -1463,63 +1527,26 @@ body.editor-active #configPanel {
     }
 
     function drawBloodStains() {
-        const drawClippedToWalkableTiles = (stain, painter) => {
-            const rx = Math.max(0.3, stain.rx || stain.r || 0.3);
-            const ry = Math.max(0.25, stain.ry || stain.r || 0.25);
-            const minTx = Math.max(0, Math.floor((stain.x - rx) / cellSize));
-            const maxTx = Math.min(gridWidth - 1, Math.floor((stain.x + rx) / cellSize));
-            const minTy = Math.max(0, Math.floor((stain.y - ry) / cellSize));
-            const maxTy = Math.min(gridHeight - 1, Math.floor((stain.y + ry) / cellSize));
-            let hasBlockedTiles = false;
-            for (let ty = minTy; ty <= maxTy && !hasBlockedTiles; ty++) {
-                for (let tx = minTx; tx <= maxTx; tx++) {
-                    if (isTileBlocked(tx, ty)) {
-                        hasBlockedTiles = true;
-                        break;
-                    }
-                }
-            }
-            if (!hasBlockedTiles) {
-                painter();
-                return;
-            }
-            for (let ty = minTy; ty <= maxTy; ty++) {
-                for (let tx = minTx; tx <= maxTx; tx++) {
-                    if (isTileBlocked(tx, ty)) continue;
-                    ctx.save();
-                    ctx.beginPath();
-                    ctx.rect(tx * cellSize, ty * cellSize, cellSize, cellSize);
-                    ctx.clip();
-                    painter();
-                    ctx.restore();
-                }
-            }
-        };
-
         for (const s of bloodStains) {
             const a = Math.max(0.08, Math.min(0.52, s.alpha || 0.2));
             ctx.fillStyle = `rgba(183,28,28,${a})`;
-            drawClippedToWalkableTiles(s, () => {
-                ctx.beginPath();
-                if (s.rx && s.ry && typeof ctx.ellipse === "function") {
-                    ctx.ellipse(s.x, s.y, Math.max(0.3, s.rx), Math.max(0.25, s.ry), s.rot || 0, 0, Math.PI * 2);
-                } else {
-                    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-                }
-                ctx.fill();
-            });
+            ctx.beginPath();
+            if (s.rx && s.ry && typeof ctx.ellipse === "function") {
+                ctx.ellipse(s.x, s.y, Math.max(0.3, s.rx), Math.max(0.25, s.ry), s.rot || 0, 0, Math.PI * 2);
+            } else {
+                ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+            }
+            ctx.fill();
 
             if (s.kind === "pool" || s.kind === "splash") {
                 ctx.fillStyle = `rgba(255,205,210,${Math.max(0.02, a * 0.16)})`;
-                drawClippedToWalkableTiles(s, () => {
-                    ctx.beginPath();
-                    if (s.rx && s.ry && typeof ctx.ellipse === "function") {
-                        ctx.ellipse(s.x - ((s.rx || s.r) * 0.15), s.y - ((s.ry || s.r) * 0.18), Math.max(0.2, (s.rx || s.r) * 0.35), Math.max(0.15, (s.ry || s.r) * 0.18), s.rot || 0, 0, Math.PI * 2);
-                    } else {
-                        ctx.arc(s.x - (s.r * 0.18), s.y - (s.r * 0.2), Math.max(0.15, s.r * 0.22), 0, Math.PI * 2);
-                    }
-                    ctx.fill();
-                });
+                ctx.beginPath();
+                if (s.rx && s.ry && typeof ctx.ellipse === "function") {
+                    ctx.ellipse(s.x - ((s.rx || s.r) * 0.15), s.y - ((s.ry || s.r) * 0.18), Math.max(0.2, (s.rx || s.r) * 0.35), Math.max(0.15, (s.ry || s.r) * 0.18), s.rot || 0, 0, Math.PI * 2);
+                } else {
+                    ctx.arc(s.x - (s.r * 0.18), s.y - (s.r * 0.2), Math.max(0.15, s.r * 0.22), 0, Math.PI * 2);
+                }
+                ctx.fill();
             }
         }
     }
@@ -3858,6 +3885,69 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         return { moved: true, dx: entidad.x - beforeX, dy: entidad.y - beforeY };
     }
 
+    function moveEntitySafely(entidad, dir, distancePx, maxSteps = 9) {
+        if (!entidad || !Number.isFinite(distancePx) || distancePx <= 0) return 0;
+        const unit = normalizar(dir.x, dir.y);
+        if (!unit.x && !unit.y) return 0;
+        const world = getWorldPixelSize();
+        const steps = Math.max(1, maxSteps | 0);
+        const stepDist = distancePx / steps;
+        let moved = 0;
+        for (let i = 0; i < steps; i++) {
+            const nextX = entidad.x + unit.x * stepDist;
+            const nextY = entidad.y + unit.y * stepDist;
+            let advanced = false;
+            if (!colisionConPared(nextX, nextY, tamanoEntidad, tamanoEntidad)) {
+                entidad.x = nextX;
+                entidad.y = nextY;
+                advanced = true;
+            } else {
+                if (!colisionConPared(nextX, entidad.y, tamanoEntidad, tamanoEntidad)) {
+                    entidad.x = nextX;
+                    advanced = true;
+                }
+                if (!colisionConPared(entidad.x, nextY, tamanoEntidad, tamanoEntidad)) {
+                    entidad.y = nextY;
+                    advanced = true;
+                }
+            }
+            entidad.x = Math.max(0, Math.min(world.width - tamanoEntidad, entidad.x));
+            entidad.y = Math.max(0, Math.min(world.height - tamanoEntidad, entidad.y));
+            if (!advanced) break;
+            moved += stepDist;
+        }
+        return moved;
+    }
+
+    function queueEntityDisplacement(entidad, dir, distancePx, speedPxPerFrame = null) {
+        if (!entidad || !Number.isFinite(distancePx) || distancePx <= 0) return;
+        const unit = normalizar(dir.x, dir.y);
+        if (!unit.x && !unit.y) return;
+        entidad.queuedDisplacement = {
+            dir: unit,
+            remaining: Math.max(0, distancePx),
+            speedPxPerFrame: (Number.isFinite(speedPxPerFrame) && speedPxPerFrame > 0)
+                ? speedPxPerFrame
+                : Math.max(0.45, cellSize * 0.26)
+        };
+    }
+
+    function consumeEntityDisplacement(entidad, timeScale = 1, maxSteps = 6) {
+        if (!entidad || !entidad.queuedDisplacement) return 0;
+        const burst = entidad.queuedDisplacement;
+        const dir = normalizar(burst.dir && burst.dir.x, burst.dir && burst.dir.y);
+        if ((!dir.x && !dir.y) || !Number.isFinite(burst.remaining) || burst.remaining <= 0) {
+            entidad.queuedDisplacement = null;
+            return 0;
+        }
+        const speed = Math.max(0.35, Number.isFinite(burst.speedPxPerFrame) ? burst.speedPxPerFrame : Math.max(0.45, cellSize * 0.26));
+        const budget = Math.min(burst.remaining, speed * Math.max(0.65, Math.min(1.75, timeScale)));
+        const moved = moveEntitySafely(entidad, dir, budget, Math.max(2, maxSteps | 0));
+        burst.remaining = Math.max(0, burst.remaining - moved);
+        if (burst.remaining <= 0.05 || moved <= 0.001) entidad.queuedDisplacement = null;
+        return moved;
+    }
+
     function moverEntidadIAConSlide(entidad, desiredDir, stepDistance, pathHintDir = null) {
         const unit = normalizar(desiredDir.x, desiredDir.y);
         if (!unit.x && !unit.y) return { collided: false, moved: false };
@@ -5814,40 +5904,6 @@ drawDoorsWorld();
             return attackers;
         };
 
-        const moveEntitySafely = (entidad, dir, distancePx, maxSteps = 9) => {
-            if (!entidad || !Number.isFinite(distancePx) || distancePx <= 0) return 0;
-            const unit = normalizar(dir.x, dir.y);
-            if (!unit.x && !unit.y) return 0;
-            const world = getWorldPixelSize();
-            const steps = Math.max(1, maxSteps | 0);
-            const stepDist = distancePx / steps;
-            let moved = 0;
-            for (let i = 0; i < steps; i++) {
-                const nextX = entidad.x + unit.x * stepDist;
-                const nextY = entidad.y + unit.y * stepDist;
-                let advanced = false;
-                if (!colisionConPared(nextX, nextY, tamanoEntidad, tamanoEntidad)) {
-                    entidad.x = nextX;
-                    entidad.y = nextY;
-                    advanced = true;
-                } else {
-                    if (!colisionConPared(nextX, entidad.y, tamanoEntidad, tamanoEntidad)) {
-                        entidad.x = nextX;
-                        advanced = true;
-                    }
-                    if (!colisionConPared(entidad.x, nextY, tamanoEntidad, tamanoEntidad)) {
-                        entidad.y = nextY;
-                        advanced = true;
-                    }
-                }
-                entidad.x = Math.max(0, Math.min(world.width - tamanoEntidad, entidad.x));
-                entidad.y = Math.max(0, Math.min(world.height - tamanoEntidad, entidad.y));
-                if (!advanced) break;
-                moved += stepDist;
-            }
-            return moved;
-        };
-
         const getTugAttackForce = (attackers) => {
             if (!attackers || !attackers.length) return 0;
             let attackForce = 0;
@@ -5898,10 +5954,13 @@ drawDoorsWorld();
 
             const dir = normalizar(escapeDir && escapeDir.x, escapeDir && escapeDir.y);
             const finalDir = (dir.x || dir.y) ? dir : direccionAleatoria();
-            // Keep releases tight so NPCs don't "teleport" several tiles away after a tug escape.
+            // Queue the escape burst over a few frames so civilians/police do not visually pop
+            // from one side of the scrum to another.
             const maxReleaseDistance = Math.max(distanciaAtaque + 1, cellSize * 1.25);
             const escapeDistance = Math.min(Math.max(0, npcEscapeDistance), maxReleaseDistance);
-            moveEntitySafely(npc, finalDir, escapeDistance, 12);
+            npc.direccion = finalDir;
+            moveEntitySafely(npc, finalDir, Math.min(0.9, escapeDistance * 0.22), 4);
+            queueEntityDisplacement(npc, finalDir, Math.max(0, escapeDistance - Math.min(0.9, escapeDistance * 0.22)), Math.max(0.5, cellSize * 0.22));
             npc.tugFacingLock = { baseAngle: Math.atan2(finalDir.y, finalDir.x), lastFrame: now };
 
             const pushBack = Math.min(Math.max(0, zombieReleasePush), cellSize * 0.75);
@@ -6145,9 +6204,12 @@ drawDoorsWorld();
             const isPanicking = Number.isFinite(cit.panicUntilFrame) && cit.panicUntilFrame > frameCount;
             cit.panicking = isPanicking;
 
-            if(Math.random() < 0.2) { const sep = obtenerFuerzaSeparacion(cit, ciudadanos, radioSeparacion); cit.direccion.x += sep.x * 0.5; cit.direccion.y += sep.y * 0.5; }
-            const choco = aplicarFuerzas(cit, velocidadCiudadano, timeScale);
-            if(choco) cit.direccion = direccionAleatoria();
+            const burstMoved = consumeEntityDisplacement(cit, timeScale, 6);
+            if (burstMoved <= 0.001) {
+                if(Math.random() < 0.2) { const sep = obtenerFuerzaSeparacion(cit, ciudadanos, radioSeparacion); cit.direccion.x += sep.x * 0.5; cit.direccion.y += sep.y * 0.5; }
+                const choco = aplicarFuerzas(cit, velocidadCiudadano, timeScale);
+                if(choco) cit.direccion = direccionAleatoria();
+            }
             if (!cit.fleeingZombie) limitEntityToRoamRadius(cit, npcRoamRadiusPx, "spawn");
             cit.boarding = 0;
             const citizenColor = (cit.infectionFramesLeft && cit.infectionFramesLeft > 0) ? PALETA.ciudadanoEnfermo : PALETA.ciudadano;
@@ -6171,13 +6233,16 @@ drawDoorsWorld();
                 poli.lastThreatPos = null;
 
                 poli.panicking = Number.isFinite(poli.panicUntilFrame) && poli.panicUntilFrame > frameCount;
-                if (Math.random() < 0.2) {
-                    const sep = obtenerFuerzaSeparacion(poli, policias, radioSeparacion);
-                    poli.direccion.x += sep.x * 0.5;
-                    poli.direccion.y += sep.y * 0.5;
+                const infectedBurstMoved = consumeEntityDisplacement(poli, timeScale, 6);
+                if (infectedBurstMoved <= 0.001) {
+                    if (Math.random() < 0.2) {
+                        const sep = obtenerFuerzaSeparacion(poli, policias, radioSeparacion);
+                        poli.direccion.x += sep.x * 0.5;
+                        poli.direccion.y += sep.y * 0.5;
+                    }
+                    const infectedHitWall = aplicarFuerzas(poli, velocidadCiudadano, timeScale);
+                    if (infectedHitWall) poli.direccion = direccionAleatoria();
                 }
-                const infectedHitWall = aplicarFuerzas(poli, velocidadCiudadano, timeScale);
-                if (infectedHitWall) poli.direccion = direccionAleatoria();
                 limitEntityToRoamRadius(poli, npcRoamRadiusPx, "spawn");
                 poli.boarding = 0;
                 const infectedConeColor = poli.panicking ? "rgba(229, 57, 53, 0.24)" : (poli.scared ? "rgba(229, 57, 53, 0.16)" : "rgba(121, 134, 203, 0.08)");
@@ -6215,6 +6280,7 @@ drawDoorsWorld();
             poli.scared = !!seenZombie;
             poli.fleeingZombie = false;
 
+            const policeBurstMoved = consumeEntityDisplacement(poli, timeScale, 6);
             if (isPanicking) {
                 const aimDir = normalizar(poli.panicAimDir && poli.panicAimDir.x, poli.panicAimDir && poli.panicAimDir.y);
                 if (seenZombie && (aimDir.x || aimDir.y)) {
@@ -6232,35 +6298,41 @@ drawDoorsWorld();
                     poli.direccion = scanDir;
                     const sep = obtenerFuerzaSeparacion(poli, policias, radioSeparacion);
                     poli.direccion = normalizar(poli.direccion.x + sep.x * 0.4, poli.direccion.y + sep.y * 0.4);
-                    const chocoBuscando = aplicarFuerzas(poli, velocidadCiudadano * policePanicSearchSpeedFactor, timeScale);
-                    if (chocoBuscando) {
-                        poli.panicSweepBaseAngle += Math.PI * 0.5;
+                    if (policeBurstMoved <= 0.001) {
+                        const chocoBuscando = aplicarFuerzas(poli, velocidadCiudadano * policePanicSearchSpeedFactor, timeScale);
+                        if (chocoBuscando) {
+                            poli.panicSweepBaseAngle += Math.PI * 0.5;
+                        }
                     }
                 }
 
-                let shootTarget = null;
-                let shootTargetDist = Infinity;
-                for (const z of zombies) {
-                    const d = distancia(poli.x, poli.y, z.x, z.y);
-                    if (d > policeShootRangePx) continue;
-                    if (!tieneLineaDeVision(poli.x, poli.y, z.x, z.y)) continue;
-                    if (!isPointInsideVisionCone(poli, z, policeShootRangePx, anguloVisionNPC)) continue;
-                    if (d < shootTargetDist) {
-                        shootTargetDist = d;
-                        shootTarget = z;
+                if (policeBurstMoved <= 0.001) {
+                    let shootTarget = null;
+                    let shootTargetDist = Infinity;
+                    for (const z of zombies) {
+                        const d = distancia(poli.x, poli.y, z.x, z.y);
+                        if (d > policeShootRangePx) continue;
+                        if (!tieneLineaDeVision(poli.x, poli.y, z.x, z.y)) continue;
+                        if (!isPointInsideVisionCone(poli, z, policeShootRangePx, anguloVisionNPC)) continue;
+                        if (d < shootTargetDist) {
+                            shootTargetDist = d;
+                            shootTarget = z;
+                        }
                     }
+                    if (shootTarget && !isNpcInTug(poli)) policeShootZombie(poli, shootTarget);
                 }
-                if (shootTarget && !isNpcInTug(poli)) policeShootZombie(poli, shootTarget);
             } else {
                 if (Math.random() < 0.05) poli.direccion = normalizar(poli.direccion.x + (Math.random() - 0.5), poli.direccion.y + (Math.random() - 0.5));
                 poli.lastThreatPos = null;
-                if (Math.random() < 0.2) {
-                    const sep = obtenerFuerzaSeparacion(poli, policias, radioSeparacion);
-                    poli.direccion.x += sep.x * 0.5;
-                    poli.direccion.y += sep.y * 0.5;
+                if (policeBurstMoved <= 0.001) {
+                    if (Math.random() < 0.2) {
+                        const sep = obtenerFuerzaSeparacion(poli, policias, radioSeparacion);
+                        poli.direccion.x += sep.x * 0.5;
+                        poli.direccion.y += sep.y * 0.5;
+                    }
+                    const choco = aplicarFuerzas(poli, velocidadCiudadano, timeScale);
+                    if (choco) poli.direccion = direccionAleatoria();
                 }
-                const choco = aplicarFuerzas(poli, velocidadCiudadano, timeScale);
-                if (choco) poli.direccion = direccionAleatoria();
                 limitEntityToRoamRadius(poli, npcRoamRadiusPx, "spawn");
             }
 
