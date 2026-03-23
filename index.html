@@ -873,6 +873,7 @@ body.editor-active #configPanel {
 
 <script>
 
+
     function syncAppHeight() {
         const viewportHeight = (window.visualViewport && window.visualViewport.height)
             ? window.visualViewport.height
@@ -3263,6 +3264,8 @@ const txtEventoElem = document.getElementById("txtEvento");
     let policeBaseStrength = 3;
     let distanciaAtraccionHeli = 150;
     let wallRepulsionForce = 0.5; 
+    const DEFAULT_AI_WALL_CLEARANCE_PX = 0;
+    const ZOMBIE_WALL_CLEARANCE_PX = Math.max(1.05, cellSize * 0.14);
 
     let gridWidth = Math.floor(worldPixelWidth / cellSize);
     let gridHeight = Math.floor(worldPixelHeight / cellSize);
@@ -3320,6 +3323,38 @@ let ciudadanos = [];
     let ciudadanosSalvados = 0;
 // --- DOORS / NOISE / DIRECTOR ---
     let doorGroups = [];             // {tiles:[{x,y}], open:boolean, broken:boolean, barricaded:boolean, hp:number, maxHp:number}
+    let navigationVersion = 1;
+    const globalPathCache = new Map();
+    const globalDoorBreachCache = new Map();
+    const MAX_GLOBAL_PATH_CACHE = 700;
+    const MAX_GLOBAL_DOOR_BREACH_CACHE = 350;
+
+    function trimNavigationCache(cache, maxEntries) {
+        while (cache.size > maxEntries) {
+            const oldestKey = cache.keys().next().value;
+            if (oldestKey === undefined) break;
+            cache.delete(oldestKey);
+        }
+    }
+
+    function clearZombieNavigationState() {
+        if (!Array.isArray(zombies)) return;
+        for (const zombie of zombies) {
+            if (!zombie) continue;
+            zombie.pathCache = null;
+            zombie.pathJitter = null;
+            zombie.pathFollowInfo = null;
+            zombie.cachedDoorBreachTarget = null;
+        }
+    }
+
+    function invalidateNavigationCaches() {
+        navigationVersion += 1;
+        globalPathCache.clear();
+        globalDoorBreachCache.clear();
+        clearZombieNavigationState();
+    }
+
     let doorIndex = Object.create(null); // key "x,y" -> group index
     let noises = [];                 // {x,y,strength,ttl}
 
@@ -3433,6 +3468,7 @@ const DOOR_BASE_HP = 70;
             pathFollowInfo: null,
             travelDir: { x: 0, y: 0 },
             corridorModeUntilFrame: 0,
+            wallClearancePx: Math.max(0, Number.isFinite(custom.wallClearancePx) ? custom.wallClearancePx : ZOMBIE_WALL_CLEARANCE_PX),
             bloodiness: Number.isFinite(custom.bloodiness) ? custom.bloodiness : 0.08
         });
     }
@@ -3472,6 +3508,7 @@ const DOOR_BASE_HP = 70;
     function syncEditorTileToRuntime(tx, ty, token) {
         if (ty < 0 || ty >= gridHeight || tx < 0 || tx >= gridWidth) return;
         grid[ty][tx] = (token === "#");
+        invalidateNavigationCaches();
         const key = `${tx},${ty}`;
         if (token === "S") zombieDeploySpawnTiles.add(key);
         else zombieDeploySpawnTiles.delete(key);
@@ -4237,6 +4274,21 @@ function colisionConMuebles(x, y, w, h, ignoreIndex = -1) {
     return false;
 }
 
+function colisionConMueblesConMargen(x, y, w, h, padding = 0, ignoreIndex = -1) {
+    if (!Number.isFinite(padding) || padding <= 0) return colisionConMuebles(x, y, w, h, ignoreIndex);
+    if (!muebles || muebles.length === 0) return false;
+    const px = x - padding;
+    const py = y - padding;
+    const pw = w + padding * 2;
+    const ph = h + padding * 2;
+    for (let i = 0; i < muebles.length; i++) {
+        if (i === ignoreIndex) continue;
+        const b = muebles[i];
+        if (aabbIntersects(px, py, pw, ph, b.x, b.y, b.size, b.size)) return true;
+    }
+    return false;
+}
+
 function findMuebleCollisionIndex(x, y, w, h) {
     if (!muebles || muebles.length === 0) return -1;
     for (let i = 0; i < muebles.length; i++) {
@@ -4250,6 +4302,18 @@ function findMuebleCollisionIndex(x, y, w, h) {
 function colisionConPared(x, y, w, h, ignoreMuebleIndex = -1) {
     if (colisionConParedBase(x, y, w, h)) return true;
     return colisionConMuebles(x, y, w, h, ignoreMuebleIndex);
+}
+
+function colisionConParedConMargen(x, y, w, h, padding = 0, ignoreMuebleIndex = -1) {
+    if (!Number.isFinite(padding) || padding <= 0) return colisionConPared(x, y, w, h, ignoreMuebleIndex);
+    if (colisionConParedBase(x - padding, y - padding, w + padding * 2, h + padding * 2)) return true;
+    return colisionConMueblesConMargen(x, y, w, h, padding, ignoreMuebleIndex);
+}
+
+function getEntityWallClearance(entidad) {
+    if (!entidad) return DEFAULT_AI_WALL_CLEARANCE_PX;
+    if (Number.isFinite(entidad.wallClearancePx)) return Math.max(0, entidad.wallClearancePx);
+    return DEFAULT_AI_WALL_CLEARANCE_PX;
 }
 
 
@@ -4333,7 +4397,9 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         return choco;
     }
 
-    function canMoveEntityTo(entidad, x, y) {
+    function canMoveEntityTo(entidad, x, y, extraClearance = 0) {
+        const clearance = Math.max(0, getEntityWallClearance(entidad) + (Number.isFinite(extraClearance) ? extraClearance : 0));
+        if (clearance > 0) return !colisionConParedConMargen(x, y, tamanoEntidad, tamanoEntidad, clearance);
         return !colisionConPared(x, y, tamanoEntidad, tamanoEntidad);
     }
 
@@ -4493,25 +4559,80 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
 
     // --- REPULSIÓN DE PAREDES ---
     function obtenerRepulsionParedes(entidad) {
-        let fx = 0, fy = 0;
-        const tx = Math.floor((entidad.x + tamanoEntidad/2) / cellSize);
-        const ty = Math.floor((entidad.y + tamanoEntidad/2) / cellSize);
-        const checks = [{dx:0, dy:-1}, {dx:0, dy:1}, {dx:-1, dy:0}, {dx:1, dy:0}];
-        checks.forEach(c => {
-            const nx = tx + c.dx;
-            const ny = ty + c.dy;
-            if(nx >= 0 && nx < gridWidth && ny >= 0 && ny < gridHeight) {
-                if(isTileBlocked(nx, ny)) { fx -= c.dx; fy -= c.dy; }
-            }
-        });
-        const edgeMargin = 20;
-        if (entidad.x < edgeMargin) fx += 1.0;
-        if (entidad.x > getWorldPixelSize().width - edgeMargin) fx -= 1.0;
-        if (entidad.y < edgeMargin) fy += 1.0;
-        if (entidad.y > getWorldPixelSize().height - edgeMargin) fy -= 1.0;
+        if (!entidad) return { x: 0, y: 0 };
 
-        if (fx !== 0 || fy !== 0) return normalizar(fx, fy);
-        return {x:0, y:0};
+        let fx = 0, fy = 0;
+        const centerX = entidad.x + tamanoEntidad * 0.5;
+        const centerY = entidad.y + tamanoEntidad * 0.5;
+        const tx = Math.floor(centerX / cellSize);
+        const ty = Math.floor(centerY / cellSize);
+        const desiredGap = Math.max(1.05, getEntityWallClearance(entidad) + 0.7);
+        const expandedBy = tamanoEntidad * 0.5 + desiredGap;
+        const influenceRange = expandedBy + Math.max(cellSize * 0.9, tamanoEntidad * 1.35);
+
+        const clampToRange = (value, min, max) => Math.max(min, Math.min(max, value));
+        const addExpandedTileRepulsion = (tileX, tileY, weight = 1) => {
+            if (!isTileBlocked(tileX, tileY)) return;
+
+            const rectLeft = tileX * cellSize - expandedBy;
+            const rectTop = tileY * cellSize - expandedBy;
+            const rectRight = tileX * cellSize + cellSize + expandedBy;
+            const rectBottom = tileY * cellSize + cellSize + expandedBy;
+            const nearestX = clampToRange(centerX, rectLeft, rectRight);
+            const nearestY = clampToRange(centerY, rectTop, rectBottom);
+
+            let dx = centerX - nearestX;
+            let dy = centerY - nearestY;
+            let dist = Math.hypot(dx, dy);
+            const insideExpandedRect = dist <= 0.0001;
+
+            if (insideExpandedRect) {
+                const pushLeft = Math.abs(centerX - rectLeft);
+                const pushRight = Math.abs(rectRight - centerX);
+                const pushTop = Math.abs(centerY - rectTop);
+                const pushBottom = Math.abs(rectBottom - centerY);
+                const minPush = Math.min(pushLeft, pushRight, pushTop, pushBottom);
+                if (minPush === pushLeft) { dx = -1; dy = 0; dist = Math.max(0.01, pushLeft); }
+                else if (minPush === pushRight) { dx = 1; dy = 0; dist = Math.max(0.01, pushRight); }
+                else if (minPush === pushTop) { dx = 0; dy = -1; dist = Math.max(0.01, pushTop); }
+                else { dx = 0; dy = 1; dist = Math.max(0.01, pushBottom); }
+            }
+
+            if (dist >= influenceRange) return;
+            const nx = dx / Math.max(0.0001, Math.hypot(dx, dy));
+            const ny = dy / Math.max(0.0001, Math.hypot(dx, dy));
+            const closeness = 1 - (Math.min(dist, influenceRange) / influenceRange);
+            const strengthBase = insideExpandedRect
+                ? 2.2 + Math.min(1.5, (expandedBy / Math.max(0.12, dist)) * 0.15)
+                : 0.55 + closeness * 1.95;
+            const diagonalBoost = (tileX !== tx && tileY !== ty) ? 1.45 : 1;
+            const strength = strengthBase * diagonalBoost * Math.max(0.2, weight);
+            fx += nx * strength;
+            fy += ny * strength;
+        };
+
+        for (let oy = -2; oy <= 2; oy++) {
+            for (let ox = -2; ox <= 2; ox++) {
+                const tileX = tx + ox;
+                const tileY = ty + oy;
+                if (!isTileBlocked(tileX, tileY)) continue;
+                const axisWeight = (ox === 0 || oy === 0) ? 1.12 : 1;
+                const cornerWeight = (Math.abs(ox) === 1 && Math.abs(oy) === 1) ? 1.28 : 1;
+                addExpandedTileRepulsion(tileX, tileY, axisWeight * cornerWeight);
+            }
+        }
+
+        const edgeMargin = Math.max(12, desiredGap + tamanoEntidad + 5.5);
+        if (entidad.x < edgeMargin) fx += 1.15 + ((edgeMargin - entidad.x) / edgeMargin) * 1.2;
+        if (entidad.x > getWorldPixelSize().width - tamanoEntidad - edgeMargin) fx -= 1.15 + ((entidad.x - (getWorldPixelSize().width - tamanoEntidad - edgeMargin)) / edgeMargin) * 1.2;
+        if (entidad.y < edgeMargin) fy += 1.15 + ((edgeMargin - entidad.y) / edgeMargin) * 1.2;
+        if (entidad.y > getWorldPixelSize().height - tamanoEntidad - edgeMargin) fy -= 1.15 + ((entidad.y - (getWorldPixelSize().height - tamanoEntidad - edgeMargin)) / edgeMargin) * 1.2;
+
+        const magnitude = Math.hypot(fx, fy);
+        if (magnitude <= 0.0001) return { x: 0, y: 0 };
+        const cap = 2.8;
+        const scale = magnitude > cap ? (cap / magnitude) : 1;
+        return { x: fx * scale, y: fy * scale };
     }
 
     function rotateUnitVector(vec, angleRad) {
@@ -4529,9 +4650,9 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         if (!unit.x && !unit.y) return false;
         const nextX = entidad.x + unit.x * probeDistance;
         const nextY = entidad.y + unit.y * probeDistance;
-        if (!colisionConPared(nextX, nextY, tamanoEntidad, tamanoEntidad)) return true;
-        return !colisionConPared(nextX, entidad.y, tamanoEntidad, tamanoEntidad) ||
-               !colisionConPared(entidad.x, nextY, tamanoEntidad, tamanoEntidad);
+        if (canMoveEntityTo(entidad, nextX, nextY)) return true;
+        return canMoveEntityTo(entidad, nextX, entidad.y) ||
+               canMoveEntityTo(entidad, entidad.x, nextY);
     }
 
     function getSteeredDirection(entidad, desiredDir, totalDistance, aggressiveness = 1) {
@@ -4562,70 +4683,43 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         return best ? normalizar(best.x, best.y) : base;
     }
 
-    function limitEntityToRoamRadius(entidad, maxRadius, centerKey = "spawn") {
-        if (!entidad || !Number.isFinite(maxRadius) || maxRadius <= 0) return;
+    function limitEntityToRoamRadius(entidad, maxRadius, centerKey = "spawn", timeScale = 1) {
+        if (!entidad || !Number.isFinite(maxRadius) || maxRadius <= 0) return 0;
         const key = (centerKey === "fear" && entidad.lastThreatPos && Number.isFinite(entidad.lastThreatPos.x) && Number.isFinite(entidad.lastThreatPos.y))
             ? "fear"
             : "spawn";
         const cx = (key === "fear" && entidad.lastThreatPos) ? entidad.lastThreatPos.x : entidad.homeX;
         const cy = (key === "fear" && entidad.lastThreatPos) ? entidad.lastThreatPos.y : entidad.homeY;
-        if (!Number.isFinite(cx) || !Number.isFinite(cy)) return;
+        if (!Number.isFinite(cx) || !Number.isFinite(cy)) return 0;
 
         const dx = entidad.x - cx;
         const dy = entidad.y - cy;
         const dist = Math.hypot(dx, dy);
-        if (dist <= maxRadius || dist <= 0.001) return;
+        if (dist <= maxRadius || dist <= 0.001) return 0;
 
-        // Strongly enforce roam limits even at high simulation speed (e.g. x5), where a single
-        // frame can advance many pixels. We still move in small collision-aware chunks so NPCs
-        // slide naturally around walls instead of snapping/teleporting.
+        // Soft limit only: never hard-snap an NPC back inside the radius in a single frame.
+        // When an NPC has wandered far away, it will now walk back home progressively.
         const toCenter = normalizar(cx - entidad.x, cy - entidad.y);
-        if (!toCenter.x && !toCenter.y) return;
+        if (!toCenter.x && !toCenter.y) return 0;
 
         const overflow = dist - maxRadius;
-        const maxStep = Math.max(0.2, cellSize * 0.45);
-        let remaining = overflow;
-        let guard = 0;
+        const correctionBudget = Math.min(
+            overflow,
+            Math.max(0.35, cellSize * 0.24) * Math.max(0.65, Math.min(1.75, timeScale))
+        );
+        if (correctionBudget <= 0.001) return 0;
 
-        while (remaining > 0.01 && guard < 72) {
-            guard += 1;
-            const step = Math.min(maxStep, remaining);
-            const beforeX = entidad.x;
-            const beforeY = entidad.y;
-            moverEntidadIA(entidad, toCenter.x, toCenter.y, step);
-            const moved = Math.hypot(entidad.x - beforeX, entidad.y - beforeY);
-            if (moved <= 0.001) break;
-            remaining -= moved;
-        }
-
-        // Final safety clamp: if collision jitter still leaves entity out of bounds, place it on
-        // the nearest valid point along the segment towards the roam-center.
-        const finalDx = entidad.x - cx;
-        const finalDy = entidad.y - cy;
-        const finalDist = Math.hypot(finalDx, finalDy);
-        if (finalDist > maxRadius + 0.01) {
-            const radial = normalizar(finalDx, finalDy);
-            const targetX = cx + radial.x * maxRadius;
-            const targetY = cy + radial.y * maxRadius;
-            if (canMoveEntityTo(entidad, targetX, targetY)) {
-                entidad.x = targetX;
-                entidad.y = targetY;
-            } else {
-                let low = 0;
-                let high = 1;
-                for (let i = 0; i < 12; i += 1) {
-                    const mid = (low + high) * 0.5;
-                    const testX = entidad.x + (targetX - entidad.x) * mid;
-                    const testY = entidad.y + (targetY - entidad.y) * mid;
-                    if (canMoveEntityTo(entidad, testX, testY)) low = mid;
-                    else high = mid;
-                }
-                if (low > 0) {
-                    entidad.x = entidad.x + (targetX - entidad.x) * low;
-                    entidad.y = entidad.y + (targetY - entidad.y) * low;
-                }
-            }
-        }
+        const steeredDir = getSteeredDirection(
+            entidad,
+            toCenter,
+            correctionBudget,
+            Math.max(1.05, Math.min(1.8, 1 + (overflow / Math.max(cellSize, maxRadius * 0.35))))
+        );
+        const correctionDir = (steeredDir && (steeredDir.x || steeredDir.y)) ? steeredDir : toCenter;
+        const beforeX = entidad.x;
+        const beforeY = entidad.y;
+        moverEntidadIAConSlide(entidad, correctionDir, correctionBudget, toCenter);
+        return Math.hypot(entidad.x - beforeX, entidad.y - beforeY);
     }
 
     function isEntityFleeingZombie(entidad, requiresVisionCone = false) {
@@ -4754,6 +4848,36 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         return isTileBlockedByMueble(tx, ty);
     }
 
+    function getTargetNavigationGoalTile(target) {
+        if (!target) return null;
+        if (target.pathGoalTile && Number.isFinite(target.pathGoalTile.tx) && Number.isFinite(target.pathGoalTile.ty)) {
+            return { tx: target.pathGoalTile.tx | 0, ty: target.pathGoalTile.ty | 0 };
+        }
+        const tx = Number.isFinite(target.pathTargetX) ? target.pathTargetX : target.x + tamanoEntidad / 2;
+        const ty = Number.isFinite(target.pathTargetY) ? target.pathTargetY : target.y + tamanoEntidad / 2;
+        return worldToTile(tx, ty);
+    }
+
+    function getTargetNavigationKey(target) {
+        if (!target) return '';
+        if (target.navTargetKey) return String(target.navTargetKey);
+        const goal = getTargetNavigationGoalTile(target);
+        if (!goal) return '';
+        return keyForTile(goal.tx, goal.ty) + (target.isDoorPoint && target.doorKey ? `|${target.doorKey}` : '');
+    }
+
+    function getCachedAStarPath(start, goal) {
+        if (!start || !goal) return null;
+        const cacheKey = `${navigationVersion}|${start.tx},${start.ty}|${goal.tx},${goal.ty}`;
+        if (globalPathCache.has(cacheKey)) {
+            return globalPathCache.get(cacheKey);
+        }
+        const path = findPathAStar(start, goal);
+        globalPathCache.set(cacheKey, Array.isArray(path) ? path : null);
+        trimNavigationCache(globalPathCache, MAX_GLOBAL_PATH_CACHE);
+        return globalPathCache.get(cacheKey);
+    }
+
     function findPathAStar(start, goal) {
         if (!start || !goal) return null;
         if (start.tx === goal.tx && start.ty === goal.ty) return [start];
@@ -4867,6 +4991,23 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         return { up, down, left, right, blockedCount };
     }
 
+    function getTileBlockInfo(tx, ty) {
+        const cardinal = getTileCardinalBlockInfo(tx, ty);
+        const upLeft = isTilePathBlocked(tx - 1, ty - 1, null, null);
+        const upRight = isTilePathBlocked(tx + 1, ty - 1, null, null);
+        const downLeft = isTilePathBlocked(tx - 1, ty + 1, null, null);
+        const downRight = isTilePathBlocked(tx + 1, ty + 1, null, null);
+        const diagonalBlockedCount = (upLeft ? 1 : 0) + (upRight ? 1 : 0) + (downLeft ? 1 : 0) + (downRight ? 1 : 0);
+        return {
+            ...cardinal,
+            upLeft,
+            upRight,
+            downLeft,
+            downRight,
+            diagonalBlockedCount
+        };
+    }
+
     function hasDoorNearbyTile(tx, ty, radius = 1) {
         for (let y = ty - radius; y <= ty + radius; y++) {
             for (let x = tx - radius; x <= tx + radius; x++) {
@@ -4901,30 +5042,32 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
     function getZombiePathDirection(zombie, target) {
         if (!zombie || !target) return null;
         const zombieCenter = { x: zombie.x + tamanoEntidad / 2, y: zombie.y + tamanoEntidad / 2 };
-        const targetCenter = { x: target.x + tamanoEntidad / 2, y: target.y + tamanoEntidad / 2 };
-        const start = worldToTile(zombieCenter.x, zombieCenter.y);
-        const goal = (target.pathGoalTile && Number.isFinite(target.pathGoalTile.tx) && Number.isFinite(target.pathGoalTile.ty))
-            ? { tx: target.pathGoalTile.tx | 0, ty: target.pathGoalTile.ty | 0 }
-            : worldToTile(targetCenter.x, targetCenter.y);
-        const targetKey = keyForTile(goal.tx, goal.ty) + (target.isDoorPoint && target.doorKey ? `|${target.doorKey}` : "");
-        const recalcFrames = 6;
+        const goal = getTargetNavigationGoalTile(target);
+        if (!goal) return null;
+        const targetKey = getTargetNavigationKey(target);
+        const successRecalcFrames = 6;
+        const failedRecalcFrames = target.isLurePoint ? 24 : 14;
 
         const shouldRecalc = !zombie.pathCache ||
             zombie.pathCache.targetKey !== targetKey ||
-            (frameCount - zombie.pathCache.lastFrame) >= recalcFrames;
+            zombie.pathCache.navVersion !== navigationVersion ||
+            (frameCount - zombie.pathCache.lastFrame) >= ((zombie.pathCache.tiles && zombie.pathCache.tiles.length >= 2) ? successRecalcFrames : failedRecalcFrames);
 
         if (shouldRecalc) {
-            const path = findPathAStar(start, goal);
+            const start = worldToTile(zombieCenter.x, zombieCenter.y);
+            const path = getCachedAStarPath(start, goal);
             zombie.pathCache = {
                 targetKey,
                 tiles: Array.isArray(path) ? path : null,
-                lastFrame: frameCount
+                lastFrame: frameCount,
+                navVersion: navigationVersion
             };
         }
 
         const tiles = zombie.pathCache && zombie.pathCache.tiles;
         if (!tiles || tiles.length < 2) return null;
 
+        const start = worldToTile(zombieCenter.x, zombieCenter.y);
         const lookAheadTiles = Math.min(7, tiles.length - 1);
         const startTileInfo = getTileCardinalBlockInfo(start.tx, start.ty);
         const startIsCorner = (startTileInfo.up && startTileInfo.left) || (startTileInfo.up && startTileInfo.right) ||
@@ -4943,16 +5086,17 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         }
 
         const next = tiles[nextIndex];
-        const tileInfo = getTileCardinalBlockInfo(next.tx, next.ty);
+        const tileInfo = getTileBlockInfo(next.tx, next.ty);
         const narrowCorridor = (tileInfo.left && tileInfo.right && !tileInfo.up && !tileInfo.down) ||
             (tileInfo.up && tileInfo.down && !tileInfo.left && !tileInfo.right);
         const isCorner = (tileInfo.up && tileInfo.left) || (tileInfo.up && tileInfo.right) ||
             (tileInfo.down && tileInfo.left) || (tileInfo.down && tileInfo.right);
         const adjacentWall = tileInfo.blockedCount >= 1;
+        const diagonalCorner = tileInfo.upLeft || tileInfo.upRight || tileInfo.downLeft || tileInfo.downRight;
         const nearDoor = !!target.isDoorPoint || hasDoorNearbyTile(next.tx, next.ty, 1);
         const sharpTurnAhead = getPathTurnDot(tiles, nextIndex) < PATH_CORNER_SHARP_DOT;
         const forcedCorridorMode = Number.isFinite(zombie.corridorModeUntilFrame) && frameCount < zombie.corridorModeUntilFrame;
-        const safeMode = narrowCorridor || isCorner || adjacentWall || nearDoor || sharpTurnAhead || forcedCorridorMode;
+        const safeMode = narrowCorridor || isCorner || adjacentWall || diagonalCorner || nearDoor || sharpTurnAhead || forcedCorridorMode;
 
         let jitter = { x: 0, y: 0 };
         if (!safeMode) {
@@ -4974,12 +5118,28 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
             zombie.pathJitter = null;
         }
 
-        const marginPx = Math.max(tamanoEntidad * 0.5 + 0.2, cellSize * PATH_SAFE_WAYPOINT_MARGIN_RATIO);
-        // Keep path-follow waypoints slightly separated from nearby walls so zombies
-        // don't scrape corners and get repeatedly stuck when following shortest paths.
-        const wallOffsetStrength = cellSize * 0.34;
-        const wallOffsetX = ((tileInfo.left ? 1 : 0) - (tileInfo.right ? 1 : 0)) * wallOffsetStrength;
-        const wallOffsetY = ((tileInfo.up ? 1 : 0) - (tileInfo.down ? 1 : 0)) * wallOffsetStrength;
+        const wallClearance = Math.max(0.95, getEntityWallClearance(zombie));
+        const baseMarginPx = Math.max(
+            tamanoEntidad * 0.5 + 0.45 + wallClearance,
+            cellSize * (PATH_SAFE_WAYPOINT_MARGIN_RATIO + 0.05) + wallClearance * 1.08
+        );
+        const marginPx = Math.min(
+            cellSize * 0.5 - 0.4,
+            baseMarginPx + ((isCorner || sharpTurnAhead) ? Math.max(0.4, wallClearance * 0.35) : 0)
+        );
+        const wallOffsetStrength = Math.max(cellSize * 0.38, wallClearance * 2.25 + cellSize * 0.18);
+        const cornerOffsetStrength = Math.max(cellSize * 0.44, wallClearance * 2.9 + cellSize * 0.22);
+        let wallOffsetX = ((tileInfo.left ? 1 : 0) - (tileInfo.right ? 1 : 0)) * wallOffsetStrength;
+        let wallOffsetY = ((tileInfo.up ? 1 : 0) - (tileInfo.down ? 1 : 0)) * wallOffsetStrength;
+        if (tileInfo.up && tileInfo.left) { wallOffsetX += cornerOffsetStrength; wallOffsetY += cornerOffsetStrength; }
+        if (tileInfo.up && tileInfo.right) { wallOffsetX -= cornerOffsetStrength; wallOffsetY += cornerOffsetStrength; }
+        if (tileInfo.down && tileInfo.left) { wallOffsetX += cornerOffsetStrength; wallOffsetY -= cornerOffsetStrength; }
+        if (tileInfo.down && tileInfo.right) { wallOffsetX -= cornerOffsetStrength; wallOffsetY -= cornerOffsetStrength; }
+        const diagonalCornerStrength = cornerOffsetStrength * 0.55;
+        if (tileInfo.upLeft) { wallOffsetX += diagonalCornerStrength; wallOffsetY += diagonalCornerStrength; }
+        if (tileInfo.upRight) { wallOffsetX -= diagonalCornerStrength; wallOffsetY += diagonalCornerStrength; }
+        if (tileInfo.downLeft) { wallOffsetX += diagonalCornerStrength; wallOffsetY -= diagonalCornerStrength; }
+        if (tileInfo.downRight) { wallOffsetX -= diagonalCornerStrength; wallOffsetY -= diagonalCornerStrength; }
         const waypoint = getTileWaypoint(
             next.tx,
             next.ty,
@@ -4996,10 +5156,36 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         return normalizar(waypoint.x - zombieCenter.x, waypoint.y - zombieCenter.y);
     }
 
+
     function getZombieDoorBreachTargetForPoint(zombie, targetPoint) {
         if (!zombie || !targetPoint || !doorGroups || !doorGroups.length) return null;
+
         const start = worldToTile(zombie.x + tamanoEntidad / 2, zombie.y + tamanoEntidad / 2);
-        const pointTile = worldToTile(targetPoint.x + tamanoEntidad / 2, targetPoint.y + tamanoEntidad / 2);
+        const pointTile = getTargetNavigationGoalTile(targetPoint);
+        if (!pointTile) return null;
+
+        const targetKey = getTargetNavigationKey(targetPoint);
+        const zombieCache = zombie.cachedDoorBreachTarget;
+        const cachedCooldownFrames = zombieCache && zombieCache.result ? 20 : 36;
+        if (zombieCache &&
+            zombieCache.targetKey === targetKey &&
+            zombieCache.navVersion === navigationVersion &&
+            (frameCount - zombieCache.lastFrame) < cachedCooldownFrames) {
+            return zombieCache.result;
+        }
+
+        const cacheKey = `${navigationVersion}|${start.tx},${start.ty}|${targetKey}`;
+        if (globalDoorBreachCache.has(cacheKey)) {
+            const cachedResult = globalDoorBreachCache.get(cacheKey);
+            zombie.cachedDoorBreachTarget = {
+                targetKey,
+                result: cachedResult,
+                lastFrame: frameCount,
+                navVersion: navigationVersion
+            };
+            return cachedResult;
+        }
+
         const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
         let best = null;
 
@@ -5011,7 +5197,7 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
                     const ax = doorTile.x + d.x;
                     const ay = doorTile.y + d.y;
                     if (isTilePathBlocked(ax, ay, start, { tx: ax, ty: ay })) continue;
-                    const path = findPathAStar(start, { tx: ax, ty: ay });
+                    const path = getCachedAStarPath(start, { tx: ax, ty: ay });
                     if (!path || !path.length) continue;
                     const score = (path.length - 1) + doorToPoint * 0.75;
                     if (!best || score < best.score) {
@@ -5024,15 +5210,27 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
                 }
             }
         }
-        if (!best) return null;
-        return {
+
+        const result = !best ? null : {
             x: best.doorTile.x * cellSize + cellSize / 2 - tamanoEntidad / 2,
             y: best.doorTile.y * cellSize + cellSize / 2 - tamanoEntidad / 2,
             isDoorPoint: true,
             doorKey: keyForTile(best.doorTile.x, best.doorTile.y),
-            pathGoalTile: best.approachTile
+            pathGoalTile: best.approachTile,
+            navTargetKey: `door:${keyForTile(best.doorTile.x, best.doorTile.y)}|${keyForTile(best.approachTile.tx, best.approachTile.ty)}`
         };
+
+        globalDoorBreachCache.set(cacheKey, result);
+        trimNavigationCache(globalDoorBreachCache, MAX_GLOBAL_DOOR_BREACH_CACHE);
+        zombie.cachedDoorBreachTarget = {
+            targetKey,
+            result,
+            lastFrame: frameCount,
+            navVersion: navigationVersion
+        };
+        return result;
     }
+
 
     function getZombieDoorBreachTarget(zombie, npcTarget) {
         return getZombieDoorBreachTargetForPoint(zombie, npcTarget);
@@ -5067,9 +5265,11 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
                 g.hp = Math.min(g.hp, g.maxHp);
             }
             g.open = true;
+            invalidateNavigationCaches();
             addNoise(jugador.x, jugador.y, 110, 20);
         } else {
             g.open = false;
+            invalidateNavigationCaches();
             // restore HP when closing so it can be attacked again
             if (g.hp <= 0 || g.hp > g.maxHp) { g.maxHp = DOOR_BASE_HP; g.hp = DOOR_BASE_HP; }
             addNoise(jugador.x, jugador.y, 90, 18);
@@ -5111,6 +5311,7 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
             }
         }
 
+        invalidateNavigationCaches();
         // One global "sound cue" so players can feel the action.
         addNoise(jugador.x, jugador.y, targetOpen ? 140 : 120, 28);
         actualizarStatsUI();
@@ -5290,6 +5491,7 @@ function bestNoiseFor(x, y) {
             group.broken = true;
             group.open = true;
             group.barricaded = false;
+            invalidateNavigationCaches();
             addNoise(hitTile.tx * cellSize, hitTile.ty * cellSize, 180, 25);
         }
         return true;
@@ -5704,6 +5906,7 @@ function generarMapa() {
 
         ciudadanos = []; zombies = []; policias = []; cadaveres = []; bengalasActivas = [];
         zombieLureTarget = null;
+        invalidateNavigationCaches();
         setZombieLureArmed(false);
         
         ciudadanosSalvados = 0;
@@ -6459,6 +6662,25 @@ drawDoorsWorld();
             const maxReleaseDistance = Math.max(distanciaAtaque + 1, cellSize * 1.25);
             const escapeDistance = Math.min(Math.max(0, npcEscapeDistance), maxReleaseDistance);
             npc.direccion = finalDir;
+            npc.panicRunDir = finalDir;
+            npc.scared = true;
+            npc.fleeingZombie = true;
+            const attackerCenter = allAttackers.reduce((acc, z) => {
+                acc.x += z.x;
+                acc.y += z.y;
+                return acc;
+            }, { x: 0, y: 0 });
+            if (allAttackers.length) {
+                npc.lastThreatPos = {
+                    x: attackerCenter.x / allAttackers.length,
+                    y: attackerCenter.y / allAttackers.length
+                };
+            }
+            const panicFrames = Math.max(30, npcEscapeCooldownFrames + 45);
+            npc.panicUntilFrame = Math.max(
+                Number.isFinite(npc.panicUntilFrame) ? npc.panicUntilFrame : 0,
+                now + panicFrames
+            );
             moveEntitySafely(npc, finalDir, Math.min(0.9, escapeDistance * 0.22), 4);
             queueEntityDisplacement(npc, finalDir, Math.max(0, escapeDistance - Math.min(0.9, escapeDistance * 0.22)), Math.max(0.5, cellSize * 0.22));
             npc.tugFacingLock = { baseAngle: Math.atan2(finalDir.y, finalDir.x), lastFrame: now };
@@ -6703,14 +6925,23 @@ drawDoorsWorld();
 
             const isPanicking = Number.isFinite(cit.panicUntilFrame) && cit.panicUntilFrame > frameCount;
             cit.panicking = isPanicking;
+            if (threatFound) {
+                cit.panicRunDir = normalizar(cit.direccion.x, cit.direccion.y);
+            } else if (isPanicking && cit.panicRunDir && (cit.panicRunDir.x || cit.panicRunDir.y)) {
+                cit.direccion = normalizar(cit.panicRunDir.x, cit.panicRunDir.y);
+            } else if (!isPanicking) {
+                cit.panicRunDir = null;
+            }
 
             const burstMoved = consumeEntityDisplacement(cit, timeScale, 6);
             if (burstMoved <= 0.001) {
                 if(Math.random() < 0.2) { const sep = obtenerFuerzaSeparacion(cit, ciudadanos, radioSeparacion); cit.direccion.x += sep.x * 0.5; cit.direccion.y += sep.y * 0.5; }
-                const choco = aplicarFuerzas(cit, velocidadCiudadano, timeScale);
-                if(choco) cit.direccion = direccionAleatoria();
+                const choco = aplicarFuerzas(cit, velocidadCiudadano, timeScale, isPanicking
+                    ? { enableSteering: true, steeringAggressiveness: 1.2, wallRepulsionScale: 1.15 }
+                    : null);
+                if(choco && !isPanicking) cit.direccion = direccionAleatoria();
             }
-            if (!cit.fleeingZombie) limitEntityToRoamRadius(cit, npcRoamRadiusPx, "spawn");
+            if (!cit.fleeingZombie && !isPanicking) limitEntityToRoamRadius(cit, npcRoamRadiusPx, "spawn", timeScale);
             cit.boarding = 0;
             const citizenColor = (cit.infectionFramesLeft && cit.infectionFramesLeft > 0) ? PALETA.ciudadanoEnfermo : PALETA.ciudadano;
             drawEnt(cit, citizenColor, radioVisual, "citizen");
@@ -6743,7 +6974,7 @@ drawDoorsWorld();
                     const infectedHitWall = aplicarFuerzas(poli, velocidadCiudadano, timeScale);
                     if (infectedHitWall) poli.direccion = direccionAleatoria();
                 }
-                limitEntityToRoamRadius(poli, npcRoamRadiusPx, "spawn");
+                if (!poli.panicking) limitEntityToRoamRadius(poli, npcRoamRadiusPx, "spawn", timeScale);
                 poli.boarding = 0;
                 const infectedConeColor = poli.panicking ? "rgba(229, 57, 53, 0.24)" : (poli.scared ? "rgba(229, 57, 53, 0.16)" : "rgba(121, 134, 203, 0.08)");
                 drawVisionCone(poli, rangoVisionNPC, anguloVisionNPC, isNpcInTug(poli) ? "rgba(229, 57, 53, 0.28)" : infectedConeColor);
@@ -6833,7 +7064,7 @@ drawDoorsWorld();
                     const choco = aplicarFuerzas(poli, velocidadCiudadano, timeScale);
                     if (choco) poli.direccion = direccionAleatoria();
                 }
-                limitEntityToRoamRadius(poli, npcRoamRadiusPx, "spawn");
+                limitEntityToRoamRadius(poli, npcRoamRadiusPx, "spawn", timeScale);
             }
 
             poli.boarding = 0;
@@ -6900,7 +7131,17 @@ drawDoorsWorld();
                     const orbitAngle = zombie.lureOrbitSeed + frameCount * 0.018;
                     const gatherX = zombieLureTarget.x + Math.cos(orbitAngle) * zombie.lureOrbitRadius;
                     const gatherY = zombieLureTarget.y + Math.sin(orbitAngle) * zombie.lureOrbitRadius;
-                    target = { x: gatherX, y: gatherY, isLurePoint: true, lureId: zombieLureTarget.id };
+                    const lureGoalTile = worldToTile(zombieLureTarget.x, zombieLureTarget.y);
+                    target = {
+                        x: gatherX,
+                        y: gatherY,
+                        isLurePoint: true,
+                        lureId: zombieLureTarget.id,
+                        pathGoalTile: { tx: lureGoalTile.tx, ty: lureGoalTile.ty },
+                        pathTargetX: zombieLureTarget.x,
+                        pathTargetY: zombieLureTarget.y,
+                        navTargetKey: `lure:${zombieLureTarget.id}|${keyForTile(lureGoalTile.tx, lureGoalTile.ty)}`
+                    };
                     minDist = distancia(zombie.x, zombie.y, gatherX, gatherY);
                 }
             } else {
@@ -7296,6 +7537,7 @@ drawDoorsWorld();
 
     restartBtn.addEventListener("click", () => restartCurrentRun());
     showMainMenu();
+
 
 </script>
 </body>
