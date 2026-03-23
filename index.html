@@ -3766,6 +3766,15 @@ const DOOR_BASE_HP = 70;
         const tx = Math.floor(world.x / cellSize);
         const ty = Math.floor(world.y / cellSize);
         if (tx >= 0 && tx < gridWidth && ty >= 0 && ty < gridHeight) {
+            const clickedCurrentLureTile = !!zombieLureTarget
+                && Math.floor(zombieLureTarget.x / cellSize) === tx
+                && Math.floor(zombieLureTarget.y / cellSize) === ty;
+            if (clickedCurrentLureTile) {
+                zombieLureTarget = null;
+                setZombieLureArmed(false);
+                lastTapInfo = null;
+                return;
+            }
             const targetX = tx * cellSize + cellSize / 2;
             const targetY = ty * cellSize + cellSize / 2;
             if (zombieLureTarget) moveZombieLureTo(targetX, targetY);
