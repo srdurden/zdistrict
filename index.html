@@ -3534,6 +3534,12 @@ const DOOR_BASE_HP = 70;
         return true;
     }
 
+    function isCurrentLureTile(tx, ty) {
+        if (!zombieLureTarget) return false;
+        return Math.floor(zombieLureTarget.x / cellSize) === tx
+            && Math.floor(zombieLureTarget.y / cellSize) === ty;
+    }
+
     function syncEditorTileToRuntime(tx, ty, token) {
         if (ty < 0 || ty >= gridHeight || tx < 0 || tx >= gridWidth) return;
         grid[ty][tx] = (token === "#");
@@ -3949,15 +3955,20 @@ const DOOR_BASE_HP = 70;
                     // aligned with gameplay: drag pans camera with edge padding.
                     editorInteraction = { mode: "none", dirty: false, lastTx: tx, lastTy: ty };
                 }
-            } else if (zombieLureArmed) {
+            } else if (zombieLureArmed || zombieLureTarget) {
+                editorInteraction = null;
                 const p = pointerState.get(e.pointerId);
-                const world = screenToWorld(e.clientX, e.clientY);
-                const placed = placeOrMoveZombieLureImmediate(world.x, world.y, true);
+                const hoverInfo = updateHoverFromClientPoint(e.clientX, e.clientY, e.pointerType || 'mouse');
+                const clickedCurrentLure = isCurrentLureTile(hoverInfo.tx, hoverInfo.ty);
+                const shouldStartLureDrag = zombieLureArmed || clickedCurrentLure;
+                const placed = shouldStartLureDrag
+                    ? placeOrMoveZombieLureImmediate(hoverInfo.world.x, hoverInfo.world.y, zombieLureArmed)
+                    : false;
                 if (placed && p) {
                     p.lureDragging = true;
                     p.moved = true;
                     p.dragging = false;
-                    setZombieLureArmed(false);
+                    if (zombieLureArmed) setZombieLureArmed(false);
                 }
             } else {
                 editorInteraction = null;
@@ -4092,10 +4103,14 @@ const DOOR_BASE_HP = 70;
         canvas.addEventListener('touchstart', (e) => {
             stopCameraInertia();
             if (e.touches.length === 1) {
-                if (zombieLureArmed) {
-                    const world = screenToWorld(e.touches[0].clientX, e.touches[0].clientY);
-                    const placed = placeOrMoveZombieLureImmediate(world.x, world.y, true);
-                    if (placed) setZombieLureArmed(false);
+                if (zombieLureArmed || zombieLureTarget) {
+                    const hoverInfo = updateHoverFromClientPoint(e.touches[0].clientX, e.touches[0].clientY, 'touch');
+                    const clickedCurrentLure = isCurrentLureTile(hoverInfo.tx, hoverInfo.ty);
+                    const shouldStartLureDrag = zombieLureArmed || clickedCurrentLure;
+                    const placed = shouldStartLureDrag
+                        ? placeOrMoveZombieLureImmediate(hoverInfo.world.x, hoverInfo.world.y, zombieLureArmed)
+                        : false;
+                    if (placed && zombieLureArmed) setZombieLureArmed(false);
                     touchDragPan = {
                         x: e.touches[0].clientX,
                         y: e.touches[0].clientY,
