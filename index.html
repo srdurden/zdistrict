@@ -3926,6 +3926,8 @@ const DOOR_BASE_HP = 70;
             moved: false,
             dragging: false,
             lureDragging: false,
+            lureTapToDisable: false,
+            lureDragMoved: false,
             pointerType: e.pointerType || 'mouse'
         });
 
@@ -3966,7 +3968,9 @@ const DOOR_BASE_HP = 70;
                     : false;
                 if (placed && p) {
                     p.lureDragging = true;
-                    p.moved = true;
+                    p.lureTapToDisable = !zombieLureArmed && clickedCurrentLure;
+                    p.lureDragMoved = false;
+                    p.moved = zombieLureArmed;
                     p.dragging = false;
                     if (zombieLureArmed) setZombieLureArmed(false);
                 }
@@ -4000,6 +4004,10 @@ const DOOR_BASE_HP = 70;
 
         if (pointerState.size === 1) {
             if (p.lureDragging) {
+                if (movedFromStart > TAP_MOVE_THRESHOLD) {
+                    p.lureDragMoved = true;
+                    p.moved = true;
+                }
                 const world = screenToWorld(e.clientX, e.clientY);
                 if (placeOrMoveZombieLureImmediate(world.x, world.y, false)) {
                     e.preventDefault();
@@ -4062,7 +4070,13 @@ const DOOR_BASE_HP = 70;
 
         const justTapped = !p.moved && pointerState.size === 1;
         const world = updateHoverFromClientPoint(e.clientX, e.clientY, p.pointerType).world;
+        const disableLureByTap = !!(p.lureDragging && p.lureTapToDisable && !p.lureDragMoved);
         releasePointer(e.pointerId);
+
+        if (disableLureByTap) {
+            zombieLureTarget = null;
+            setZombieLureArmed(false);
+        }
 
         if (editorState.active && editorInteraction && pointerState.size === 0) {
             if (justTapped && editorInteraction.mode === "none") {
@@ -4070,7 +4084,7 @@ const DOOR_BASE_HP = 70;
             }
             if (editorInteraction.dirty) refreshEditorPreviewLevel();
             editorInteraction = null;
-        } else if (justTapped) {
+        } else if (justTapped && !disableLureByTap) {
             registerTap(world, e.clientX, e.clientY, p.pointerType);
         }
         if (pointerState.size === 0) {
@@ -4116,8 +4130,10 @@ const DOOR_BASE_HP = 70;
                         y: e.touches[0].clientY,
                         startX: e.touches[0].clientX,
                         startY: e.touches[0].clientY,
-                        moved: !!placed,
-                        lureDragging: !!placed
+                        moved: zombieLureArmed && !!placed,
+                        lureDragging: !!placed,
+                        lureTapToDisable: !zombieLureArmed && clickedCurrentLure && !!placed,
+                        lureDragMoved: false
                     };
                     touchLastPinchDist = 0;
                     updateHoverFromClientPoint(e.touches[0].clientX, e.touches[0].clientY);
@@ -4129,7 +4145,9 @@ const DOOR_BASE_HP = 70;
                     startX: e.touches[0].clientX,
                     startY: e.touches[0].clientY,
                     moved: false,
-                    lureDragging: false
+                    lureDragging: false,
+                    lureTapToDisable: false,
+                    lureDragMoved: false
                 };
                 touchLastPinchDist = 0;
                 updateHoverFromClientPoint(e.touches[0].clientX, e.touches[0].clientY);
@@ -4150,6 +4168,11 @@ const DOOR_BASE_HP = 70;
             if (e.touches.length === 1 && touchDragPan) {
                 const touch = e.touches[0];
                 if (touchDragPan.lureDragging) {
+                    const movedFromStart = Math.hypot(touch.clientX - touchDragPan.startX, touch.clientY - touchDragPan.startY);
+                    if (movedFromStart > TAP_MOVE_THRESHOLD) {
+                        touchDragPan.lureDragMoved = true;
+                        touchDragPan.moved = true;
+                    }
                     touchDragPan.x = touch.clientX;
                     touchDragPan.y = touch.clientY;
                     const world = screenToWorld(touch.clientX, touch.clientY);
@@ -4194,9 +4217,20 @@ const DOOR_BASE_HP = 70;
         }, { passive: false });
 
         canvas.addEventListener('touchend', (e) => {
+            const disableLureByTap = !!(e.touches.length === 0
+                && touchDragPan
+                && touchDragPan.lureDragging
+                && touchDragPan.lureTapToDisable
+                && !touchDragPan.lureDragMoved);
+            if (disableLureByTap) {
+                zombieLureTarget = null;
+                setZombieLureArmed(false);
+            }
             if (e.touches.length === 0 && touchDragPan && !touchDragPan.moved) {
-                const world = updateHoverFromClientPoint(touchDragPan.x, touchDragPan.y).world;
-                registerTap(world, touchDragPan.x, touchDragPan.y);
+                if (!disableLureByTap) {
+                    const world = updateHoverFromClientPoint(touchDragPan.x, touchDragPan.y).world;
+                    registerTap(world, touchDragPan.x, touchDragPan.y);
+                }
             }
 
             if (e.touches.length === 1) {
@@ -4206,7 +4240,9 @@ const DOOR_BASE_HP = 70;
                     startX: e.touches[0].clientX,
                     startY: e.touches[0].clientY,
                     moved: false,
-                    lureDragging: false
+                    lureDragging: false,
+                    lureTapToDisable: false,
+                    lureDragMoved: false
                 };
                 touchLastPinchDist = 0;
                 return;
