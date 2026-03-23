@@ -940,7 +940,7 @@ body.editor-active #configPanel {
 #.....C.#.......#.......#
 #..C....#SSSSSSS#.....O.#
 #....C..#SSSSSSS#.......#
-#.......#SSSSSSS#.O.....#
+#.......#SSSZSSS#.O.....#
 #..C..C.#SSSSSSS#.......#
 #.......#SSSSSSS#.......#
 #########################
@@ -983,7 +983,7 @@ body.editor-active #configPanel {
 #.....C.#.......#.......#........................#
 #..C....#SSSSSSS#.....O.#........................#
 #....C..#SSSSSSS#.......#........................#
-#.......#SSSSSSS#.O.....#........................#
+#.......#SSSZSSS#.O.....#........................#
 #..C..C.#SSSSSSS#.......#........................#
 #.......#SSSSSSS#.......#........................#
 ####################..###........................#
@@ -1104,6 +1104,9 @@ body.editor-active #configPanel {
         }
 
     ];
+    if (CAMPAIGN_LEVELS.length > 1) {
+        [CAMPAIGN_LEVELS[0], CAMPAIGN_LEVELS[1]] = [CAMPAIGN_LEVELS[1], CAMPAIGN_LEVELS[0]];
+    }
 
     const canvas = document.getElementById("myCanvas");
     const ctx = canvas.getContext("2d");
@@ -2202,11 +2205,12 @@ const txtEventoElem = document.getElementById("txtEvento");
         { key: "wall", label: "Pared", token: "#" },
         { key: "door", label: "Puerta", token: "D" },
         { key: "citizen", label: "Civil", token: "C" },
+        { key: "zombie", label: "Zombie", token: "Z" },
         { key: "police", label: "Policia", token: "O" },
         { key: "spawnZombie", label: "Spawn zombie", token: "S" }
     ];
     const EDITOR_SURFACE_TOOL_KEYS = ["floor", "wall", "door", "spawnZombie"];
-    const EDITOR_ENTITY_TOOL_KEYS = ["citizen", "police"];
+    const EDITOR_ENTITY_TOOL_KEYS = ["citizen", "zombie", "police"];
     const EDITOR_STRUCTURES = [
         { key: "rectangle", label: "Rectangulo" }
     ];
@@ -6837,7 +6841,7 @@ drawDoorsWorld();
             const hoverKey = `${hoverTile.x},${hoverTile.y}`;
             const canDeployHere = zombieDeploySpawnTiles.has(hoverKey);
             const selectedTool = getSelectedEditorTool();
-            const isNpcTool = selectedTool && (selectedTool.key === "citizen" || selectedTool.key === "police");
+            const isNpcTool = selectedTool && (selectedTool.key === "citizen" || selectedTool.key === "police" || selectedTool.key === "zombie");
 
             if (editorState.active && isNpcTool) {
                 const roamTiles = Math.max(1, Math.min(80, parseFloat(npcRoamRadiusTilesNum && npcRoamRadiusTilesNum.value) || 2));
@@ -6851,7 +6855,14 @@ drawDoorsWorld();
                 ctx.strokeStyle = "rgba(56, 142, 60, 0.68)";
                 ctx.lineWidth = 1;
                 ctx.stroke();
-                drawEnt({ x: hx + (cellSize - tamanoEntidad) / 2, y: hy + (cellSize - tamanoEntidad) / 2, direccion: { x: 1, y: 0 } }, selectedTool.key === "police" ? PALETA.policia : PALETA.ciudadano, radioVisual, selectedTool.key === "police" ? "police" : "citizen");
+                const previewKind = selectedTool.key === "police" ? "police" : (selectedTool.key === "zombie" ? "zombie" : "citizen");
+                const previewColor = selectedTool.key === "police" ? PALETA.policia : (selectedTool.key === "zombie" ? PALETA.zombie : PALETA.ciudadano);
+                drawEnt(
+                    { x: hx + (cellSize - tamanoEntidad) / 2, y: hy + (cellSize - tamanoEntidad) / 2, direccion: { x: 1, y: 0 } },
+                    previewColor,
+                    radioVisual,
+                    previewKind
+                );
             } else {
                 const isEditorBrushPreview = editorState.active && !!selectedTool && !editorState.fillMode;
                 if (isEditorBrushPreview) {
