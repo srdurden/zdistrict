@@ -1407,7 +1407,7 @@ body.editor-active #configPanel {
             }
         }
 
-        if (bloodStains.length > 520) bloodStains.splice(0, bloodStains.length - 520);
+        // Keep blood stains persistent for the whole run (no automatic cleanup by age/count).
 
         spawnParticles(x, y, "rgba(183, 28, 28, 0.92)", 5 + Math.round(power) * 3, 1.9 + (power * 0.35), Math.PI * 2, 18 + (power * 2), 1.05 + (power * 0.12), 0.95, dir ? {
             direction: dir,
@@ -5971,15 +5971,22 @@ drawDoorsWorld();
             npc.lastHitFrame = frameCount;
             zombie.lastAttackAngle = Math.atan2(dir.y || 0, dir.x || 0);
             npc.hitFromAngle = Math.atan2(dir.y || 0, dir.x || 0);
-            stainEntity(zombie, opts.initial ? 0.16 : 0.06 + (intensity * 0.04));
-            stainEntity(npc, 0.08 + (intensity * 0.05));
-            addBlood(centerX, centerY, {
-                intensity,
-                dir,
-                spray: true,
-                smear: true,
-                alphaBoost: opts.initial ? 0.08 : 0.03
-            });
+            const isMinorTug = !!opts.minorTug;
+            const canSpawnMinorBlood = !isMinorTug || opts.forceBlood || Math.random() < (opts.initial ? 0.22 : 0.14);
+
+            stainEntity(zombie, isMinorTug ? (opts.initial ? 0.04 : 0.015) : (opts.initial ? 0.16 : 0.06 + (intensity * 0.04)));
+            stainEntity(npc, isMinorTug ? (opts.initial ? 0.03 : 0.012) : (0.08 + (intensity * 0.05)));
+
+            if (canSpawnMinorBlood) {
+                const bloodIntensity = isMinorTug ? (opts.initial ? 0.3 : 0.18) : intensity;
+                addBlood(centerX, centerY, {
+                    intensity: bloodIntensity,
+                    dir,
+                    spray: !isMinorTug,
+                    smear: !isMinorTug,
+                    alphaBoost: isMinorTug ? -0.06 : (opts.initial ? 0.08 : 0.03)
+                });
+            }
             addAttackBurst(centerX, centerY, {
                 radius: burstRadius,
                 ttl: opts.initial ? 10 : 7,
@@ -5987,15 +5994,15 @@ drawDoorsWorld();
                 ringAlpha: opts.initial ? 0.24 : 0.14,
                 intensity: Math.min(1.5, 0.85 + intensity * 0.24)
             });
-            spawnParticles(centerX, centerY, "rgba(183, 28, 28, 0.92)", Math.max(4, 4 + Math.round(intensity * 2)), 1.8 + intensity * 0.32, Math.PI * 2, 12 + intensity * 2, 0.9 + intensity * 0.1, 0.92, {
+            spawnParticles(centerX, centerY, "rgba(183, 28, 28, 0.92)", isMinorTug ? 2 : Math.max(4, 4 + Math.round(intensity * 2)), isMinorTug ? 0.75 : (1.8 + intensity * 0.32), Math.PI * 2, isMinorTug ? 8 : (12 + intensity * 2), isMinorTug ? 0.65 : (0.9 + intensity * 0.1), isMinorTug ? 0.5 : 0.92, {
                 direction: dir,
-                arc: opts.initial ? 0.55 : 0.38,
-                stretch: 2.4,
-                gravity: 0.03,
-                shrink: 0.9,
+                arc: isMinorTug ? 0.3 : (opts.initial ? 0.55 : 0.38),
+                stretch: isMinorTug ? 1.2 : 2.4,
+                gravity: isMinorTug ? 0.018 : 0.03,
+                shrink: isMinorTug ? 0.86 : 0.9,
                 collideWithWalls: true
             });
-            pushScreenShake(opts.initial ? 1.65 : 0.55 + intensity * 0.08);
+            pushScreenShake(isMinorTug ? (opts.initial ? 0.28 : 0.12) : (opts.initial ? 1.65 : 0.55 + intensity * 0.08));
         };
 
         const applyZombieNpcTug = (zombie, npc, timeScale = 1) => {
@@ -6010,7 +6017,7 @@ drawDoorsWorld();
 
             if (!zombie.tugState || zombie.tugState.target !== npc) {
                 zombie.tugState = { target: npc, startFrame: now };
-                triggerBiteImpact(zombie, npc, 1.25, { initial: true });
+                triggerBiteImpact(zombie, npc, 1.25, { initial: true, minorTug: true });
                 npc.tugFxCooldownFrame = now + 5;
             }
             if (!Number.isFinite(npc._tugStartFrame)) npc._tugStartFrame = now;
@@ -6045,7 +6052,7 @@ drawDoorsWorld();
             }
 
             if (!Number.isFinite(npc.tugFxCooldownFrame) || now >= npc.tugFxCooldownFrame) {
-                triggerBiteImpact(zombie, npc, 0.62 + (Math.min(3, attackers.length) * 0.12), { initial: false });
+                triggerBiteImpact(zombie, npc, 0.62 + (Math.min(3, attackers.length) * 0.12), { initial: false, minorTug: true });
                 npc.tugFxCooldownFrame = now + Math.max(3, Math.round(6 / Math.max(0.75, Math.min(2.4, timeScale))));
             }
 
@@ -6053,7 +6060,7 @@ drawDoorsWorld();
                 const outcome = resolveNpcTugOutcome(npc, attackers);
                 if (outcome.zombieWins) {
                     const infectionSource = attackers.find(a => a && (a.tugState && a.tugState.target === npc)) || attackers[0] || zombie;
-                    triggerBiteImpact(infectionSource, npc, 1.9 + Math.min(0.8, attackers.length * 0.18), { initial: true });
+                    triggerBiteImpact(infectionSource, npc, 1.9 + Math.min(0.8, attackers.length * 0.18), { initial: true, forceBlood: true });
                     addBlood(npc.x + 1.5, npc.y + 1.5, {
                         intensity: 2.4,
                         dir: normalizar(npc.x - infectionSource.x, npc.y - infectionSource.y),
@@ -6144,8 +6151,6 @@ drawDoorsWorld();
             if (!cit.fleeingZombie) limitEntityToRoamRadius(cit, npcRoamRadiusPx, "spawn");
             cit.boarding = 0;
             const citizenColor = (cit.infectionFramesLeft && cit.infectionFramesLeft > 0) ? PALETA.ciudadanoEnfermo : PALETA.ciudadano;
-            const baseConeColor = cit.panicking ? "rgba(229, 57, 53, 0.24)" : (cit.scared ? "rgba(229, 57, 53, 0.16)" : "rgba(121, 134, 203, 0.08)");
-            drawVisionCone(cit, rangoVisionNPC, anguloVisionNPC, isNpcInTug(cit) ? "rgba(229, 57, 53, 0.28)" : baseConeColor);
             drawEnt(cit, citizenColor, radioVisual, "citizen");
         });
 
