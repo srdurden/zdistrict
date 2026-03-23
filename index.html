@@ -5663,6 +5663,13 @@ else if (!deterministicCampaign) spawn(policias, mergedSettings.policeCount, 'po
 if (usePredefZombieSpawns) spawnFromTiles(zombies, predefZombieSpawnTiles, 'zomb');
 else if (!deterministicCampaign) spawn(zombies, mergedSettings.zombieCount, 'zomb');
 
+if (usePredefZombieSpawns && zombies.length > 0) {
+    // Si el escenario ya trae zombies colocados, activar automáticamente la diana
+    // debajo de uno de ellos al iniciar la partida.
+    const seededZombie = zombies[0];
+    createZombieLureAt(seededZombie.x + tamanoEntidad / 2, seededZombie.y + tamanoEntidad / 2);
+}
+
         estadoJuego = "PLAYING";
         lastFrameTime = 0;
         actualizarStatsUI();
