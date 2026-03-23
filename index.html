@@ -1175,7 +1175,34 @@ body.editor-active #configPanel {
         y: worldPixelHeight / 2,
         zoom: 1,
         minZoom: 0.05,
-        maxZoom: 18
+        maxZoom: 18,
+        userZoomBias: 1,
+        auto: {
+            enabled: true,
+            framingTiles: 25,
+            subjectPaddingTiles: 2.2,
+            zoomBiasMin: 0.45,
+            zoomBiasMax: 2.35,
+            targetPositionSmoothTime: 0.42,
+            targetZoomInSmoothTime: 0.55,
+            targetZoomOutSmoothTime: 0.82,
+            positionSmoothTime: 0.52,
+            zoomInSmoothTime: 0.72,
+            zoomOutSmoothTime: 1.02,
+            maxPanSpeed: 2800,
+            maxZoomSpeed: 3.0
+        },
+        motion: {
+            vx: 0,
+            vy: 0,
+            vz: 0,
+            targetX: worldPixelWidth / 2,
+            targetY: worldPixelHeight / 2,
+            targetZoom: 1,
+            targetVx: 0,
+            targetVy: 0,
+            targetVz: 0
+        }
     };
 
     function getWorldPixelSize() {
@@ -1193,10 +1220,11 @@ body.editor-active #configPanel {
         return Math.max(camera.minZoom, Math.min(camera.maxZoom, fitZoom));
     }
 
-    function getCameraBounds(allowOverscroll = false) {
+    function getCameraBoundsForZoom(zoom, allowOverscroll = false) {
         const world = getWorldPixelSize();
-        const halfViewW = viewportWidth / (2 * camera.zoom);
-        const halfViewH = viewportHeight / (2 * camera.zoom);
+        const safeZoom = Math.max(0.0001, zoom || camera.zoom || 1);
+        const halfViewW = viewportWidth / (2 * safeZoom);
+        const halfViewH = viewportHeight / (2 * safeZoom);
         const overscrollX = allowOverscroll ? halfViewW * 0.28 : 0;
         const overscrollY = allowOverscroll ? halfViewH * 0.28 : 0;
 
@@ -1223,11 +1251,138 @@ body.editor-active #configPanel {
         return { minX, maxX, minY, maxY };
     }
 
-    function clampCamera(allowOverscroll = false) {
-        const bounds = getCameraBounds(allowOverscroll);
+    function getCameraBounds(allowOverscroll = false) {
+        return getCameraBoundsForZoom(camera.zoom, allowOverscroll);
+    }
 
-        camera.x = Math.max(bounds.minX, Math.min(bounds.maxX, camera.x));
-        camera.y = Math.max(bounds.minY, Math.min(bounds.maxY, camera.y));
+    function clampCameraPointToZoom(x, y, zoom, allowOverscroll = false) {
+        const bounds = getCameraBoundsForZoom(zoom, allowOverscroll);
+        return {
+            x: Math.max(bounds.minX, Math.min(bounds.maxX, x)),
+            y: Math.max(bounds.minY, Math.min(bounds.maxY, y))
+        };
+    }
+
+    function clampCamera(allowOverscroll = false) {
+        const clamped = clampCameraPointToZoom(camera.x, camera.y, camera.zoom, allowOverscroll);
+        camera.x = clamped.x;
+        camera.y = clamped.y;
+    }
+
+    function getCameraZoomBiasLimits() {
+        const autoCfg = camera.auto || {};
+        return {
+            min: Math.max(0.2, Number.isFinite(autoCfg.zoomBiasMin) ? autoCfg.zoomBiasMin : 0.45),
+            max: Math.max(0.25, Number.isFinite(autoCfg.zoomBiasMax) ? autoCfg.zoomBiasMax : 2.35)
+        };
+    }
+
+    function clampCameraZoomBias(value) {
+        const limits = getCameraZoomBiasLimits();
+        return Math.max(limits.min, Math.min(limits.max, value));
+    }
+
+    function isActionCameraEnabled() {
+        return !!(camera.auto && camera.auto.enabled) && !(typeof editorState !== "undefined" && editorState && editorState.active);
+    }
+
+    function getActionCameraSubjects() {
+        const subjects = [];
+        if (typeof zombieLureTarget !== "undefined" && zombieLureTarget) {
+            subjects.push({
+                x: zombieLureTarget.x,
+                y: zombieLureTarget.y,
+                radius: Math.max(cellSize * 1.45, 12)
+            });
+        }
+        if (typeof zombies !== "undefined" && Array.isArray(zombies)) {
+            for (const zombie of zombies) {
+                subjects.push({
+                    x: zombie.x + tamanoEntidad / 2,
+                    y: zombie.y + tamanoEntidad / 2,
+                    radius: Math.max(cellSize * 0.9, tamanoEntidad * 1.15)
+                });
+            }
+        }
+        if (subjects.length === 0 && typeof jugador !== "undefined" && jugador && Number.isFinite(jugador.x) && Number.isFinite(jugador.y)) {
+            subjects.push({
+                x: jugador.x + tamanoEntidad / 2,
+                y: jugador.y + tamanoEntidad / 2,
+                radius: Math.max(cellSize * 0.7, tamanoEntidad)
+            });
+        }
+        if (subjects.length === 0) {
+            const world = getWorldPixelSize();
+            subjects.push({ x: world.width / 2, y: world.height / 2, radius: cellSize });
+        }
+        return subjects;
+    }
+
+    function getActionCameraAnchor(subjects = null) {
+        const list = subjects || getActionCameraSubjects();
+        if (typeof zombieLureTarget !== "undefined" && zombieLureTarget) {
+            return { x: zombieLureTarget.x, y: zombieLureTarget.y };
+        }
+        if (typeof zombies !== "undefined" && Array.isArray(zombies) && zombies.length > 0) {
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            for (const zombie of zombies) {
+                const zx = zombie.x + tamanoEntidad / 2;
+                const zy = zombie.y + tamanoEntidad / 2;
+                if (zx < minX) minX = zx;
+                if (zx > maxX) maxX = zx;
+                if (zy < minY) minY = zy;
+                if (zy > maxY) maxY = zy;
+            }
+            if (Number.isFinite(minX)) {
+                return { x: (minX + maxX) * 0.5, y: (minY + maxY) * 0.5 };
+            }
+        }
+        return { x: list[0].x, y: list[0].y };
+    }
+
+    function getActionCameraTargetZoom(centerX, centerY, subjects = null) {
+        const autoCfg = camera.auto || {};
+        const list = subjects || getActionCameraSubjects();
+        const zoomBias = clampCameraZoomBias(Number.isFinite(camera.userZoomBias) ? camera.userZoomBias : 1);
+        const framingTiles = Math.max(8, Number.isFinite(autoCfg.framingTiles) ? autoCfg.framingTiles : 25);
+        const subjectPaddingPx = Math.max(cellSize * 0.6, (Number.isFinite(autoCfg.subjectPaddingTiles) ? autoCfg.subjectPaddingTiles : 2.2) * cellSize);
+        let halfExtentX = (framingTiles * cellSize * 0.5) / zoomBias;
+        let halfExtentY = (framingTiles * cellSize * 0.5) / zoomBias;
+
+        for (const subject of list) {
+            const radius = Math.max(0, Number.isFinite(subject.radius) ? subject.radius : 0);
+            halfExtentX = Math.max(halfExtentX, Math.abs(subject.x - centerX) + radius + subjectPaddingPx);
+            halfExtentY = Math.max(halfExtentY, Math.abs(subject.y - centerY) + radius + subjectPaddingPx);
+        }
+
+        const fitZoom = Math.min(
+            viewportWidth / Math.max(1, halfExtentX * 2),
+            viewportHeight / Math.max(1, halfExtentY * 2)
+        );
+        return Math.max(camera.minZoom, Math.min(camera.maxZoom, fitZoom));
+    }
+
+    function getActionCameraState() {
+        const subjects = getActionCameraSubjects();
+        const desiredAnchor = getActionCameraAnchor(subjects);
+        let center = { x: desiredAnchor.x, y: desiredAnchor.y };
+        let zoom = getActionCameraTargetZoom(center.x, center.y, subjects);
+
+        for (let i = 0; i < 3; i += 1) {
+            const clampedCenter = clampCameraPointToZoom(desiredAnchor.x, desiredAnchor.y, zoom, false);
+            const nextZoom = getActionCameraTargetZoom(clampedCenter.x, clampedCenter.y, subjects);
+            const sameCenter = Math.abs(clampedCenter.x - center.x) < 0.05 && Math.abs(clampedCenter.y - center.y) < 0.05;
+            const sameZoom = Math.abs(nextZoom - zoom) < 0.0005;
+            center = clampedCenter;
+            zoom = nextZoom;
+            if (sameCenter && sameZoom) break;
+        }
+
+        return {
+            x: center.x,
+            y: center.y,
+            zoom: Math.max(camera.minZoom, Math.min(camera.maxZoom, zoom))
+        };
     }
 
     function screenToWorld(clientX, clientY) {
@@ -1239,7 +1394,82 @@ body.editor-active #configPanel {
         return { x: wx, y: wy };
     }
 
+    function smoothDamp(current, target, currentVelocity, smoothTime, maxSpeed, deltaTime) {
+        const safeSmoothTime = Math.max(0.0001, Number.isFinite(smoothTime) ? smoothTime : 0.0001);
+        const dt = Math.max(0.000001, Number.isFinite(deltaTime) ? deltaTime : 0.000001);
+        const omega = 2 / safeSmoothTime;
+        const x = omega * dt;
+        const exp = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+        let change = current - target;
+        const originalTarget = target;
+        const maxChange = (Number.isFinite(maxSpeed) && maxSpeed > 0)
+            ? maxSpeed * safeSmoothTime
+            : Infinity;
+
+        if (Number.isFinite(maxChange)) {
+            change = Math.max(-maxChange, Math.min(maxChange, change));
+        }
+
+        target = current - change;
+        const temp = (currentVelocity + omega * change) * dt;
+        let newVelocity = (currentVelocity - omega * temp) * exp;
+        let output = target + (change + temp) * exp;
+
+        if ((originalTarget - current > 0) === (output > originalTarget)) {
+            output = originalTarget;
+            newVelocity = (output - originalTarget) / dt;
+        }
+
+        return { value: output, velocity: newVelocity };
+    }
+
+    function getCameraAutoTiming() {
+        const autoCfg = camera.auto || {};
+        return {
+            targetPositionSmoothTime: Math.max(0.08, Number.isFinite(autoCfg.targetPositionSmoothTime) ? autoCfg.targetPositionSmoothTime : 0.42),
+            targetZoomInSmoothTime: Math.max(0.08, Number.isFinite(autoCfg.targetZoomInSmoothTime) ? autoCfg.targetZoomInSmoothTime : 0.55),
+            targetZoomOutSmoothTime: Math.max(0.08, Number.isFinite(autoCfg.targetZoomOutSmoothTime) ? autoCfg.targetZoomOutSmoothTime : 0.82),
+            positionSmoothTime: Math.max(0.08, Number.isFinite(autoCfg.positionSmoothTime) ? autoCfg.positionSmoothTime : 0.52),
+            zoomInSmoothTime: Math.max(0.08, Number.isFinite(autoCfg.zoomInSmoothTime) ? autoCfg.zoomInSmoothTime : 0.72),
+            zoomOutSmoothTime: Math.max(0.08, Number.isFinite(autoCfg.zoomOutSmoothTime) ? autoCfg.zoomOutSmoothTime : 1.02),
+            maxPanSpeed: Math.max(120, Number.isFinite(autoCfg.maxPanSpeed) ? autoCfg.maxPanSpeed : 2800),
+            maxZoomSpeed: Math.max(0.25, Number.isFinite(autoCfg.maxZoomSpeed) ? autoCfg.maxZoomSpeed : 3.0)
+        };
+    }
+
+    function resetActionCameraSmoothing(target = null) {
+        const state = target || getActionCameraState();
+        camera.motion.vx = 0;
+        camera.motion.vy = 0;
+        camera.motion.vz = 0;
+        camera.motion.targetVx = 0;
+        camera.motion.targetVy = 0;
+        camera.motion.targetVz = 0;
+        camera.motion.targetX = state.x;
+        camera.motion.targetY = state.y;
+        camera.motion.targetZoom = state.zoom;
+    }
+
+    function ensureActionCameraSmoothingInitialized() {
+        const motion = camera.motion;
+        if (!Number.isFinite(motion.targetX) || !Number.isFinite(motion.targetY) || !Number.isFinite(motion.targetZoom)) {
+            resetActionCameraSmoothing();
+            return;
+        }
+        if (!Number.isFinite(camera.x) || !Number.isFinite(camera.y) || !Number.isFinite(camera.zoom)) {
+            camera.x = motion.targetX;
+            camera.y = motion.targetY;
+            camera.zoom = motion.targetZoom;
+        }
+    }
+
     function setZoomAtPoint(nextZoom, anchorScreenX, anchorScreenY) {
+        if (isActionCameraEnabled()) {
+            const currentZoom = Math.max(0.0001, camera.zoom || 1);
+            const ratio = Math.max(0.01, nextZoom / currentZoom);
+            camera.userZoomBias = clampCameraZoomBias((Number.isFinite(camera.userZoomBias) ? camera.userZoomBias : 1) * ratio);
+            return;
+        }
         const clampedZoom = Math.max(camera.minZoom, Math.min(camera.maxZoom, nextZoom));
         const before = screenToWorld(anchorScreenX, anchorScreenY);
         camera.zoom = clampedZoom;
@@ -1253,7 +1483,71 @@ body.editor-active #configPanel {
         setZoomAtPoint(camera.zoom * factor, anchorScreenX, anchorScreenY);
     }
 
+    function snapCameraToAction(options = {}) {
+        const { resetZoomBias = false } = options;
+        if (resetZoomBias) camera.userZoomBias = 1;
+        const target = getActionCameraState();
+        camera.x = target.x;
+        camera.y = target.y;
+        camera.zoom = target.zoom;
+        resetActionCameraSmoothing(target);
+        clampCamera(false);
+    }
+
+    function updateActionCamera(dtMs) {
+        if (!isActionCameraEnabled()) return;
+
+        ensureActionCameraSmoothingInitialized();
+
+        const dtSec = Math.max(0.001, Math.min(0.09, dtMs / 1000));
+        const timing = getCameraAutoTiming();
+        const rawTarget = getActionCameraState();
+        const motion = camera.motion;
+
+        const targetZoomSmoothTime = rawTarget.zoom < motion.targetZoom
+            ? timing.targetZoomOutSmoothTime
+            : timing.targetZoomInSmoothTime;
+        const cameraZoomSmoothTime = motion.targetZoom < camera.zoom
+            ? timing.zoomOutSmoothTime
+            : timing.zoomInSmoothTime;
+
+        const smoothTargetX = smoothDamp(motion.targetX, rawTarget.x, motion.targetVx, timing.targetPositionSmoothTime, timing.maxPanSpeed, dtSec);
+        const smoothTargetY = smoothDamp(motion.targetY, rawTarget.y, motion.targetVy, timing.targetPositionSmoothTime, timing.maxPanSpeed, dtSec);
+        const smoothTargetZoom = smoothDamp(motion.targetZoom, rawTarget.zoom, motion.targetVz, targetZoomSmoothTime, timing.maxZoomSpeed, dtSec);
+
+        motion.targetX = smoothTargetX.value;
+        motion.targetY = smoothTargetY.value;
+        motion.targetZoom = Math.max(camera.minZoom, Math.min(camera.maxZoom, smoothTargetZoom.value));
+        motion.targetVx = smoothTargetX.velocity;
+        motion.targetVy = smoothTargetY.velocity;
+        motion.targetVz = smoothTargetZoom.velocity;
+
+        const clampedSmoothedTarget = clampCameraPointToZoom(motion.targetX, motion.targetY, motion.targetZoom, false);
+        motion.targetX = clampedSmoothedTarget.x;
+        motion.targetY = clampedSmoothedTarget.y;
+
+        const smoothCameraX = smoothDamp(camera.x, motion.targetX, motion.vx, timing.positionSmoothTime, timing.maxPanSpeed, dtSec);
+        const smoothCameraY = smoothDamp(camera.y, motion.targetY, motion.vy, timing.positionSmoothTime, timing.maxPanSpeed, dtSec);
+        const smoothCameraZoom = smoothDamp(camera.zoom, motion.targetZoom, motion.vz, cameraZoomSmoothTime, timing.maxZoomSpeed, dtSec);
+
+        camera.x = smoothCameraX.value;
+        camera.y = smoothCameraY.value;
+        camera.zoom = Math.max(camera.minZoom, Math.min(camera.maxZoom, smoothCameraZoom.value));
+        motion.vx = smoothCameraX.velocity;
+        motion.vy = smoothCameraY.velocity;
+        motion.vz = smoothCameraZoom.velocity;
+
+        if (Math.abs(camera.zoom - motion.targetZoom) < 0.0005) camera.zoom = motion.targetZoom;
+        if (Math.abs(camera.x - motion.targetX) < 0.02) camera.x = motion.targetX;
+        if (Math.abs(camera.y - motion.targetY) < 0.02) camera.y = motion.targetY;
+        clampCamera(false);
+    }
+
     function fitCameraToWorld() {
+        if (isActionCameraEnabled()) {
+            snapCameraToAction({ resetZoomBias: true });
+            return;
+        }
         const world = getWorldPixelSize();
         camera.x = world.width / 2;
         camera.y = world.height / 2;
@@ -2037,8 +2331,8 @@ const txtEventoElem = document.getElementById("txtEvento");
     // Main Menu wiring
     if (homeBtn) homeBtn.addEventListener("click", () => showMainMenu());
     if (menuCampaignBtn) menuCampaignBtn.addEventListener("click", () => startCampaignMode(0));
-    if (zoomInBtn) zoomInBtn.addEventListener("click", () => zoomByFactor(1.25));
-    if (zoomOutBtn) zoomOutBtn.addEventListener("click", () => zoomByFactor(1 / 1.25));
+    if (zoomInBtn) zoomInBtn.addEventListener("click", () => zoomByFactor(1.18));
+    if (zoomOutBtn) zoomOutBtn.addEventListener("click", () => zoomByFactor(1 / 1.18));
     if (fitMapBtn) fitMapBtn.addEventListener("click", () => fitCameraToWorld());
 
     syncViewportLayout({ refit: true });
@@ -2053,7 +2347,7 @@ const txtEventoElem = document.getElementById("txtEvento");
 
     function refreshEditorPreviewLevel() {
         const previewLevel = buildCampaignLevelFromEditor();
-        const preserveCam = editorState.active ? { x: camera.x, y: camera.y, zoom: camera.zoom } : null;
+        const preserveCam = editorState.active ? { x: camera.x, y: camera.y, zoom: camera.zoom, userZoomBias: camera.userZoomBias } : null;
         resetGame({
             mode: "campaign",
             campaignIndex: getActiveCampaignIndex(),
@@ -2067,6 +2361,7 @@ const txtEventoElem = document.getElementById("txtEvento");
             camera.x = preserveCam.x;
             camera.y = preserveCam.y;
             camera.zoom = Math.max(camera.minZoom, Math.min(camera.maxZoom, preserveCam.zoom));
+            camera.userZoomBias = clampCameraZoomBias(Number.isFinite(preserveCam.userZoomBias) ? preserveCam.userZoomBias : 1);
             clampCamera();
         }
     }
@@ -3356,6 +3651,7 @@ const DOOR_BASE_HP = 70;
     }
 
     function panCameraByScreenDelta(dx, dy, keepInertia = true) {
+        if (isActionCameraEnabled()) return;
         const worldDx = dx / camera.zoom;
         const worldDy = dy / camera.zoom;
         camera.x -= worldDx;
@@ -3372,6 +3668,11 @@ const DOOR_BASE_HP = 70;
     }
 
     function updateCameraInertia(simStep) {
+        if (isActionCameraEnabled()) {
+            panVelocityX = 0;
+            panVelocityY = 0;
+            return;
+        }
         if (isCameraInteracting()) return;
 
         const velocityMagnitude = Math.hypot(panVelocityX, panVelocityY);
@@ -5473,8 +5774,13 @@ if(alcanzables.length === 0) {
         camera.x = world.width / 2;
         camera.y = world.height / 2;
         camera.minZoom = Math.max(0.05, getDefaultCameraZoom() * 0.35);
-        camera.zoom = getDefaultCameraZoom();
-        clampCamera();
+        camera.userZoomBias = 1;
+        if (isActionCameraEnabled()) {
+            snapCameraToAction({ resetZoomBias: true });
+        } else {
+            camera.zoom = getDefaultCameraZoom();
+            clampCamera();
+        }
         pointerState.clear();
         pinchState = null;
         touchDragPan = null;
@@ -5669,6 +5975,9 @@ if (usePredefZombieSpawns && zombies.length > 0) {
     const seededZombie = zombies[0];
     createZombieLureAt(seededZombie.x + tamanoEntidad / 2, seededZombie.y + tamanoEntidad / 2);
 }
+if (isActionCameraEnabled()) {
+    snapCameraToAction({ resetZoomBias: true });
+}
 
         estadoJuego = "PLAYING";
         lastFrameTime = 0;
@@ -5707,7 +6016,8 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
         lastFrameTime = timestamp;
 
         // simulation step relative to BASE_FPS
-        const simStep = (Math.min(2.5, dtMs / FRAME_MS)) * timeSpeedMultiplier;
+        const realCameraStep = Math.min(2.5, dtMs / FRAME_MS);
+        const simStep = realCameraStep * timeSpeedMultiplier;
 
         frameCount += simStep;
         if (footstepCooldown > 0) footstepCooldown -= simStep;
@@ -5733,7 +6043,8 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
         updateNoises(simStep);
         directorTick(simStep);
         updateParticles(simStep);
-        updateCameraInertia(simStep);
+        updateCameraInertia(realCameraStep);
+        updateActionCamera(dtMs);
 
         let timeScale = simStep;
         let introZoom = 1.0;
