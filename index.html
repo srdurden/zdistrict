@@ -852,6 +852,7 @@ body.editor-active #configPanel {
                         <input id="editorHeightInput" class="editor-mini-input" type="number" min="15" max="200" value="40">
                     </div>
                     <button id="editorResizeBtn" class="editor-chip">Aplicar tamaño</button>
+                    <button id="editorCancelResizeBtn" class="editor-chip" style="display:none">Cancelar ajuste</button>
                     <button id="editorClearBtn" class="editor-chip">Vaciar nivel</button>
                     <button id="editorSaveBtn" class="editor-chip">Guardar nivel</button>
                     <button id="editorExportBtn" class="editor-chip">Exportar nivel</button>
@@ -1144,9 +1145,11 @@ body.editor-active #configPanel {
     };
 
     function getWorldPixelSize() {
+        const previewWidthTiles = editorResizePreview ? Math.max(editorResizePreview.oldW, editorResizePreview.newW) : 0;
+        const previewHeightTiles = editorResizePreview ? Math.max(editorResizePreview.oldH, editorResizePreview.newH) : 0;
         return {
-            width: Math.max(cellSize, worldPixelWidth, gridWidth * cellSize),
-            height: Math.max(cellSize, worldPixelHeight, gridHeight * cellSize)
+            width: Math.max(cellSize, worldPixelWidth, gridWidth * cellSize, previewWidthTiles * cellSize),
+            height: Math.max(cellSize, worldPixelHeight, gridHeight * cellSize, previewHeightTiles * cellSize)
         };
     }
 
@@ -1783,6 +1786,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     const editorWidthInput = document.getElementById("editorWidthInput");
     const editorHeightInput = document.getElementById("editorHeightInput");
     const editorResizeBtn = document.getElementById("editorResizeBtn");
+    const editorCancelResizeBtn = document.getElementById("editorCancelResizeBtn");
     const editorClearBtn = document.getElementById("editorClearBtn");
     const editorSaveBtn = document.getElementById("editorSaveBtn");
     const editorExportBtn = document.getElementById("editorExportBtn");
@@ -2076,6 +2080,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     }
 
     if (editorExitBtn) editorExitBtn.addEventListener("click", () => {
+        cancelEditorResizePreview();
         showEditorOverlay(false);
         editorState.active = false;
         startCampaignMode(getActiveCampaignIndex());
@@ -2083,13 +2088,15 @@ const txtEventoElem = document.getElementById("txtEvento");
     if (editorResizeBtn) editorResizeBtn.addEventListener("click", () => {
         const w = Math.max(15, Math.min(200, parseInt(editorWidthInput && editorWidthInput.value, 10) || editorState.mapWidthTiles || 100));
         const h = Math.max(15, Math.min(200, parseInt(editorHeightInput && editorHeightInput.value, 10) || editorState.mapHeightTiles || 100));
-        editorState.mapWidthTiles = w;
-        editorState.mapHeightTiles = h;
-        editorState.mapRows = ensureEditorMarkers(createEditorRows(w, h));
-        syncEditorCivilianInput();
-        refreshEditorPreviewLevel();
+        if (editorResizePreview && editorResizePreview.newW === w && editorResizePreview.newH === h) {
+            commitEditorResizePreview();
+            return;
+        }
+        beginEditorResizePreview(w, h);
     });
+    if (editorCancelResizeBtn) editorCancelResizeBtn.addEventListener("click", () => cancelEditorResizePreview());
     if (editorClearBtn) editorClearBtn.addEventListener("click", () => {
+        cancelEditorResizePreview();
         editorState.mapRows = ensureEditorMarkers(createEditorRows(editorState.mapWidthTiles, editorState.mapHeightTiles));
         syncEditorCivilianInput();
         refreshEditorPreviewLevel();
@@ -2103,6 +2110,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     });
     if (editorExportBtn) editorExportBtn.addEventListener("click", () => exportEditorLevelDefinition());
     if (editorLoadBtn) editorLoadBtn.addEventListener("click", () => {
+        cancelEditorResizePreview();
         const raw = window.prompt("Pega la definición del nivel exportada:");
         if (!raw) return;
         try {
@@ -2124,6 +2132,7 @@ const txtEventoElem = document.getElementById("txtEvento");
         });
     }
     if (editorOpenScenarioPanelBtn) editorOpenScenarioPanelBtn.addEventListener("click", () => openEditorScenarioSettings());
+    syncResizeButtonsUI();
 
     // ===========================
     // Phase 0: Run definitions
@@ -2170,6 +2179,98 @@ const txtEventoElem = document.getElementById("txtEvento");
     const EDITOR_STRUCTURES = [
         { key: "rectangle", label: "Rectangulo" }
     ];
+    var editorResizePreview = null; // { oldW, oldH, newW, newH, offsetX, offsetY, minOffsetX, maxOffsetX, minOffsetY, maxOffsetY }
+
+    function getResizeOffsetBounds(oldSize, newSize) {
+        const delta = oldSize - newSize;
+        return {
+            min: Math.min(0, delta),
+            max: Math.max(0, delta)
+        };
+    }
+
+    function clampResizePreviewOffset(preview) {
+        if (!preview) return null;
+        preview.offsetX = Math.max(preview.minOffsetX, Math.min(preview.maxOffsetX, preview.offsetX | 0));
+        preview.offsetY = Math.max(preview.minOffsetY, Math.min(preview.maxOffsetY, preview.offsetY | 0));
+        return preview;
+    }
+
+    function syncResizeButtonsUI() {
+        if (editorResizeBtn) editorResizeBtn.textContent = editorResizePreview ? "Confirmar tamaño" : "Aplicar tamaño";
+        if (editorCancelResizeBtn) editorCancelResizeBtn.style.display = editorResizePreview ? "" : "none";
+    }
+
+    function cancelEditorResizePreview() {
+        editorResizePreview = null;
+        syncResizeButtonsUI();
+        hoverTile = null;
+        staticDirty = true;
+    }
+
+    function beginEditorResizePreview(newW, newH) {
+        const oldW = editorState.mapWidthTiles;
+        const oldH = editorState.mapHeightTiles;
+        if (newW === oldW && newH === oldH) {
+            cancelEditorResizePreview();
+            return false;
+        }
+        const xBounds = getResizeOffsetBounds(oldW, newW);
+        const yBounds = getResizeOffsetBounds(oldH, newH);
+        editorResizePreview = {
+            oldW,
+            oldH,
+            newW,
+            newH,
+            offsetX: xBounds.max > 0 ? Math.floor(xBounds.max * 0.5) : Math.ceil(xBounds.min * 0.5),
+            offsetY: yBounds.max > 0 ? Math.floor(yBounds.max * 0.5) : Math.ceil(yBounds.min * 0.5),
+            minOffsetX: xBounds.min,
+            maxOffsetX: xBounds.max,
+            minOffsetY: yBounds.min,
+            maxOffsetY: yBounds.max
+        };
+        clampResizePreviewOffset(editorResizePreview);
+        syncResizeButtonsUI();
+        fitCameraToWorld();
+        staticDirty = true;
+        return true;
+    }
+
+    function commitEditorResizePreview() {
+        if (!editorResizePreview || !editorState.mapRows.length) return false;
+        const preview = clampResizePreviewOffset(editorResizePreview);
+        const sourceRows = editorState.mapRows.map(r => r.split(""));
+        const nextRows = createEditorRows(preview.newW, preview.newH).map(r => r.split(""));
+
+        for (let y = 0; y < preview.newH; y += 1) {
+            for (let x = 0; x < preview.newW; x += 1) {
+                const sourceX = x + preview.offsetX;
+                const sourceY = y + preview.offsetY;
+                if (sourceX < 0 || sourceY < 0 || sourceX >= preview.oldW || sourceY >= preview.oldH) continue;
+                const token = sourceRows[sourceY] && sourceRows[sourceY][sourceX];
+                if (token) nextRows[y][x] = token;
+            }
+        }
+
+        for (let x = 0; x < preview.newW; x += 1) {
+            nextRows[0][x] = "#";
+            nextRows[preview.newH - 1][x] = "#";
+        }
+        for (let y = 0; y < preview.newH; y += 1) {
+            nextRows[y][0] = "#";
+            nextRows[y][preview.newW - 1] = "#";
+        }
+
+        editorState.mapWidthTiles = preview.newW;
+        editorState.mapHeightTiles = preview.newH;
+        editorState.mapRows = ensureEditorMarkers(nextRows.map(r => r.join("")));
+        if (editorWidthInput) editorWidthInput.value = String(preview.newW);
+        if (editorHeightInput) editorHeightInput.value = String(preview.newH);
+        cancelEditorResizePreview();
+        syncEditorCivilianInput();
+        refreshEditorPreviewLevel();
+        return true;
+    }
 
     function createEditorRows(w, h) {
         const rows = [];
@@ -2191,6 +2292,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     }
 
     function hydrateEditorFromLevel(level) {
+        cancelEditorResizePreview();
         const base = level || CAMPAIGN_LEVELS[0];
         const rows = parseRowsFromMapDef(base && base.mapDef);
         const inferred = inferAsciiMapSize(base && base.mapDef);
@@ -2307,6 +2409,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     }
 
     function applyEditorLevelDefinition(definition) {
+        cancelEditorResizePreview();
         const parsedRows = parseRowsFromMapDef(definition && definition.mapDef);
         const w = Math.max(15, Math.min(200, (definition && definition.mapDef && definition.mapDef.w) || (parsedRows[0] ? parsedRows[0].length : editorState.mapWidthTiles || 60)));
         const h = Math.max(15, Math.min(200, (definition && definition.mapDef && definition.mapDef.h) || parsedRows.length || editorState.mapHeightTiles || 40));
@@ -2363,6 +2466,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     function showEditorOverlay(show) {
         if (!editorOverlay) return;
         const isVisible = !!show;
+        if (!isVisible) cancelEditorResizePreview();
         editorOverlay.classList.toggle("visible", isVisible);
         document.body.classList.toggle("editor-active", isVisible);
         if (editorSideMenu) editorSideMenu.classList.toggle("visible", false);
@@ -2971,6 +3075,7 @@ const DOOR_BASE_HP = 70;
     const teclas = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false, Space: false, ShiftLeft: false, ShiftRight: false };
 
     document.addEventListener("keydown", (e) => {
+        if (e.code === "Escape" && editorResizePreview) { e.preventDefault(); cancelEditorResizePreview(); return; }
         if (e.code === "KeyM") { e.preventDefault(); showMainMenu(); return; }
         if (estadoJuego !== "PLAYING" && e.code === "Space") { e.preventDefault(); handlePostgamePrimaryAction(); return; }
         if (estadoJuego === "PLAYING" && e.code === "KeyC") { toggleAllDoors(); e.preventDefault(); return; }
@@ -3270,7 +3375,7 @@ const DOOR_BASE_HP = 70;
         const tx = Math.floor(world.x / cellSize);
         const ty = Math.floor(world.y / cellSize);
         const isInsideGrid = tx >= 0 && tx < gridWidth && ty >= 0 && ty < gridHeight;
-        const canHoverEditor = editorState.active && isInsideGrid;
+        const canHoverEditor = editorState.active && !editorResizePreview && isInsideGrid;
         const canHoverDeploy = deployZombieArmed && isInsideGrid;
         const canHoverLure = zombieLureArmed && isInsideGrid;
         const canPreviewLureMove = !!zombieLureTarget && !zombieLureArmed && !editorState.active && !deployZombieArmed && pointerType === "mouse" && isInsideGrid;
@@ -3281,6 +3386,10 @@ const DOOR_BASE_HP = 70;
 
     function registerTap(world, clientX, clientY, pointerType = "touch") {
         if (editorState.active) {
+            if (editorResizePreview) {
+                lastTapInfo = null;
+                return;
+            }
             const tx = Math.floor(world.x / cellSize);
             const ty = Math.floor(world.y / cellSize);
             const changed = applyEditorStructureAtTile(tx, ty);
@@ -3411,8 +3520,14 @@ const DOOR_BASE_HP = 70;
         } else {
             setCanvasDragging(true);
             if (editorState.active) {
-                const { tx, ty } = updateHoverFromClientPoint(e.clientX, e.clientY);
-                if (editorState.selectedTool) {
+                const hoverInfo = updateHoverFromClientPoint(e.clientX, e.clientY);
+                const tx = hoverInfo.tx;
+                const ty = hoverInfo.ty;
+                if (editorResizePreview) {
+                    const worldTileX = Math.floor(hoverInfo.world.x / cellSize);
+                    const worldTileY = Math.floor(hoverInfo.world.y / cellSize);
+                    editorInteraction = { mode: "resize-move", dirty: false, lastWorldTileX: worldTileX, lastWorldTileY: worldTileY };
+                } else if (editorState.selectedTool) {
                     const selectedTool = getSelectedEditorTool();
                     const changed = paintEditorTile(tx, ty);
                     const interactionMode = selectedTool && isEditorEntityToolKey(selectedTool.key) ? "paint-single" : "paint";
@@ -3470,6 +3585,21 @@ const DOOR_BASE_HP = 70;
                         }
                         editorInteraction.lastTx = tx;
                         editorInteraction.lastTy = ty;
+                    }
+                } else if (editorInteraction.mode === "resize-move" && editorResizePreview) {
+                    const world = screenToWorld(e.clientX, e.clientY);
+                    const worldTileX = Math.floor(world.x / cellSize);
+                    const worldTileY = Math.floor(world.y / cellSize);
+                    const deltaX = worldTileX - editorInteraction.lastWorldTileX;
+                    const deltaY = worldTileY - editorInteraction.lastWorldTileY;
+                    if (deltaX !== 0 || deltaY !== 0) {
+                        editorResizePreview.offsetX -= deltaX;
+                        editorResizePreview.offsetY -= deltaY;
+                        clampResizePreviewOffset(editorResizePreview);
+                        editorInteraction.lastWorldTileX = worldTileX;
+                        editorInteraction.lastWorldTileY = worldTileY;
+                        editorInteraction.dirty = true;
+                        staticDirty = true;
                     }
                 } else if (editorInteraction.mode === "none") {
                     if (p.dragging) {
@@ -6640,7 +6770,37 @@ drawDoorsWorld();
 
         cadaveres.forEach(c => { ctx.fillStyle="#d7ccc8"; ctx.beginPath(); ctx.arc(c.x+1.5,c.y+1.5,1.5,0,Math.PI*2); ctx.fill(); });
 
-        if (hoverTile && (deployZombieArmed || zombieLureArmed || editorState.active)) {
+        if (editorState.active && editorResizePreview) {
+            const preview = clampResizePreviewOffset(editorResizePreview);
+            const oldRect = { x: 0, y: 0, w: preview.oldW, h: preview.oldH };
+            const newRect = { x: preview.offsetX, y: preview.offsetY, w: preview.newW, h: preview.newH };
+            const intersectMinX = Math.max(oldRect.x, newRect.x);
+            const intersectMinY = Math.max(oldRect.y, newRect.y);
+            const intersectMaxX = Math.min(oldRect.x + oldRect.w, newRect.x + newRect.w);
+            const intersectMaxY = Math.min(oldRect.y + oldRect.h, newRect.y + newRect.h);
+            const overlapW = Math.max(0, intersectMaxX - intersectMinX);
+            const overlapH = Math.max(0, intersectMaxY - intersectMinY);
+            const growMode = preview.newW >= preview.oldW && preview.newH >= preview.oldH;
+
+            if (overlapW > 0 && overlapH > 0) {
+                ctx.fillStyle = "rgba(33, 150, 243, 0.2)";
+                ctx.fillRect(intersectMinX * cellSize, intersectMinY * cellSize, overlapW * cellSize, overlapH * cellSize);
+            }
+
+            ctx.save();
+            ctx.setLineDash([6, 5]);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = "rgba(255, 111, 0, 0.95)";
+            ctx.strokeRect((newRect.x * cellSize) + 1, (newRect.y * cellSize) + 1, (newRect.w * cellSize) - 2, (newRect.h * cellSize) - 2);
+            ctx.restore();
+
+            ctx.fillStyle = "rgba(255, 111, 0, 0.95)";
+            ctx.font = "700 11px Nunito";
+            const modeText = growMode ? "Ajuste tamaño: arrastra para ubicar el mapa actual dentro del tamaño nuevo" : "Ajuste tamaño: arrastra para elegir la zona que se conservará";
+            ctx.fillText(modeText, (newRect.x * cellSize) + 4, (newRect.y * cellSize) - 6);
+        }
+
+        if (hoverTile && (deployZombieArmed || zombieLureArmed || (editorState.active && !editorResizePreview))) {
             const hx = hoverTile.x * cellSize;
             const hy = hoverTile.y * cellSize;
             const hoverKey = `${hoverTile.x},${hoverTile.y}`;
@@ -6690,7 +6850,7 @@ drawDoorsWorld();
             }
         }
 
-        if (editorState.active && editorState.selectedStructure === "rectangle" && editorState.structureStartTile) {
+        if (editorState.active && !editorResizePreview && editorState.selectedStructure === "rectangle" && editorState.structureStartTile) {
             const start = editorState.structureStartTile;
             const end = hoverTile || start;
             const minX = Math.max(0, Math.min(start.x, end.x));
