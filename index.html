@@ -1232,6 +1232,9 @@ body.editor-active #configPanel {
     const staticLayer = document.createElement("canvas");
     const staticCtx = staticLayer.getContext("2d");
     staticCtx.imageSmoothingEnabled = false;
+    const wallLayer = document.createElement("canvas");
+    const wallCtx = wallLayer.getContext("2d");
+    wallCtx.imageSmoothingEnabled = false;
     let staticDirty = true;
 
     let fieldRectTiles = null; // legacy placeholder (fields removed)
@@ -1639,8 +1642,12 @@ body.editor-active #configPanel {
         staticLayer.width = world.width;
         staticLayer.height = world.height;
 
+        wallLayer.width = world.width;
+        wallLayer.height = world.height;
+
         const w = staticLayer.width, h = staticLayer.height;
         staticCtx.clearRect(0, 0, w, h);
+        wallCtx.clearRect(0, 0, w, h);
 
         // floor texture
 
@@ -1666,21 +1673,21 @@ body.editor-active #configPanel {
                     continue;
                 }
 
-                // wall tile with crisp edges
-                staticCtx.fillStyle = PALETA.pared;
-                staticCtx.fillRect(x, y, cellSize, cellSize);
+                // wall tile rendered on its own overlay layer so blood can never sit on top of it
+                wallCtx.fillStyle = PALETA.pared;
+                wallCtx.fillRect(x, y, cellSize, cellSize);
 
-                staticCtx.fillStyle = "rgba(255,255,255,0.26)";
-                staticCtx.fillRect(x, y, cellSize, 1);
-                staticCtx.fillRect(x, y, 1, cellSize);
+                wallCtx.fillStyle = "rgba(255,255,255,0.26)";
+                wallCtx.fillRect(x, y, cellSize, 1);
+                wallCtx.fillRect(x, y, 1, cellSize);
 
-                staticCtx.fillStyle = "rgba(0,0,0,0.18)";
-                staticCtx.fillRect(x, y + cellSize - 1, cellSize, 1);
-                staticCtx.fillRect(x + cellSize - 1, y, 1, cellSize);
+                wallCtx.fillStyle = "rgba(0,0,0,0.18)";
+                wallCtx.fillRect(x, y + cellSize - 1, cellSize, 1);
+                wallCtx.fillRect(x + cellSize - 1, y, 1, cellSize);
 
-                staticCtx.strokeStyle = "rgba(61, 43, 38, 0.45)";
-                staticCtx.lineWidth = 1;
-                staticCtx.strokeRect(x + 0.5, y + 0.5, cellSize - 1, cellSize - 1);
+                wallCtx.strokeStyle = "rgba(61, 43, 38, 0.45)";
+                wallCtx.lineWidth = 1;
+                wallCtx.strokeRect(x + 0.5, y + 0.5, cellSize - 1, cellSize - 1);
             }
         }
 
@@ -5603,6 +5610,7 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
         if (staticDirty) buildStaticLayer();
         ctx.drawImage(staticLayer, 0, 0);
         drawBloodStains();
+        ctx.drawImage(wallLayer, 0, 0);
         ctx.imageSmoothingEnabled = true;
 
 drawDoorsWorld();
