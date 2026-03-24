@@ -1876,8 +1876,23 @@ body.editor-active #configPanel {
         spawnParticles(x, y, "rgba(255, 205, 210, 0.5)", 2 + Math.round(power), 0.9 + (power * 0.15), Math.PI * 2, 10 + power, 0.7, 0.55, dir ? { direction: dir, arc: 0.65, stretch: 1.4, gravity: 0.012, collideWithWalls: true } : { collideWithWalls: true });
     }
 
-    function addFloatText(text, x, y, color = "rgba(62,39,35,0.85)") {
-        floatingTexts.push({ text, x, y, vx: (Math.random() - 0.5) * 0.25, vy: -0.55 - Math.random() * 0.25, ttl: 34, life: 34, color });
+    function addFloatText(text, x, y, color = "rgba(62,39,35,0.85)", options = null) {
+        const opts = options || {};
+        const life = Math.max(8, Number.isFinite(opts.life) ? opts.life : 34);
+        floatingTexts.push({
+            text,
+            x,
+            y,
+            vx: Number.isFinite(opts.vx) ? opts.vx : ((Math.random() - 0.5) * 0.25),
+            vy: Number.isFinite(opts.vy) ? opts.vy : (-0.55 - Math.random() * 0.25),
+            ttl: life,
+            life,
+            color,
+            font: opts.font || "800 11px Nunito",
+            shadowColor: opts.shadowColor || "rgba(255,255,255,0.65)",
+            shadowOffsetX: Number.isFinite(opts.shadowOffsetX) ? opts.shadowOffsetX : 0.8,
+            shadowOffsetY: Number.isFinite(opts.shadowOffsetY) ? opts.shadowOffsetY : 0.8
+        });
         if (floatingTexts.length > 28) floatingTexts.shift();
     }
 
@@ -1988,12 +2003,16 @@ body.editor-active #configPanel {
         ctx.save();
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.font = "800 11px Nunito";
         for (const t of floatingTexts) {
             const a = Math.max(0, Math.min(1, t.ttl / t.life));
+            ctx.font = t.font || "800 11px Nunito";
             ctx.globalAlpha = a;
-            ctx.fillStyle = "rgba(255,255,255,0.65)";
-            ctx.fillText(t.text, t.x + 0.8, t.y + 0.8);
+            ctx.fillStyle = t.shadowColor || "rgba(255,255,255,0.65)";
+            ctx.fillText(
+                t.text,
+                t.x + (Number.isFinite(t.shadowOffsetX) ? t.shadowOffsetX : 0.8),
+                t.y + (Number.isFinite(t.shadowOffsetY) ? t.shadowOffsetY : 0.8)
+            );
             ctx.fillStyle = t.color;
             ctx.fillText(t.text, t.x, t.y);
         }
@@ -7042,10 +7061,22 @@ drawDoorsWorld();
             const bonus = feastChainBonusLevel;
             const hordeSize = Math.max(0, zombies.length);
             addHordeEnergy(hordeSize * ENERGY_GAIN_PER_INFECTION);
-            if (bonus > 0) {
-                const text = bonus === 1 ? "Banquete!!" : `Banquete x ${bonus}!!`;
-                showBanquetBanner(text);
-            }
+            const feastText = bonus > 1 ? `Banquete x ${bonus}!!` : "Banquete!!";
+            addFloatText(
+                feastText,
+                npc.x + (tamanoEntidad * 0.5),
+                npc.y - Math.max(14, tamanoEntidad * 0.45),
+                "rgba(198, 40, 40, 0.98)",
+                {
+                    font: "900 18px Nunito",
+                    shadowColor: "rgba(255, 255, 255, 0.92)",
+                    shadowOffsetX: 1,
+                    shadowOffsetY: 1.2,
+                    vy: -0.32,
+                    vx: 0,
+                    life: 40
+                }
+            );
             lastInfectionAt = now;
         };
 
