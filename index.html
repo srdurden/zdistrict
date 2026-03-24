@@ -641,8 +641,10 @@ body.editor-active #configPanel {
         #banquetBanner {
             position: fixed;
             top: 84px;
-            left: 50%;
-            transform: translateX(-50%);
+            left: 0;
+            right: 0;
+            margin-inline: auto;
+            width: max-content;
             z-index: 2100;
             background: rgba(229, 57, 53, 0.92);
             color: #fff;
@@ -3038,7 +3040,9 @@ const txtEventoElem = document.getElementById("txtEvento");
         const rows = [
             ["⏱️ Tiempo", `${totalTime}s`],
             ["🧟 Tamaño horda", `${hordeSize}`],
-            ["👥 Civiles vivos", `${livingCivilians}`]
+            ["👥 Civiles vivos", `${livingCivilians}`],
+            ["⚡ Energía final", `${Math.max(0, Math.floor(hordeEnergy))}`],
+            ["🍽️ Hambre final", `${Math.max(0, Math.floor(getEffectiveHungerPerSecond()))}`]
         ];
 
         if (postStats) postStats.innerHTML = rows
@@ -6719,7 +6723,7 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
             if (elapsedMs >= 1000) {
                 const ticks = Math.floor(elapsedMs / 1000);
                 lastEnergyTickAt += ticks * 1000;
-                addHordeEnergy(-(getEffectiveHungerPerSecond() * ticks));
+                addHordeEnergy(-(getEffectiveHungerPerSecond() * ticks * timeSpeedMultiplier));
                 actualizarStatsUI();
                 if (hordeEnergy <= 0) {
                     hordeEnergy = 0;
