@@ -6651,6 +6651,15 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
         return zombies.length + infectedCount + deadZombieCount;
     }
 
+    function getActiveInfectedCount() {
+        return ciudadanos.filter(c => c && c.infectionFramesLeft > 0).length
+            + policias.filter(p => p && p.infectionFramesLeft > 0).length;
+    }
+
+    function getActiveZombieThreatCount() {
+        return zombies.length + getActiveInfectedCount();
+    }
+
     function getLivingCiviliansCount() {
         return ciudadanos.length + policias.length;
     }
@@ -6727,7 +6736,7 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
                     hordeEnergy = 0;
                     killAllZombies();
                     actualizarStatsUI();
-                    estadoJuego = "DEFEAT";
+                    if (getActiveZombieThreatCount() === 0) estadoJuego = "DEFEAT";
                 }
             }
         }
@@ -7997,7 +8006,7 @@ drawDoorsWorld();
         disparoEnFotograma = false;
 
 
-        if (!editorState.active && zombies.length === 0 && estadoJuego === "PLAYING") {
+        if (!editorState.active && getActiveZombieThreatCount() === 0 && estadoJuego === "PLAYING") {
             estadoJuego = "DEFEAT";
         } else if (!editorState.active && (ciudadanos.length + policias.length) === 0 && estadoJuego === "PLAYING") {
             estadoJuego = "VICTORY";
