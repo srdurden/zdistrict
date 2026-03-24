@@ -78,7 +78,7 @@
         }
 
         #statusBar {
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(255, 255, 255, 0.6);
             backdrop-filter: blur(5px);
             border-radius: 20px;
             padding: 12px 25px;
@@ -109,7 +109,7 @@
         }
 
         .status-count {
-            background: #efebe9;
+            background: rgba(239, 235, 233, 0.7);
             padding: 2px 8px;
             border-radius: 8px;
             color: #5d4037;
@@ -3039,11 +3039,12 @@ const txtEventoElem = document.getElementById("txtEvento");
         if (postSubtitle) postSubtitle.textContent = subtitleText;
 
         const totalTime = ((Date.now() - gameStats.startTime) / 1000).toFixed(1);
+        const hordeSize = getCurrentHordeSize();
+        const livingCivilians = getLivingCiviliansCount();
         const rows = [
             ["⏱️ Tiempo", `${totalTime}s`],
-            ["🧟 Zombies eliminados", `${gameStats.zombiesKilled}`],
-            ["💀 Civiles infectados", `${gameStats.civsInfected}`],
-            ["🛟 Civiles salvados", `${ciudadanosSalvados}`]
+            ["🧟 Tamaño horda", `${hordeSize}`],
+            ["👥 Civiles vivos", `${livingCivilians}`]
         ];
 
         if (postStats) postStats.innerHTML = rows
@@ -6627,10 +6628,7 @@ if (isActionCameraEnabled()) {
     }
 
     function actualizarStatsUI() {
-        const infectedCount = ciudadanos.filter(c => c && c.infectionFramesLeft > 0).length
-            + policias.filter(p => p && p.infectionFramesLeft > 0).length;
-        const deadZombieCount = Math.max(0, gameStats.zombiesKilled | 0);
-        const totalHorde = zombies.length + infectedCount + deadZombieCount;
+        const totalHorde = getCurrentHordeSize();
         const hungerMultiplier = hordeEnergy <= hungerDoubleThreshold - 1 ? 2 : 1;
         const effectiveHunger = Math.max(0, zombies.length * hungerPerZombie * hungerMultiplier);
 
@@ -6644,6 +6642,17 @@ if (isActionCameraEnabled()) {
         if (energyCountElem) energyCountElem.textContent = `${Math.max(0, Math.floor(hordeEnergy))}`;
         if (hungerCountElem) hungerCountElem.textContent = `${effectiveHunger}`;
 if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? director.message : "-";
+    }
+
+    function getCurrentHordeSize() {
+        const infectedCount = ciudadanos.filter(c => c && c.infectionFramesLeft > 0).length
+            + policias.filter(p => p && p.infectionFramesLeft > 0).length;
+        const deadZombieCount = Math.max(0, gameStats.zombiesKilled | 0);
+        return zombies.length + infectedCount + deadZombieCount;
+    }
+
+    function getLivingCiviliansCount() {
+        return ciudadanos.length + policias.length;
     }
 
     function updateStatusBarVisibility() {
@@ -6713,9 +6722,11 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
                 const ticks = Math.floor(elapsedMs / 1000);
                 lastEnergyTickAt += ticks * 1000;
                 addHordeEnergy(-(getEffectiveHungerPerSecond() * ticks));
+                actualizarStatsUI();
                 if (hordeEnergy <= 0) {
                     hordeEnergy = 0;
                     killAllZombies();
+                    actualizarStatsUI();
                     estadoJuego = "DEFEAT";
                 }
             }
@@ -7986,9 +7997,7 @@ drawDoorsWorld();
         disparoEnFotograma = false;
 
 
-        const infectedNpcsCount = ciudadanos.filter(c => c && c.infectionFramesLeft > 0).length
-            + policias.filter(p => p && p.infectionFramesLeft > 0).length;
-        if (!editorState.active && zombies.length === 0 && infectedNpcsCount === 0 && estadoJuego === "PLAYING") {
+        if (!editorState.active && zombies.length === 0 && estadoJuego === "PLAYING") {
             estadoJuego = "DEFEAT";
         } else if (!editorState.active && (ciudadanos.length + policias.length) === 0 && estadoJuego === "PLAYING") {
             estadoJuego = "VICTORY";
@@ -8016,13 +8025,14 @@ drawDoorsWorld();
             ctx.fillStyle = "#5d4037"; ctx.font = "700 16px Nunito";
             ctx.textAlign = "center";
             const yStart = viewportHeight/2 + 20;
+            const hordeSize = getCurrentHordeSize();
+            const livingCivilians = getLivingCiviliansCount();
             ctx.fillText(`⏱️ Tiempo: ${totalTime}s`, viewportWidth/2, yStart);
-            ctx.fillText(`🧟 Zombies Eliminados: ${gameStats.zombiesKilled}`, viewportWidth/2, yStart + 25);
-            ctx.fillText(`💀 Civiles Infectados: ${gameStats.civsInfected}`, viewportWidth/2, yStart + 50);
-            ctx.fillText(`🛟 Civiles Salvados: ${ciudadanosSalvados}`, viewportWidth/2, yStart + 100);
+            ctx.fillText(`🧟 Tamaño horda: ${hordeSize}`, viewportWidth/2, yStart + 25);
+            ctx.fillText(`👥 Civiles vivos: ${livingCivilians}`, viewportWidth/2, yStart + 50);
 
             ctx.fillStyle = "#8d6e63"; ctx.font = "800 18px Nunito";
-            ctx.fillText(getEndHintText(), viewportWidth/2, viewportHeight/2 + 130);
+            ctx.fillText(getEndHintText(), viewportWidth/2, viewportHeight/2 + 110);
 
             if (!postGameShown) {
                 postGameShown = true;
