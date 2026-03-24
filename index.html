@@ -86,10 +86,16 @@
             display: flex;
             justify-content: center;
             gap: 15px;
-            margin-top: 20px;
+            position: fixed;
+            top: 88px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1300;
             flex-wrap: wrap;
             border: 1px solid rgba(255,255,255,0.5);
-            max-width: 900px;
+            max-width: min(900px, calc(100vw - 24px));
+            width: max-content;
+            pointer-events: none;
         }
 
         .status-item {
@@ -2097,6 +2103,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     const hordeActiveElem = document.getElementById("hordeActiveCount");
     const energyCountElem = document.getElementById("energyCount");
     const hungerCountElem = document.getElementById("hungerCount");
+    const statusBarElem = document.getElementById("statusBar");
     const banquetBanner = document.getElementById("banquetBanner");
     const configPanel = document.getElementById("configPanel");
 
@@ -2878,6 +2885,7 @@ const txtEventoElem = document.getElementById("txtEvento");
         animationId = null;
         // clear movement keys
         Object.keys(teclas).forEach(k => teclas[k] = false);
+        updateStatusBarVisibility();
     }
 
     function showMainMenu() {
@@ -2892,6 +2900,7 @@ const txtEventoElem = document.getElementById("txtEvento");
         setSettingsUIEnabled(true); // allow tweaking for Free mode while in menu
         if (editCampaignBtn) editCampaignBtn.style.display = "none";
         if (mainMenuOverlay) mainMenuOverlay.classList.add("visible");
+        updateStatusBarVisibility();
     }
     function startCampaignMode(index = 0) {
         appState = "GAME";
@@ -2903,6 +2912,7 @@ const txtEventoElem = document.getElementById("txtEvento");
         postGameShown = false;
         setSettingsUIEnabled(true);
         if (editCampaignBtn) editCampaignBtn.style.display = "";
+        updateStatusBarVisibility();
         const pool = getCampaignLevelPool();
         campaignIndex = Math.max(0, Math.min(index, pool.length - 1));
         const lvl = pool[campaignIndex];
@@ -6612,6 +6622,7 @@ if (isActionCameraEnabled()) {
         estadoJuego = "PLAYING";
         lastFrameTime = 0;
         actualizarStatsUI();
+        updateStatusBarVisibility();
         animationId = requestAnimationFrame(animacion);
     }
 
@@ -6633,6 +6644,12 @@ if (isActionCameraEnabled()) {
         if (energyCountElem) energyCountElem.textContent = `${Math.max(0, Math.floor(hordeEnergy))}`;
         if (hungerCountElem) hungerCountElem.textContent = `${effectiveHunger}`;
 if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? director.message : "-";
+    }
+
+    function updateStatusBarVisibility() {
+        if (!statusBarElem) return;
+        const menuVisible = !!(mainMenuOverlay && mainMenuOverlay.classList.contains("visible"));
+        statusBarElem.style.display = (estadoJuego === "PLAYING" && !menuVisible) ? "flex" : "none";
     }
 
     function showBanquetBanner(text) {
@@ -6680,6 +6697,7 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
 
     function animacion(timestamp) {
         if (estadoJuego === "STOPPED") return;
+        updateStatusBarVisibility();
 
         if (!lastFrameTime) lastFrameTime = timestamp;
         const dtMs = Math.min(90, timestamp - lastFrameTime);
