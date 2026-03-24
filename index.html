@@ -3264,8 +3264,8 @@ const txtEventoElem = document.getElementById("txtEvento");
     let policeBaseStrength = 3;
     let distanciaAtraccionHeli = 150;
     let wallRepulsionForce = 0.5; 
-    const DEFAULT_AI_WALL_CLEARANCE_PX = 0;
-    const ZOMBIE_WALL_CLEARANCE_PX = Math.max(1.05, cellSize * 0.14);
+    const DEFAULT_AI_WALL_CLEARANCE_PX = Math.max(1.05, cellSize * 0.14);
+    const ZOMBIE_WALL_CLEARANCE_PX = DEFAULT_AI_WALL_CLEARANCE_PX;
 
     let gridWidth = Math.floor(worldPixelWidth / cellSize);
     let gridHeight = Math.floor(worldPixelHeight / cellSize);
@@ -4286,6 +4286,9 @@ const DOOR_BASE_HP = 70;
         if (!entidad) return entidad;
         entidad.turnRate = Number.isFinite(entidad.turnRate) ? entidad.turnRate : ENTITY_TURN_RATE;
         entidad.facingAngle = Number.isFinite(entidad.facingAngle) ? entidad.facingAngle : getDirectionAngle(entidad);
+        entidad.wallClearancePx = Number.isFinite(entidad.wallClearancePx)
+            ? Math.max(0, entidad.wallClearancePx)
+            : DEFAULT_AI_WALL_CLEARANCE_PX;
         ensureCombatVisualState(entidad);
         return entidad;
     }
@@ -4529,6 +4532,198 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         return !colisionConPared(x, y, tamanoEntidad, tamanoEntidad);
     }
 
+    function getEntityWallPenetrationScoreAt(entidad, x, y, padding = null) {
+        if (!entidad) return 0;
+        const clearance = Math.max(0, Number.isFinite(padding) ? padding : getEntityWallClearance(entidad));
+        const w = tamanoEntidad;
+        const h = tamanoEntidad;
+        const world = getWorldPixelSize();
+        let score = 0;
+
+        const overlapAmount = (minA, maxA, minB, maxB) => Math.min(maxA, maxB) - Math.max(minA, minB);
+        const addExpandedRectScore = (left, top, right, bottom, weight = 1) => {
+            const ox = overlapAmount(x, x + w, left, right);
+            const oy = overlapAmount(y, y + h, top, bottom);
+            if (ox <= 0 || oy <= 0) return;
+            score += Math.min(ox, oy) * Math.max(0.2, weight);
+        };
+
+        const minX = clearance;
+        const maxX = world.width - w - clearance;
+        const minY = clearance;
+        const maxY = world.height - h - clearance;
+        if (x < minX) score += (minX - x) * 1.6;
+        if (x > maxX) score += (x - maxX) * 1.6;
+        if (y < minY) score += (minY - y) * 1.6;
+        if (y > maxY) score += (y - maxY) * 1.6;
+
+        const leftTile = Math.max(0, Math.floor((x - clearance) / cellSize) - 2);
+        const rightTile = Math.min(gridWidth - 1, Math.floor((x + w + clearance) / cellSize) + 2);
+        const topTile = Math.max(0, Math.floor((y - clearance) / cellSize) - 2);
+        const bottomTile = Math.min(gridHeight - 1, Math.floor((y + h + clearance) / cellSize) + 2);
+
+        for (let ty = topTile; ty <= bottomTile; ty++) {
+            for (let tx = leftTile; tx <= rightTile; tx++) {
+                if (!isTileBlocked(tx, ty)) continue;
+                addExpandedRectScore(
+                    tx * cellSize - clearance,
+                    ty * cellSize - clearance,
+                    tx * cellSize + cellSize + clearance,
+                    ty * cellSize + cellSize + clearance,
+                    (tx === Math.floor((x + w * 0.5) / cellSize) || ty === Math.floor((y + h * 0.5) / cellSize)) ? 1.08 : 1
+                );
+            }
+        }
+
+        if (muebles && muebles.length) {
+            for (const b of muebles) {
+                addExpandedRectScore(
+                    b.x - clearance,
+                    b.y - clearance,
+                    b.x + b.size + clearance,
+                    b.y + b.size + clearance,
+                    1.04
+                );
+            }
+        }
+
+        return score;
+    }
+
+    function getEntityWallSeparationVector(entidad, padding = null) {
+        if (!entidad) return { x: 0, y: 0, overlaps: 0 };
+        const clearance = Math.max(0, Number.isFinite(padding) ? padding : getEntityWallClearance(entidad));
+        const world = getWorldPixelSize();
+        const x = entidad.x;
+        const y = entidad.y;
+        const w = tamanoEntidad;
+        const h = tamanoEntidad;
+        const centerX = x + w * 0.5;
+        const centerY = y + h * 0.5;
+        let pushX = 0;
+        let pushY = 0;
+        let overlaps = 0;
+
+        const addRectPush = (left, top, right, bottom, weight = 1) => {
+            const overlapX = Math.min(x + w, right) - Math.max(x, left);
+            const overlapY = Math.min(y + h, bottom) - Math.max(y, top);
+            if (overlapX <= 0 || overlapY <= 0) return;
+            overlaps += 1;
+
+            const rectCenterX = (left + right) * 0.5;
+            const rectCenterY = (top + bottom) * 0.5;
+            const moveLeft = Math.max(0, (x + w) - left);
+            const moveRight = Math.max(0, right - x);
+            const moveUp = Math.max(0, (y + h) - top);
+            const moveDown = Math.max(0, bottom - y);
+
+            if (overlapX < overlapY || (Math.abs(overlapX - overlapY) < 0.01 && Math.abs(centerX - rectCenterX) >= Math.abs(centerY - rectCenterY))) {
+                pushX += (centerX < rectCenterX ? -moveLeft : moveRight) * weight;
+            } else {
+                pushY += (centerY < rectCenterY ? -moveUp : moveDown) * weight;
+            }
+        };
+
+        const minX = clearance;
+        const maxX = world.width - w - clearance;
+        const minY = clearance;
+        const maxY = world.height - h - clearance;
+        if (x < minX) { pushX += (minX - x) * 1.35; overlaps += 1; }
+        if (x > maxX) { pushX -= (x - maxX) * 1.35; overlaps += 1; }
+        if (y < minY) { pushY += (minY - y) * 1.35; overlaps += 1; }
+        if (y > maxY) { pushY -= (y - maxY) * 1.35; overlaps += 1; }
+
+        const centerTileX = Math.floor(centerX / cellSize);
+        const centerTileY = Math.floor(centerY / cellSize);
+        const leftTile = Math.max(0, Math.floor((x - clearance) / cellSize) - 2);
+        const rightTile = Math.min(gridWidth - 1, Math.floor((x + w + clearance) / cellSize) + 2);
+        const topTile = Math.max(0, Math.floor((y - clearance) / cellSize) - 2);
+        const bottomTile = Math.min(gridHeight - 1, Math.floor((y + h + clearance) / cellSize) + 2);
+
+        for (let ty = topTile; ty <= bottomTile; ty++) {
+            for (let tx = leftTile; tx <= rightTile; tx++) {
+                if (!isTileBlocked(tx, ty)) continue;
+                const axisWeight = (tx === centerTileX || ty === centerTileY) ? 1.06 : 1;
+                const cornerWeight = (tx !== centerTileX && ty !== centerTileY) ? 1.12 : 1;
+                addRectPush(
+                    tx * cellSize - clearance,
+                    ty * cellSize - clearance,
+                    tx * cellSize + cellSize + clearance,
+                    ty * cellSize + cellSize + clearance,
+                    axisWeight * cornerWeight
+                );
+            }
+        }
+
+        if (muebles && muebles.length) {
+            for (const b of muebles) {
+                addRectPush(
+                    b.x - clearance,
+                    b.y - clearance,
+                    b.x + b.size + clearance,
+                    b.y + b.size + clearance,
+                    1.08
+                );
+            }
+        }
+
+        if (overlaps > 0) {
+            const rep = obtenerRepulsionParedes(entidad);
+            const repBlend = Math.max(0.28, clearance + 0.22);
+            pushX += rep.x * repBlend;
+            pushY += rep.y * repBlend;
+        }
+
+        return { x: pushX, y: pushY, overlaps };
+    }
+
+    function separateEntityFromWalls(entidad, options = null) {
+        if (!entidad) return false;
+        const clearance = Math.max(0, getEntityWallClearance(entidad));
+        const maxIterations = Math.max(1, (options && Number.isFinite(options.maxIterations)) ? (options.maxIterations | 0) : 3);
+        const maxStep = (options && Number.isFinite(options.maxStep))
+            ? Math.max(0.15, options.maxStep)
+            : Math.max(0.65, Math.min(cellSize * 0.24, clearance + 0.95));
+        const world = getWorldPixelSize();
+        let currentScore = getEntityWallPenetrationScoreAt(entidad, entidad.x, entidad.y, clearance);
+        if (currentScore <= 0.0001) return false;
+
+        let movedAny = false;
+        for (let iter = 0; iter < maxIterations && currentScore > 0.0001; iter++) {
+            const sep = getEntityWallSeparationVector(entidad, clearance);
+            const rawMag = Math.hypot(sep.x, sep.y);
+            if (rawMag <= 0.0001) break;
+            const nx = sep.x / rawMag;
+            const ny = sep.y / rawMag;
+            let best = null;
+            const tryCandidate = (candX, candY) => {
+                const clampedX = Math.max(0, Math.min(world.width - tamanoEntidad, candX));
+                const clampedY = Math.max(0, Math.min(world.height - tamanoEntidad, candY));
+                const score = getEntityWallPenetrationScoreAt(entidad, clampedX, clampedY, clearance);
+                const moveDist = Math.hypot(clampedX - entidad.x, clampedY - entidad.y);
+                if (!best || score < best.score - 0.0001 || (Math.abs(score - best.score) < 0.0001 && moveDist > best.moveDist)) {
+                    best = { x: clampedX, y: clampedY, score, moveDist };
+                }
+            };
+
+            for (const factor of [1, 0.72, 0.48, 0.28]) {
+                const step = Math.min(maxStep * factor, rawMag * factor);
+                if (step <= 0.0001) continue;
+                tryCandidate(entidad.x + nx * step, entidad.y + ny * step);
+                if (Math.abs(nx) > 0.01) tryCandidate(entidad.x + nx * step, entidad.y);
+                if (Math.abs(ny) > 0.01) tryCandidate(entidad.x, entidad.y + ny * step);
+            }
+
+            if (!best || best.score >= currentScore - 0.0001) break;
+            entidad.x = best.x;
+            entidad.y = best.y;
+            currentScore = best.score;
+            movedAny = true;
+        }
+
+        return movedAny;
+    }
+
     function pickBestSlideDir(preferred, options) {
         if (!options || !options.length) return null;
         const pref = normalizar(preferred.x, preferred.y);
@@ -4571,22 +4766,23 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
             const nextX = entidad.x + unit.x * stepDist;
             const nextY = entidad.y + unit.y * stepDist;
             let advanced = false;
-            if (!colisionConPared(nextX, nextY, tamanoEntidad, tamanoEntidad)) {
+            if (canMoveEntityTo(entidad, nextX, nextY)) {
                 entidad.x = nextX;
                 entidad.y = nextY;
                 advanced = true;
             } else {
-                if (!colisionConPared(nextX, entidad.y, tamanoEntidad, tamanoEntidad)) {
+                if (canMoveEntityTo(entidad, nextX, entidad.y)) {
                     entidad.x = nextX;
                     advanced = true;
                 }
-                if (!colisionConPared(entidad.x, nextY, tamanoEntidad, tamanoEntidad)) {
+                if (canMoveEntityTo(entidad, entidad.x, nextY)) {
                     entidad.y = nextY;
                     advanced = true;
                 }
             }
             entidad.x = Math.max(0, Math.min(world.width - tamanoEntidad, entidad.x));
             entidad.y = Math.max(0, Math.min(world.height - tamanoEntidad, entidad.y));
+            separateEntityFromWalls(entidad, { maxIterations: 2 });
             if (!advanced) break;
             moved += stepDist;
         }
@@ -4676,11 +4872,12 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         const world = getWorldPixelSize();
         entidad.x = Math.max(0, Math.min(world.width - tamanoEntidad, entidad.x));
         entidad.y = Math.max(0, Math.min(world.height - tamanoEntidad, entidad.y));
+        const separated = separateEntityFromWalls(entidad, { maxIterations: 2 });
         const dx = entidad.x - beforeX;
         const dy = entidad.y - beforeY;
         const moved = Math.hypot(dx, dy) > 0.0001;
         if (moved) entidad.travelDir = normalizar(dx, dy);
-        return { collided: !moved || !canMoveEntityTo(entidad, fullX, fullY), moved };
+        return { collided: !moved || separated || !canMoveEntityTo(entidad, fullX, fullY), moved };
     }
 
     // --- REPULSIÓN DE PAREDES ---
