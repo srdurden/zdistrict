@@ -4593,6 +4593,39 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         return moved;
     }
 
+    function tryResolveEntityWallOverlap(entidad, searchRadiusPx = null) {
+        if (!entidad) return false;
+        if (!colisionConParedBase(entidad.x, entidad.y, tamanoEntidad, tamanoEntidad)) return false;
+
+        const world = getWorldPixelSize();
+        const baseX = entidad.x;
+        const baseY = entidad.y;
+        const step = Math.max(0.45, cellSize * 0.12);
+        const maxRadius = Number.isFinite(searchRadiusPx)
+            ? Math.max(step, searchRadiusPx)
+            : Math.max(cellSize * 1.8, tamanoEntidad * 3.2);
+
+        let best = null;
+        for (let r = step; r <= maxRadius; r += step) {
+            const samples = Math.max(10, Math.ceil((Math.PI * 2 * r) / step));
+            for (let i = 0; i < samples; i++) {
+                const ang = (Math.PI * 2 * i) / samples;
+                const nx = Math.max(0, Math.min(world.width - tamanoEntidad, baseX + Math.cos(ang) * r));
+                const ny = Math.max(0, Math.min(world.height - tamanoEntidad, baseY + Math.sin(ang) * r));
+                if (colisionConParedBase(nx, ny, tamanoEntidad, tamanoEntidad)) continue;
+                if (colisionConMuebles(nx, ny, tamanoEntidad, tamanoEntidad)) continue;
+                const score = Math.hypot(nx - baseX, ny - baseY);
+                if (!best || score < best.score) best = { x: nx, y: ny, score };
+            }
+            if (best) break;
+        }
+
+        if (!best) return false;
+        entidad.x = best.x;
+        entidad.y = best.y;
+        return true;
+    }
+
     function queueEntityDisplacement(entidad, dir, distancePx, speedPxPerFrame = null) {
         if (!entidad || !Number.isFinite(distancePx) || distancePx <= 0) return;
         const unit = normalizar(dir.x, dir.y);
@@ -7423,9 +7456,19 @@ drawDoorsWorld();
                             zombie.pathFollowInfo.futureTile.ty - zombie.pathFollowInfo.nextTile.ty
                         )
                         : desired;
-                    const escapeDir = pickBestSlideDir(pathHint, [tangentA, tangentB]) || tangentA;
-                    const recoverDistance = Math.min(cellSize * 0.55, Math.max(0.6, (Number.isFinite(zombie.speed) ? zombie.speed : velocidadZombie) * Math.max(0.35, timeScale)));
-                    moveEntitySafely(zombie, escapeDir, recoverDistance, 6);
+                    const wallRep = obtenerRepulsionParedes(zombie);
+                    const awayFromWall = normalizar(wallRep.x, wallRep.y);
+                    const toTileCenter = normalizar(
+                        (Math.floor((zombie.x + tamanoEntidad * 0.5) / cellSize) + 0.5) * cellSize - (zombie.x + tamanoEntidad * 0.5),
+                        (Math.floor((zombie.y + tamanoEntidad * 0.5) / cellSize) + 0.5) * cellSize - (zombie.y + tamanoEntidad * 0.5)
+                    );
+                    const escapeOptions = [awayFromWall, tangentA, tangentB, toTileCenter].filter(d => d && (d.x || d.y));
+                    const escapeDir = pickBestSlideDir(pathHint, escapeOptions) || tangentA;
+                    const recoverDistance = Math.min(cellSize * 0.8, Math.max(0.9, (Number.isFinite(zombie.speed) ? zombie.speed : velocidadZombie) * Math.max(0.65, timeScale) * 1.35));
+                    const movedRecover = moveEntitySafely(zombie, escapeDir, recoverDistance, 8);
+                    if (movedRecover <= 0.001) {
+                        tryResolveEntityWallOverlap(zombie, Math.max(cellSize * 2.2, tamanoEntidad * 4));
+                    }
                     zombie.corridorModeUntilFrame = frameCount + ZOMBIE_CORRIDOR_MODE_FRAMES;
                 }
             } else {
