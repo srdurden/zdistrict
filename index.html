@@ -816,10 +816,6 @@ body.editor-active #configPanel {
         <input type="range" id="initialEnergySlider" min="1" max="10000" step="1" value="100">
     </div>
     <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Límite duplicar hambre</span><input type="number" id="hungerDoubleThresholdNum" min="1" max="10000" step="1" value="50"></div>
-        <input type="range" id="hungerDoubleThresholdSlider" min="1" max="10000" step="1" value="50">
-    </div>
-    <div class="slider-group">
         <div class="slider-header"><span class="slider-label">Segundos banquete</span><input type="number" id="feastWindowSecNum" min="1" max="60" step="1" value="5"></div>
         <input type="range" id="feastWindowSecSlider" min="1" max="60" step="1" value="5">
     </div>
@@ -2121,7 +2117,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     const zombieLureNpcPriorityTilesSlider = document.getElementById("zombieLureNpcPriorityTilesSlider"); const zombieLureNpcPriorityTilesNum = document.getElementById("zombieLureNpcPriorityTilesNum");
     const zombieLureDurationSecSlider = document.getElementById("zombieLureDurationSecSlider"); const zombieLureDurationSecNum = document.getElementById("zombieLureDurationSecNum");
     const initialEnergySlider = document.getElementById("initialEnergySlider"); const initialEnergyNum = document.getElementById("initialEnergyNum");
-    const hungerDoubleThresholdSlider = document.getElementById("hungerDoubleThresholdSlider"); const hungerDoubleThresholdNum = document.getElementById("hungerDoubleThresholdNum");
     const feastWindowSecSlider = document.getElementById("feastWindowSecSlider"); const feastWindowSecNum = document.getElementById("feastWindowSecNum");
     
     // Config Inputs
@@ -2223,7 +2218,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     linkInput(zombieLureNpcPriorityTilesSlider, zombieLureNpcPriorityTilesNum);
     linkInput(zombieLureDurationSecSlider, zombieLureDurationSecNum);
     linkInput(initialEnergySlider, initialEnergyNum);
-    linkInput(hungerDoubleThresholdSlider, hungerDoubleThresholdNum);
     linkInput(feastWindowSecSlider, feastWindowSecNum);
     linkInput(policeCoolSlider, policeCoolNum);
     linkInput(jamCountSlider, jamCountNum);
@@ -3210,7 +3204,6 @@ const txtEventoElem = document.getElementById("txtEvento");
             zombieLureNpcPriorityTiles: toFloat(zombieLureNpcPriorityTilesNum, 5),
             zombieLureDurationSec: toFloat(zombieLureDurationSecNum, 10),
             initialEnergy: toInt(initialEnergyNum, 100),
-            hungerDoubleThreshold: toInt(hungerDoubleThresholdNum, 50),
             feastWindowSec: toInt(feastWindowSecNum, 5),
 
             // Player
@@ -3248,7 +3241,6 @@ const txtEventoElem = document.getElementById("txtEvento");
         zombieLureNpcPriorityTiles = Math.max(0.5, Number.isFinite(settings.zombieLureNpcPriorityTiles) ? settings.zombieLureNpcPriorityTiles : 5);
         zombieLureDurationFrames = BASE_FPS * Math.max(1, Number.isFinite(settings.zombieLureDurationSec) ? settings.zombieLureDurationSec : 10);
         hordeEnergy = Math.max(0, Math.floor(Number.isFinite(settings.initialEnergy) ? settings.initialEnergy : 100));
-        hungerDoubleThreshold = Math.max(1, Math.floor(Number.isFinite(settings.hungerDoubleThreshold) ? settings.hungerDoubleThreshold : 50));
         feastWindowSec = Math.max(1, Math.floor(Number.isFinite(settings.feastWindowSec) ? settings.feastWindowSec : 5));
         hungerPerZombie = DEFAULT_HUNGER_PER_ZOMBIE;
         lastEnergyTickAt = Date.now();
@@ -3371,7 +3363,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     const DEFAULT_HUNGER_PER_ZOMBIE = 1;
     let hordeEnergy = 100;
     let hungerPerZombie = DEFAULT_HUNGER_PER_ZOMBIE;
-    let hungerDoubleThreshold = 50;
     let feastWindowSec = 5;
     let lastEnergyTickAt = Date.now();
     let lastInfectionAt = null;
@@ -6629,8 +6620,7 @@ if (isActionCameraEnabled()) {
 
     function actualizarStatsUI() {
         const totalHorde = getCurrentHordeSize();
-        const hungerMultiplier = hordeEnergy <= hungerDoubleThreshold - 1 ? 2 : 1;
-        const effectiveHunger = Math.max(0, zombies.length * hungerPerZombie * hungerMultiplier);
+        const effectiveHunger = Math.max(0, zombies.length * hungerPerZombie);
 
         if (numZombiesElem) numZombiesElem.textContent = zombies.length;
         if (numCiudadanosElem) numCiudadanosElem.textContent = ciudadanos.length;
@@ -6686,8 +6676,7 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
     }
 
     function getEffectiveHungerPerSecond() {
-        const hungerMultiplier = hordeEnergy <= hungerDoubleThreshold - 1 ? 2 : 1;
-        return Math.max(0, zombies.length * hungerPerZombie * hungerMultiplier);
+        return Math.max(0, zombies.length * hungerPerZombie);
     }
 
     function killAllZombies() {
@@ -7047,7 +7036,8 @@ drawDoorsWorld();
             if (lastInfectionAt && (now - lastInfectionAt) <= windowMs) feastChainBonusLevel += 1;
             else feastChainBonusLevel = 0;
             const bonus = feastChainBonusLevel;
-            addHordeEnergy(ENERGY_GAIN_PER_INFECTION + bonus);
+            const hordeSize = Math.max(0, zombies.length);
+            addHordeEnergy(hordeSize * ENERGY_GAIN_PER_INFECTION);
             if (bonus > 0) {
                 const text = bonus === 1 ? "Banquete!!" : `Banquete x ${bonus}!!`;
                 showBanquetBanner(text);
