@@ -86,10 +86,16 @@
             display: flex;
             justify-content: center;
             gap: 15px;
-            margin-top: 20px;
+            position: fixed;
+            top: 88px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1300;
             flex-wrap: wrap;
             border: 1px solid rgba(255,255,255,0.5);
-            max-width: 900px;
+            max-width: min(900px, calc(100vw - 24px));
+            width: max-content;
+            pointer-events: none;
         }
 
         .status-item {
@@ -234,17 +240,6 @@
         }
         .deploy-popup.visible { display: block; }
         .deploy-title { font-weight: 900; font-size: 14px; margin: 0 0 10px; color: var(--text-main); }
-        .deploy-btn {
-            width: 100%;
-            margin-top: 10px;
-            border: none;
-            border-radius: 12px;
-            padding: 10px 12px;
-            font-weight: 800;
-            color: white;
-            background: linear-gradient(120deg, #ef5350, #e53935);
-            cursor: pointer;
-        }
         .deploy-note {
             margin-top: 8px;
             font-size: 11px;
@@ -643,6 +638,24 @@ body.editor-active #configPanel {
             font-size: 18px;
         }
 
+        #banquetBanner {
+            position: fixed;
+            top: 84px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 2100;
+            background: rgba(229, 57, 53, 0.92);
+            color: #fff;
+            border-radius: 14px;
+            padding: 8px 14px;
+            font: 900 18px/1 Nunito, sans-serif;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.2);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+        #banquetBanner.visible { opacity: 1; }
+
         @media (max-width: 768px) and (orientation: portrait) {
             #mapNavControls {
                 right: max(8px, env(safe-area-inset-right));
@@ -694,17 +707,14 @@ body.editor-active #configPanel {
         <div class="slider-header"><span class="slider-label">Cantidad (1-10)</span><input type="number" id="deployAmountNum" min="1" max="10" step="1" value="1"></div>
         <div id="deployAmountRating" class="deploy-rating" aria-label="Cantidad de zombies"></div>
     </div>
-    <button id="deployZombieBtn" class="deploy-btn">Desplegar</button>
 </div>
 
 <div id="mainMenuOverlay" class="menu-overlay">
   <div class="menu-card">
-    <div class="menu-title">Z-District: Pastel Panic</div>
-    <div class="menu-subtitle">Planifica y supera la campaña zombie</div>
+    <div class="menu-title">Z-District</div>
     <div class="menu-actions">
       <button id="menuCampaignBtn" class="menu-btn primary">🎯 Iniciar campaña</button>
     </div>
-    <div class="menu-hint">Despliega zombies tocando el escenario. Sin control directo del jugador.</div>
   </div>
 </div>
 
@@ -801,6 +811,18 @@ body.editor-active #configPanel {
         <div class="slider-header"><span class="slider-label">Diana: duración (s)</span><input type="number" id="zombieLureDurationSecNum" min="1" max="120" step="1" value="10"></div>
         <input type="range" id="zombieLureDurationSecSlider" min="1" max="120" step="1" value="10">
     </div>
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Energía inicial</span><input type="number" id="initialEnergyNum" min="1" max="10000" step="1" value="100"></div>
+        <input type="range" id="initialEnergySlider" min="1" max="10000" step="1" value="100">
+    </div>
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Límite duplicar hambre</span><input type="number" id="hungerDoubleThresholdNum" min="1" max="10000" step="1" value="50"></div>
+        <input type="range" id="hungerDoubleThresholdSlider" min="1" max="10000" step="1" value="50">
+    </div>
+    <div class="slider-group">
+        <div class="slider-header"><span class="slider-label">Segundos banquete</span><input type="number" id="feastWindowSecNum" min="1" max="60" step="1" value="5"></div>
+        <input type="range" id="feastWindowSecSlider" min="1" max="60" step="1" value="5">
+    </div>
 
     <!-- Ocultos -->
     <div style="display:none">
@@ -810,7 +832,7 @@ body.editor-active #configPanel {
         <input type="range" id="bengalaDuracionSlider" value="15">
     </div>
 
-    <div class="hint">Usa 🧟 para desplegar zombies y 🎯 para marcar una diana de atracción.</div>
+    <div class="hint">Usa 🧟 para ajustar y desplegar zombies, y 🎯 para marcar una diana de atracción.</div>
 </div>
 
 <div id="editorOverlay" class="editor-overlay">
@@ -869,7 +891,13 @@ body.editor-active #configPanel {
 
 <div id="gameContainer">
     <canvas id="myCanvas" width="4500" height="2700"></canvas>
+    <div id="statusBar">
+        <div class="status-item">Horda activa <span class="status-count" id="hordeActiveCount">0/0</span></div>
+        <div class="status-item">Energía <span class="status-count" id="energyCount">100</span></div>
+        <div class="status-item">Hambre <span class="status-count" id="hungerCount">1</span></div>
+    </div>
 </div>
+<div id="banquetBanner">Banquete!!</div>
 
 <script>
 
@@ -2046,6 +2074,11 @@ body.editor-active #configPanel {
     const numBengalasElem = document.getElementById("numBengalas");
     const numSalvadosElem = document.getElementById("numSalvados");
 const txtEventoElem = document.getElementById("txtEvento");
+    const hordeActiveElem = document.getElementById("hordeActiveCount");
+    const energyCountElem = document.getElementById("energyCount");
+    const hungerCountElem = document.getElementById("hungerCount");
+    const statusBarElem = document.getElementById("statusBar");
+    const banquetBanner = document.getElementById("banquetBanner");
     const configPanel = document.getElementById("configPanel");
 
     // Inputs
@@ -2061,6 +2094,9 @@ const txtEventoElem = document.getElementById("txtEvento");
     const zombieLureRadiusTilesSlider = document.getElementById("zombieLureRadiusTilesSlider"); const zombieLureRadiusTilesNum = document.getElementById("zombieLureRadiusTilesNum");
     const zombieLureNpcPriorityTilesSlider = document.getElementById("zombieLureNpcPriorityTilesSlider"); const zombieLureNpcPriorityTilesNum = document.getElementById("zombieLureNpcPriorityTilesNum");
     const zombieLureDurationSecSlider = document.getElementById("zombieLureDurationSecSlider"); const zombieLureDurationSecNum = document.getElementById("zombieLureDurationSecNum");
+    const initialEnergySlider = document.getElementById("initialEnergySlider"); const initialEnergyNum = document.getElementById("initialEnergyNum");
+    const hungerDoubleThresholdSlider = document.getElementById("hungerDoubleThresholdSlider"); const hungerDoubleThresholdNum = document.getElementById("hungerDoubleThresholdNum");
+    const feastWindowSecSlider = document.getElementById("feastWindowSecSlider"); const feastWindowSecNum = document.getElementById("feastWindowSecNum");
     
     // Config Inputs
     const policeCoolSlider = document.getElementById("policeCoolSlider"); const policeCoolNum = document.getElementById("policeCoolNum");
@@ -2079,7 +2115,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     const zoomOutBtn = document.getElementById("zoomOutBtn");
     const fitMapBtn = document.getElementById("fitMapBtn");
     const deployPopup = document.getElementById("deployPopup");
-    const deployZombieBtn = document.getElementById("deployZombieBtn");
     const deployZSpeedNum = document.getElementById("deployZSpeedNum");
     const deployInfectNum = document.getElementById("deployInfectNum");
     const deployStrengthNum = document.getElementById("deployStrengthNum");
@@ -2161,6 +2196,9 @@ const txtEventoElem = document.getElementById("txtEvento");
     linkInput(zombieLureRadiusTilesSlider, zombieLureRadiusTilesNum);
     linkInput(zombieLureNpcPriorityTilesSlider, zombieLureNpcPriorityTilesNum);
     linkInput(zombieLureDurationSecSlider, zombieLureDurationSecNum);
+    linkInput(initialEnergySlider, initialEnergyNum);
+    linkInput(hungerDoubleThresholdSlider, hungerDoubleThresholdNum);
+    linkInput(feastWindowSecSlider, feastWindowSecNum);
     linkInput(policeCoolSlider, policeCoolNum);
     linkInput(jamCountSlider, jamCountNum);
     linkInput(jamDurSlider, jamDurNum);
@@ -2266,10 +2304,11 @@ const txtEventoElem = document.getElementById("txtEvento");
             if (!deployPopup) return;
             const isVisible = deployPopup.classList.contains("visible");
             if (isVisible) {
+                setDeployArmed(false);
                 closeDeployPopup();
                 return;
             }
-            setDeployArmed(false);
+            setDeployArmed(true);
             setZombieLureArmed(false);
             deployPopup.classList.add("visible");
         });
@@ -2283,13 +2322,6 @@ const txtEventoElem = document.getElementById("txtEvento");
                 return;
             }
             setZombieLureArmed(!zombieLureArmed);
-        });
-    }
-
-    if (deployZombieBtn) {
-        deployZombieBtn.addEventListener("click", () => {
-            setDeployArmed(true);
-            closeDeployPopup();
         });
     }
 
@@ -2502,10 +2534,9 @@ const txtEventoElem = document.getElementById("txtEvento");
         { key: "door", label: "Puerta", token: "D" },
         { key: "citizen", label: "Civil", token: "C" },
         { key: "zombie", label: "Zombie", token: "Z" },
-        { key: "police", label: "Policia", token: "O" },
-        { key: "spawnZombie", label: "Spawn zombie", token: "S" }
+        { key: "police", label: "Policia", token: "O" }
     ];
-    const EDITOR_SURFACE_TOOL_KEYS = ["floor", "wall", "door", "spawnZombie"];
+    const EDITOR_SURFACE_TOOL_KEYS = ["floor", "wall", "door"];
     const EDITOR_ENTITY_TOOL_KEYS = ["citizen", "zombie", "police"];
     const EDITOR_STRUCTURES = [
         { key: "rectangle", label: "Rectangulo" }
@@ -2828,6 +2859,7 @@ const txtEventoElem = document.getElementById("txtEvento");
         animationId = null;
         // clear movement keys
         Object.keys(teclas).forEach(k => teclas[k] = false);
+        updateStatusBarVisibility();
     }
 
     function showMainMenu() {
@@ -2842,6 +2874,7 @@ const txtEventoElem = document.getElementById("txtEvento");
         setSettingsUIEnabled(true); // allow tweaking for Free mode while in menu
         if (editCampaignBtn) editCampaignBtn.style.display = "none";
         if (mainMenuOverlay) mainMenuOverlay.classList.add("visible");
+        updateStatusBarVisibility();
     }
     function startCampaignMode(index = 0) {
         appState = "GAME";
@@ -2853,6 +2886,7 @@ const txtEventoElem = document.getElementById("txtEvento");
         postGameShown = false;
         setSettingsUIEnabled(true);
         if (editCampaignBtn) editCampaignBtn.style.display = "";
+        updateStatusBarVisibility();
         const pool = getCampaignLevelPool();
         campaignIndex = Math.max(0, Math.min(index, pool.length - 1));
         const lvl = pool[campaignIndex];
@@ -3148,6 +3182,9 @@ const txtEventoElem = document.getElementById("txtEvento");
             zombieLureRadiusTiles: toFloat(zombieLureRadiusTilesNum, 20),
             zombieLureNpcPriorityTiles: toFloat(zombieLureNpcPriorityTilesNum, 5),
             zombieLureDurationSec: toFloat(zombieLureDurationSecNum, 10),
+            initialEnergy: toInt(initialEnergyNum, 100),
+            hungerDoubleThreshold: toInt(hungerDoubleThresholdNum, 50),
+            feastWindowSec: toInt(feastWindowSecNum, 5),
 
             // Player
             balas: toInt(balasNum, 0),
@@ -3183,6 +3220,13 @@ const txtEventoElem = document.getElementById("txtEvento");
         zombieLureRadiusTiles = Math.max(1, Number.isFinite(settings.zombieLureRadiusTiles) ? settings.zombieLureRadiusTiles : 20);
         zombieLureNpcPriorityTiles = Math.max(0.5, Number.isFinite(settings.zombieLureNpcPriorityTiles) ? settings.zombieLureNpcPriorityTiles : 5);
         zombieLureDurationFrames = BASE_FPS * Math.max(1, Number.isFinite(settings.zombieLureDurationSec) ? settings.zombieLureDurationSec : 10);
+        hordeEnergy = Math.max(0, Math.floor(Number.isFinite(settings.initialEnergy) ? settings.initialEnergy : 100));
+        hungerDoubleThreshold = Math.max(1, Math.floor(Number.isFinite(settings.hungerDoubleThreshold) ? settings.hungerDoubleThreshold : 50));
+        feastWindowSec = Math.max(1, Math.floor(Number.isFinite(settings.feastWindowSec) ? settings.feastWindowSec : 5));
+        hungerPerZombie = DEFAULT_HUNGER_PER_ZOMBIE;
+        lastEnergyTickAt = Date.now();
+        lastInfectionAt = null;
+        feastChainBonusLevel = 0;
         policeShootCooldownFrames = BASE_FPS * Math.max(0.1, Number.isFinite(settings.policeCooldownSec) ? settings.policeCooldownSec : 1.0);
         citizenBaseStrength = clampStrength(settings.citizenStrength, 1);
         policeBaseStrength = clampStrength(settings.policeStrength, 3);
@@ -3296,6 +3340,16 @@ const txtEventoElem = document.getElementById("txtEvento");
     ];
     let timeSpeedIndex = 0;
     let timeSpeedMultiplier = timeSpeedOptions[timeSpeedIndex].multiplier;
+    const ENERGY_GAIN_PER_INFECTION = 10;
+    const DEFAULT_HUNGER_PER_ZOMBIE = 1;
+    let hordeEnergy = 100;
+    let hungerPerZombie = DEFAULT_HUNGER_PER_ZOMBIE;
+    let hungerDoubleThreshold = 50;
+    let feastWindowSec = 5;
+    let lastEnergyTickAt = Date.now();
+    let lastInfectionAt = null;
+    let feastChainBonusLevel = 0;
+    let banquetBannerTimer = null;
 
     
     // STATS
@@ -3479,7 +3533,6 @@ const DOOR_BASE_HP = 70;
         const tx = Math.floor(worldX / cellSize);
         const ty = Math.floor(worldY / cellSize);
         if (isTileBlocked(tx, ty)) return;
-        if (deployZombieArmed && !zombieDeploySpawnTiles.has(`${tx},${ty}`)) return;
         const x = Math.max(0, Math.min(world.width - tamanoEntidad, worldX - tamanoEntidad / 2));
         const y = Math.max(0, Math.min(world.height - tamanoEntidad, worldY - tamanoEntidad / 2));
         zombies.push(createZombieEntity(x, y, custom || undefined));
@@ -3544,9 +3597,6 @@ const DOOR_BASE_HP = 70;
         if (ty < 0 || ty >= gridHeight || tx < 0 || tx >= gridWidth) return;
         grid[ty][tx] = (token === "#");
         invalidateNavigationCaches();
-        const key = `${tx},${ty}`;
-        if (token === "S") zombieDeploySpawnTiles.add(key);
-        else zombieDeploySpawnTiles.delete(key);
         staticDirty = true;
     }
 
@@ -5927,7 +5977,6 @@ function zombieTryHitMueble(zombie) {
 
         let zombieSpawnTiles = [];
         let citizenSpawnTiles = [];
-        let zombieDeploySpawnTiles = [];
 
         let policeSpawnTiles = [];
 
@@ -5940,7 +5989,7 @@ function zombieTryHitMueble(zombie) {
 
                 if (ch === "#") {
                     grid[gy][gx] = true;
-                } else if (ch === "." || ch === "D" || ch === "d" || ch === "B" || ch === "Z" || ch === "C" || ch === "O" || ch === "M" || ch === "S") {
+                } else if (ch === "." || ch === "D" || ch === "d" || ch === "B" || ch === "Z" || ch === "C" || ch === "O" || ch === "M") {
                     // Walkable cells + basic markers
                     grid[gy][gx] = false;
 
@@ -5948,7 +5997,6 @@ function zombieTryHitMueble(zombie) {
                     if (ch === "Z") zombieSpawnTiles.push({ x: gx, y: gy });
                     if (ch === "C") citizenSpawnTiles.push({ x: gx, y: gy });
                     if (ch === "O") policeSpawnTiles.push({ x: gx, y: gy });
-                    if (ch === "S") zombieDeploySpawnTiles.push({ x: gx, y: gy });
 
                     // Doors (Phase 1.04): each 'D'/'d' creates a single-tile door group.
                     if (ch === "D" || ch === "d") {
@@ -5963,7 +6011,7 @@ function zombieTryHitMueble(zombie) {
             }
         }
 
-        return { w, h, offsetX: ox, offsetY: oy, playerTile, boxTiles, zombieSpawnTiles, citizenSpawnTiles, policeSpawnTiles, zombieDeploySpawnTiles };
+        return { w, h, offsetX: ox, offsetY: oy, playerTile, boxTiles, zombieSpawnTiles, citizenSpawnTiles, policeSpawnTiles };
     }
 
 
@@ -6091,18 +6139,7 @@ function zombieTryHitMueble(zombie) {
         jugador.y = playerTile.y * cellSize;
 
 
-        const deployTiles =
-            (parsed && Array.isArray(parsed.zombieDeploySpawnTiles) && parsed.zombieDeploySpawnTiles.length) ? parsed.zombieDeploySpawnTiles :
-            (Array.isArray(def.zombieDeploySpawnTiles) ? def.zombieDeploySpawnTiles : []);
         zombieDeploySpawnTiles = new Set();
-        for (const tile of deployTiles) {
-            if (!tile) continue;
-            const tx = tile.x | 0;
-            const ty = tile.y | 0;
-            if (ty < 0 || ty >= gridHeight || tx < 0 || tx >= gridWidth) continue;
-            if (grid[ty][tx]) continue;
-            zombieDeploySpawnTiles.add(`${tx},${ty}`);
-        }
 
         // Compute reachability
         const alcanzables = floodFill(playerTile.x, playerTile.y);
@@ -6537,7 +6574,16 @@ else if (!deterministicCampaign) spawn(policias, mergedSettings.policeCount, 'po
 if (usePredefZombieSpawns) spawnFromTiles(zombies, predefZombieSpawnTiles, 'zomb');
 else if (!deterministicCampaign) spawn(zombies, mergedSettings.zombieCount, 'zomb');
 
-if (usePredefZombieSpawns && zombies.length > 0) {
+if (!zombies.length) {
+    const fallbackTile = safeTiles.find(t => !isUsed(t.x, t.y)) || alcanzables.find(t => !isUsed(t.x, t.y));
+    if (fallbackTile) {
+        const p = tileToEntityPixel(fallbackTile.x, fallbackTile.y);
+        zombies.push(createZombieEntity(p.x, p.y));
+        markUsed(fallbackTile.x, fallbackTile.y);
+    }
+}
+
+if (zombies.length > 0) {
     // Si el escenario ya trae zombies colocados, activar automáticamente la diana
     // debajo de uno de ellos al iniciar la partida.
     const seededZombie = zombies[0];
@@ -6550,17 +6596,64 @@ if (isActionCameraEnabled()) {
         estadoJuego = "PLAYING";
         lastFrameTime = 0;
         actualizarStatsUI();
+        updateStatusBarVisibility();
         animationId = requestAnimationFrame(animacion);
     }
 
     function actualizarStatsUI() {
+        const infectedCount = ciudadanos.filter(c => c && c.infectionFramesLeft > 0).length
+            + policias.filter(p => p && p.infectionFramesLeft > 0).length;
+        const deadZombieCount = Math.max(0, gameStats.zombiesKilled | 0);
+        const totalHorde = zombies.length + infectedCount + deadZombieCount;
+        const hungerMultiplier = hordeEnergy <= hungerDoubleThreshold - 1 ? 2 : 1;
+        const effectiveHunger = Math.max(0, zombies.length * hungerPerZombie * hungerMultiplier);
+
         if (numZombiesElem) numZombiesElem.textContent = zombies.length;
         if (numCiudadanosElem) numCiudadanosElem.textContent = ciudadanos.length;
         if (numPoliciasElem) numPoliciasElem.textContent = policias.length;
         if (numBalasElem) numBalasElem.textContent = balasRestantes;
         if (numBengalasElem) numBengalasElem.textContent = bengalasRestantes;
         if (numSalvadosElem) numSalvadosElem.textContent = ciudadanosSalvados;
+        if (hordeActiveElem) hordeActiveElem.textContent = `${zombies.length}/${totalHorde}`;
+        if (energyCountElem) energyCountElem.textContent = `${Math.max(0, Math.floor(hordeEnergy))}`;
+        if (hungerCountElem) hungerCountElem.textContent = `${effectiveHunger}`;
 if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? director.message : "-";
+    }
+
+    function updateStatusBarVisibility() {
+        if (!statusBarElem) return;
+        const menuVisible = !!(mainMenuOverlay && mainMenuOverlay.classList.contains("visible"));
+        statusBarElem.style.display = (estadoJuego === "PLAYING" && !menuVisible) ? "flex" : "none";
+    }
+
+    function showBanquetBanner(text) {
+        if (!banquetBanner) return;
+        banquetBanner.textContent = text;
+        banquetBanner.classList.add("visible");
+        if (banquetBannerTimer) clearTimeout(banquetBannerTimer);
+        banquetBannerTimer = setTimeout(() => {
+            banquetBanner.classList.remove("visible");
+        }, 1200);
+    }
+
+    function addHordeEnergy(points) {
+        if (!Number.isFinite(points) || points === 0) return;
+        hordeEnergy = Math.max(0, hordeEnergy + points);
+    }
+
+    function getEffectiveHungerPerSecond() {
+        const hungerMultiplier = hordeEnergy <= hungerDoubleThreshold - 1 ? 2 : 1;
+        return Math.max(0, zombies.length * hungerPerZombie * hungerMultiplier);
+    }
+
+    function killAllZombies() {
+        if (!Array.isArray(zombies) || zombies.length === 0) return;
+        for (const z of zombies) {
+            if (!z) continue;
+            cadaveres.push({ x: z.x, y: z.y });
+            gameStats.zombiesKilled++;
+        }
+        zombies = [];
     }
 
 
@@ -6578,6 +6671,7 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
 
     function animacion(timestamp) {
         if (estadoJuego === "STOPPED") return;
+        updateStatusBarVisibility();
 
         if (!lastFrameTime) lastFrameTime = timestamp;
         const dtMs = Math.min(90, timestamp - lastFrameTime);
@@ -6586,6 +6680,20 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
         // simulation step relative to BASE_FPS
         const realCameraStep = Math.min(2.5, dtMs / FRAME_MS);
         const simStep = realCameraStep * timeSpeedMultiplier;
+        const nowMs = Date.now();
+        if (estadoJuego === "PLAYING" && !editorState.active) {
+            const elapsedMs = Math.max(0, nowMs - lastEnergyTickAt);
+            if (elapsedMs >= 1000) {
+                const ticks = Math.floor(elapsedMs / 1000);
+                lastEnergyTickAt += ticks * 1000;
+                addHordeEnergy(-(getEffectiveHungerPerSecond() * ticks));
+                if (hordeEnergy <= 0) {
+                    hordeEnergy = 0;
+                    killAllZombies();
+                    estadoJuego = "DEFEAT";
+                }
+            }
+        }
 
         frameCount += simStep;
         if (footstepCooldown > 0) footstepCooldown -= simStep;
@@ -6667,22 +6775,6 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
 drawDoorsWorld();
 
         drawMueblesWorld();
-
-        if (editorState.active && zombieDeploySpawnTiles.size) {
-            ctx.fillStyle = "rgba(67, 160, 71, 0.4)";
-            for (const key of zombieDeploySpawnTiles) {
-                const [tx, ty] = key.split(",").map(Number);
-                if (!Number.isFinite(tx) || !Number.isFinite(ty)) continue;
-                ctx.fillRect(tx * cellSize, ty * cellSize, cellSize, cellSize);
-            }
-        } else if (deployZombieArmed && zombieDeploySpawnTiles.size) {
-            ctx.fillStyle = "rgba(76, 175, 80, 0.2)";
-            for (const key of zombieDeploySpawnTiles) {
-                const [tx, ty] = key.split(",").map(Number);
-                if (!Number.isFinite(tx) || !Number.isFinite(ty)) continue;
-                ctx.fillRect(tx * cellSize, ty * cellSize, cellSize, cellSize);
-            }
-        }
 
         for(let i = bengalasActivas.length - 1; i >= 0; i--) {
             const b = bengalasActivas[i]; b.vida--;
@@ -6904,6 +6996,17 @@ drawDoorsWorld();
                 propagationSec,
                 strength: clampStrength(zombie.strength, zombieBaseStrength)
             };
+            const now = Date.now();
+            const windowMs = Math.max(1000, feastWindowSec * 1000);
+            if (lastInfectionAt && (now - lastInfectionAt) <= windowMs) feastChainBonusLevel += 1;
+            else feastChainBonusLevel = 0;
+            const bonus = feastChainBonusLevel;
+            addHordeEnergy(ENERGY_GAIN_PER_INFECTION + bonus);
+            if (bonus > 0) {
+                const text = bonus === 1 ? "Banquete!!" : `Banquete x ${bonus}!!`;
+                showBanquetBanner(text);
+            }
+            lastInfectionAt = now;
         };
 
         const getNpcTypeForEntity = (ent) => {
@@ -7772,8 +7875,7 @@ drawDoorsWorld();
         if (hoverTile && (deployZombieArmed || zombieLureArmed || (editorState.active && !editorResizePreview))) {
             const hx = hoverTile.x * cellSize;
             const hy = hoverTile.y * cellSize;
-            const hoverKey = `${hoverTile.x},${hoverTile.y}`;
-            const canDeployHere = zombieDeploySpawnTiles.has(hoverKey);
+            const canDeployHere = true;
             const selectedTool = getSelectedEditorTool();
             const isNpcTool = selectedTool && (selectedTool.key === "citizen" || selectedTool.key === "police" || selectedTool.key === "zombie");
 
@@ -7858,7 +7960,11 @@ drawDoorsWorld();
         disparoEnFotograma = false;
 
 
-        if (!editorState.active && (ciudadanos.length + policias.length) === 0 && estadoJuego === "PLAYING") {
+        const infectedNpcsCount = ciudadanos.filter(c => c && c.infectionFramesLeft > 0).length
+            + policias.filter(p => p && p.infectionFramesLeft > 0).length;
+        if (!editorState.active && zombies.length === 0 && infectedNpcsCount === 0 && estadoJuego === "PLAYING") {
+            estadoJuego = "DEFEAT";
+        } else if (!editorState.active && (ciudadanos.length + policias.length) === 0 && estadoJuego === "PLAYING") {
             estadoJuego = "VICTORY";
         }
 
