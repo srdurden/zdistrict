@@ -1867,6 +1867,15 @@ body.editor-active #configPanel {
         spawnParticles(x, y, "rgba(255, 205, 210, 0.5)", 2 + Math.round(power), 0.9 + (power * 0.15), Math.PI * 2, 10 + power, 0.7, 0.55, dir ? { direction: dir, arc: 0.65, stretch: 1.4, gravity: 0.012, collideWithWalls: true } : { collideWithWalls: true });
     }
 
+    function getHordeBloodScale(attackerCount = 1, options = null) {
+        const count = Math.max(1, attackerCount | 0);
+        const opts = options || {};
+        const crowdBoost = Math.min(2.25, 0.58 + (count - 1) * 0.42);
+        const moodRandomness = 0.8 + Math.random() * 0.4;
+        const infectionBonus = opts.infection ? 0.12 + Math.random() * 0.34 : 0;
+        return Math.max(0.3, crowdBoost * moodRandomness + infectionBonus);
+    }
+
     function addFloatText(text, x, y, color = "rgba(62,39,35,0.85)", options = null) {
         const opts = options || {};
         const life = Math.max(8, Number.isFinite(opts.life) ? opts.life : 34);
@@ -7301,13 +7310,18 @@ drawDoorsWorld();
             zombie.lastAttackAngle = Math.atan2(dir.y || 0, dir.x || 0);
             npc.hitFromAngle = Math.atan2(dir.y || 0, dir.x || 0);
             const isMinorTug = !!opts.minorTug;
+            const attackerCount = Math.max(1, Number.isFinite(opts.attackerCount) ? Math.round(opts.attackerCount) : 1);
+            const hordeBloodScale = getHordeBloodScale(attackerCount, { infection: !!opts.infection });
             const canSpawnMinorBlood = !isMinorTug || opts.forceBlood || Math.random() < (opts.initial ? 0.22 : 0.14);
 
             stainEntity(zombie, isMinorTug ? (opts.initial ? 0.04 : 0.015) : (opts.initial ? 0.16 : 0.06 + (intensity * 0.04)));
             stainEntity(npc, isMinorTug ? (opts.initial ? 0.03 : 0.012) : (0.08 + (intensity * 0.05)));
 
             if (canSpawnMinorBlood) {
-                const bloodIntensity = isMinorTug ? (opts.initial ? 0.3 : 0.18) : intensity;
+                const baseMinorIntensity = opts.initial ? 0.3 : 0.18;
+                const bloodIntensity = isMinorTug
+                    ? baseMinorIntensity * (0.72 + (hordeBloodScale * 0.34))
+                    : intensity * (0.82 + hordeBloodScale * 0.4);
                 addBlood(centerX, centerY, {
                     intensity: bloodIntensity,
                     dir,
@@ -7346,7 +7360,8 @@ drawDoorsWorld();
 
             if (!zombie.tugState || zombie.tugState.target !== npc) {
                 zombie.tugState = { target: npc, startFrame: now };
-                triggerBiteImpact(zombie, npc, 1.25, { initial: true, minorTug: true });
+                const enteringAttackers = Math.max(1, getZombiesTuggingNpc(npc).length);
+                triggerBiteImpact(zombie, npc, 1.25, { initial: true, minorTug: true, attackerCount: enteringAttackers });
                 npc.tugFxCooldownFrame = now + 5;
             }
             if (!Number.isFinite(npc._tugStartFrame)) npc._tugStartFrame = now;
@@ -7381,7 +7396,12 @@ drawDoorsWorld();
             }
 
             if (!Number.isFinite(npc.tugFxCooldownFrame) || now >= npc.tugFxCooldownFrame) {
-                triggerBiteImpact(zombie, npc, 0.62 + (Math.min(3, attackers.length) * 0.12), { initial: false, minorTug: true });
+                triggerBiteImpact(
+                    zombie,
+                    npc,
+                    0.62 + (Math.min(3, attackers.length) * 0.12),
+                    { initial: false, minorTug: true, attackerCount: attackers.length }
+                );
                 npc.tugFxCooldownFrame = now + Math.max(3, Math.round(6 / Math.max(0.75, Math.min(2.4, timeScale))));
             }
 
@@ -7389,13 +7409,20 @@ drawDoorsWorld();
                 const outcome = resolveNpcTugOutcome(npc, attackers);
                 if (outcome.zombieWins) {
                     const infectionSource = attackers.find(a => a && (a.tugState && a.tugState.target === npc)) || attackers[0] || zombie;
-                    triggerBiteImpact(infectionSource, npc, 1.9 + Math.min(0.8, attackers.length * 0.18), { initial: true, forceBlood: true });
+                    const attackerCount = Math.max(1, attackers.length);
+                    const infectionBloodScale = getHordeBloodScale(attackerCount, { infection: true });
+                    triggerBiteImpact(
+                        infectionSource,
+                        npc,
+                        (1.45 + Math.min(1.25, attackerCount * 0.22)) * infectionBloodScale,
+                        { initial: true, forceBlood: true, attackerCount, infection: true }
+                    );
                     addBlood(npc.x + 1.5, npc.y + 1.5, {
-                        intensity: 2.4,
+                        intensity: (0.85 + infectionBloodScale) * (0.95 + Math.random() * 0.55),
                         dir: normalizar(npc.x - infectionSource.x, npc.y - infectionSource.y),
                         spray: true,
                         smear: true,
-                        alphaBoost: 0.12
+                        alphaBoost: Math.min(0.18, 0.04 + infectionBloodScale * 0.07)
                     });
                     const npcType = getNpcTypeForEntity(npc);
                     if (npcType === "cit" || npcType === "pol") {
@@ -7781,11 +7808,36 @@ drawDoorsWorld();
                         zombie.tugState = null;
                     }
                 }
+
+                if (target && !target.isDoorPoint) {
+                    if (!Number.isFinite(zombie.swarmSeed)) zombie.swarmSeed = Math.random() * Math.PI * 2;
+                    if (!Number.isFinite(zombie.swarmRadiusBias)) zombie.swarmRadiusBias = 0.85 + Math.random() * 0.7;
+                    if (!Number.isFinite(zombie.swarmDriftSpeed)) zombie.swarmDriftSpeed = 0.007 + Math.random() * 0.013;
+                    const hordeSpread = Math.max(0, zombies.length - 1);
+                    const baseRadius = Math.min(cellSize * 2.6, cellSize * (0.28 + Math.min(2.2, hordeSpread * 0.1)));
+                    const swirl = zombie.swarmSeed + frameCount * zombie.swarmDriftSpeed;
+                    const swarmRadius = baseRadius * zombie.swarmRadiusBias * (0.85 + Math.sin(swirl * 1.3) * 0.25);
+                    const swarmGoal = {
+                        x: target.x + Math.cos(swirl) * swarmRadius,
+                        y: target.y + Math.sin(swirl) * swarmRadius
+                    };
+                    const swarmDir = normalizar(swarmGoal.x - zombie.x, swarmGoal.y - zombie.y);
+                    const blend = Math.min(0.52, 0.28 + hordeSpread * 0.018);
+                    zombie.direccion = normalizar(
+                        zombie.direccion.x * (1 - blend) + swarmDir.x * blend,
+                        zombie.direccion.y * (1 - blend) + swarmDir.y * blend
+                    );
+                }
             } else {
                 zombie.pathFollowInfo = null;
                 if(Math.random() < 0.05) zombie.direccion = normalizar(zombie.direccion.x + (Math.random()-0.5), zombie.direccion.y + (Math.random()-0.5));
             }
-            if(Math.random() < 0.15) { const sep = obtenerFuerzaSeparacion(zombie, zombies, radioSeparacion); zombie.direccion.x += sep.x * 0.8; zombie.direccion.y += sep.y * 0.8; }
+            const hordeSpread = Math.max(0, zombies.length - 1);
+            const dynamicSeparationRadius = radioSeparacion + Math.min(cellSize * 0.9, hordeSpread * 0.08);
+            const sep = obtenerFuerzaSeparacion(zombie, zombies, dynamicSeparationRadius);
+            const separationWeight = 0.35 + Math.min(0.65, hordeSpread * 0.02) + (Math.random() * 0.14);
+            zombie.direccion.x += sep.x * separationWeight;
+            zombie.direccion.y += sep.y * separationWeight;
             const beforeX = zombie.x;
             const beforeY = zombie.y;
             const choco = aplicarFuerzas(
