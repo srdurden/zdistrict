@@ -2338,6 +2338,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     let deployZombieArmed = false;
     let zombieLureArmed = false;
     let zombiePathPreviewEnabled = false;
+    const ZOMBIE_PATH_WALL_HIGHLIGHT_MARGIN_PX = 5;
 
     function setDeployArmed(armed) {
         deployZombieArmed = armed;
@@ -3549,6 +3550,8 @@ const DOOR_BASE_HP = 70;
     const PATH_JITTER_OPEN_MIN_RATIO = 0.08;
     const PATH_JITTER_OPEN_MAX_RATIO = 0.2;
     const PATH_CORNER_SHARP_DOT = 0.4;
+    const ZOMBIE_PATH_TARGET_WALL_CLEARANCE_PX = 8;
+    const ZOMBIE_PATH_NEAR_WALL_PENALTY = 6.5;
     const ZOMBIE_STUCK_STAGE1_SCORE = 11;
     const ZOMBIE_STUCK_STAGE2_SCORE = 22;
     const ZOMBIE_CORRIDOR_MODE_FRAMES = 42;
@@ -5684,7 +5687,12 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
                     if (closed.has(hKey) && closed.has(vKey)) continue;
                 }
 
-                const tentativeG = current.g + d.cost;
+                const nearWallPenalty = (nx === start.tx && ny === start.ty) || (nx === goal.tx && ny === goal.ty)
+                    ? 0
+                    : (isTileNearBlockedForClearance(nx, ny, ZOMBIE_PATH_TARGET_WALL_CLEARANCE_PX, start, goal)
+                        ? ZOMBIE_PATH_NEAR_WALL_PENALTY
+                        : 0);
+                const tentativeG = current.g + d.cost + nearWallPenalty;
                 const bestKnown = gScore.get(nKey);
                 if (bestKnown !== undefined && tentativeG >= bestKnown) continue;
 
@@ -5703,6 +5711,20 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         }
 
         return null;
+    }
+
+    function isTileNearBlockedForClearance(tx, ty, clearancePx, start, goal) {
+        if (!Number.isFinite(clearancePx) || clearancePx <= 0) return false;
+        const radiusTiles = Math.max(1, Math.ceil(clearancePx / cellSize));
+        for (let oy = -radiusTiles; oy <= radiusTiles; oy += 1) {
+            for (let ox = -radiusTiles; ox <= radiusTiles; ox += 1) {
+                if (ox === 0 && oy === 0) continue;
+                const nx = tx + ox;
+                const ny = ty + oy;
+                if (isTilePathBlocked(nx, ny, start, goal)) return true;
+            }
+        }
+        return false;
     }
 
     function hasDirectPathBetweenTiles(a, b, start, goal) {
@@ -5930,6 +5952,29 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
             ctx.lineTo(targetX, targetY);
         }
         ctx.stroke();
+        ctx.restore();
+    }
+
+    function drawZombiePathWallHighlight() {
+        if (!zombiePathPreviewEnabled || !Array.isArray(grid) || !grid.length) return;
+
+        ctx.save();
+        ctx.strokeStyle = "rgba(255, 235, 59, 0.62)";
+        ctx.lineWidth = ZOMBIE_PATH_WALL_HIGHLIGHT_MARGIN_PX * 2;
+        ctx.lineJoin = "miter";
+        ctx.lineCap = "square";
+
+        for (let y = 0; y < gridHeight; y += 1) {
+            const row = grid[y];
+            if (!Array.isArray(row)) continue;
+            for (let x = 0; x < gridWidth; x += 1) {
+                if (!row[x]) continue;
+                const px = x * cellSize;
+                const py = y * cellSize;
+                ctx.strokeRect(px, py, cellSize, cellSize);
+            }
+        }
+
         ctx.restore();
     }
 
@@ -7176,6 +7221,7 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
         ctx.drawImage(staticLayer, 0, 0);
         drawBloodStains();
         ctx.drawImage(wallLayer, 0, 0);
+        drawZombiePathWallHighlight();
         ctx.imageSmoothingEnabled = true;
 
 drawDoorsWorld();
