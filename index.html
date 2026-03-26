@@ -5083,37 +5083,45 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         const perpA = normalizar(-away.y, away.x);
         const perpB = normalizar(away.y, -away.x);
 
-        const candidates = [
+        const diagonalCandidates = [
+            normalizar(away.x + perpA.x, away.y + perpA.y),
+            normalizar(away.x + perpB.x, away.y + perpB.y),
+            normalizar(away.x + perpA.x * 0.8 + repulsion.x * 0.35, away.y + perpA.y * 0.8 + repulsion.y * 0.35),
+            normalizar(away.x + perpB.x * 0.8 + repulsion.x * 0.35, away.y + perpB.y * 0.8 + repulsion.y * 0.35)
+        ].filter(dir => dir && (dir.x || dir.y));
+
+        const fallbackCandidates = [
+            normalizar(away.x * 0.92 + toTileCenter.x * 0.52, away.y * 0.92 + toTileCenter.y * 0.52),
             away,
             repulsion,
-            normalizar(away.x + repulsion.x * 0.8, away.y + repulsion.y * 0.8),
-            normalizar(away.x * 0.92 + toTileCenter.x * 0.52, away.y * 0.92 + toTileCenter.y * 0.52),
-            normalizar(away.x + perpA.x * 0.35, away.y + perpA.y * 0.35),
-            normalizar(away.x + perpB.x * 0.35, away.y + perpB.y * 0.35),
             toTileCenter
         ].filter(dir => dir && (dir.x || dir.y));
 
-        let best = null;
-        for (const dir of candidates) {
-            const sim = simulateEntitySafeTravel(zombie, dir, desiredTravel, 12);
-            if (sim.moved <= 0.001) continue;
+        const pickBest = (candidates, diagonalPreferred) => {
+            let best = null;
+            for (const dir of candidates) {
+                const sim = simulateEntitySafeTravel(zombie, dir, desiredTravel, 12);
+                if (sim.moved <= 0.001) continue;
 
-            const probe = { ...zombie, x: sim.x, y: sim.y };
-            const endNearest = getNearestWallInfo(probe, searchRadius);
-            const endDistance = endNearest ? endNearest.distance : targetClearancePx;
-            const alignment = away.x * dir.x + away.y * dir.y;
-            const score = (sim.moved * 3.2) + (Math.min(targetClearancePx, endDistance) * 1.35) + (alignment * 0.3);
+                const probe = { ...zombie, x: sim.x, y: sim.y };
+                const endNearest = getNearestWallInfo(probe, searchRadius);
+                const endDistance = endNearest ? endNearest.distance : targetClearancePx;
+                const alignment = away.x * dir.x + away.y * dir.y;
+                const diagonalBonus = diagonalPreferred ? (1 - Math.abs(alignment)) * 0.7 : 0;
+                const score = (sim.moved * 3.2) + (Math.min(targetClearancePx, endDistance) * 1.35) + (diagonalBonus * 0.7);
 
-            if (!best || score > best.score + 0.0001) {
-                best = {
-                    dir,
-                    distance: Math.min(desiredTravel, sim.moved),
-                    score
-                };
+                if (!best || score > best.score + 0.0001) {
+                    best = {
+                        dir,
+                        distance: Math.min(desiredTravel, sim.moved),
+                        score
+                    };
+                }
             }
-        }
+            return best;
+        };
 
-        return best;
+        return pickBest(diagonalCandidates, true) || pickBest(fallbackCandidates, false);
     }
 
     function updateZombieNearWallRecovery(zombie, timeScale = 1) {
