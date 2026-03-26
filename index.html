@@ -8201,7 +8201,10 @@ drawDoorsWorld();
                         y: target.y + Math.sin(swirl) * swarmRadius
                     };
                     const swarmDir = normalizar(swarmGoal.x - zombie.x, swarmGoal.y - zombie.y);
-                    const blend = Math.min(0.52, 0.28 + hordeSpread * 0.018);
+                    const followingPath = !!zombie.pathFollowInfo;
+                    const blend = followingPath
+                        ? Math.min(0.14, 0.05 + hordeSpread * 0.008)
+                        : Math.min(0.52, 0.28 + hordeSpread * 0.018);
                     zombie.direccion = normalizar(
                         zombie.direccion.x * (1 - blend) + swarmDir.x * blend,
                         zombie.direccion.y * (1 - blend) + swarmDir.y * blend
@@ -8214,7 +8217,10 @@ drawDoorsWorld();
             const hordeSpread = Math.max(0, zombies.length - 1);
             const dynamicSeparationRadius = radioSeparacion + Math.min(cellSize * 0.9, hordeSpread * 0.08);
             const sep = obtenerFuerzaSeparacion(zombie, zombies, dynamicSeparationRadius);
-            const separationWeight = 0.35 + Math.min(0.65, hordeSpread * 0.02) + (Math.random() * 0.14);
+            const separationBaseWeight = 0.35 + Math.min(0.65, hordeSpread * 0.02) + (Math.random() * 0.14);
+            const separationWeight = zombie.pathFollowInfo
+                ? separationBaseWeight * (zombie.pathFollowInfo.safeMode ? 0.42 : 0.62)
+                : separationBaseWeight;
             zombie.direccion.x += sep.x * separationWeight;
             zombie.direccion.y += sep.y * separationWeight;
             const beforeX = zombie.x;
