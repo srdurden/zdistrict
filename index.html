@@ -141,7 +141,8 @@
         #settingsToggle,
         #homeBtn,
         #spawnZombieBtn,
-        #zombieLureBtn {
+        #zombieLureBtn,
+        #zombiePathBtn {
             width: 44px;
             height: 44px;
             border-radius: 50%;
@@ -179,6 +180,18 @@
             border-color: #fb8c00;
             color: #f57c00;
             box-shadow: 0 0 0 3px rgba(251,140,0,0.22), var(--shadow-float);
+        }
+
+        #zombiePathBtn {
+            color: #424242;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+        #zombiePathBtn:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(0,0,0,0.12); color: #424242; }
+        #zombiePathBtn:active { transform: translateY(0px) scale(0.98); }
+        #zombiePathBtn.armed {
+            border-color: #5c6bc0;
+            color: #5c6bc0;
+            box-shadow: 0 0 0 3px rgba(92,107,192,0.22), var(--shadow-float);
         }
 
         #topActionsMenu {
@@ -667,6 +680,7 @@ body.editor-active #configPanel {
     <button id="homeBtn" title="Menú">🏠</button>
     <button id="spawnZombieBtn" title="Añadir zombie">🧟</button>
     <button id="zombieLureBtn" title="Diana de atracción">🎯</button>
+    <button id="zombiePathBtn" title="Mostrar caminos zombie">🛣️</button>
 </div>
 
 <div id="mapNavControls" aria-label="Controles del mapa">
@@ -2154,6 +2168,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     const homeBtn = document.getElementById("homeBtn");
     const spawnZombieBtn = document.getElementById("spawnZombieBtn");
     const zombieLureBtn = document.getElementById("zombieLureBtn");
+    const zombiePathBtn = document.getElementById("zombiePathBtn");
     const zoomInBtn = document.getElementById("zoomInBtn");
     const zoomOutBtn = document.getElementById("zoomOutBtn");
     const fitMapBtn = document.getElementById("fitMapBtn");
@@ -2322,6 +2337,7 @@ const txtEventoElem = document.getElementById("txtEvento");
 
     let deployZombieArmed = false;
     let zombieLureArmed = false;
+    let zombiePathPreviewEnabled = false;
 
     function setDeployArmed(armed) {
         deployZombieArmed = armed;
@@ -2333,6 +2349,11 @@ const txtEventoElem = document.getElementById("txtEvento");
         zombieLureArmed = armed;
         if (zombieLureBtn) zombieLureBtn.classList.toggle("armed", armed);
         if (armed) setDeployArmed(false);
+    }
+
+    function setZombiePathPreviewEnabled(enabled) {
+        zombiePathPreviewEnabled = !!enabled;
+        if (zombiePathBtn) zombiePathBtn.classList.toggle("armed", zombiePathPreviewEnabled);
     }
 
     function closeDeployPopup() {
@@ -2362,6 +2383,12 @@ const txtEventoElem = document.getElementById("txtEvento");
                 return;
             }
             setZombieLureArmed(!zombieLureArmed);
+        });
+    }
+
+    if (zombiePathBtn) {
+        zombiePathBtn.addEventListener("click", () => {
+            setZombiePathPreviewEnabled(!zombiePathPreviewEnabled);
         });
     }
 
@@ -2893,6 +2920,7 @@ const txtEventoElem = document.getElementById("txtEvento");
         if (homeBtn) homeBtn.style.display = isEditor ? "none" : "";
         if (spawnZombieBtn) spawnZombieBtn.style.display = isEditor ? "none" : "";
         if (zombieLureBtn) zombieLureBtn.style.display = isEditor ? "none" : "";
+        if (zombiePathBtn) zombiePathBtn.style.display = isEditor ? "none" : "";
         if (topMenuToggle) topMenuToggle.style.display = isEditor ? "none" : "";
         if (topActionsMenu) topActionsMenu.style.display = isEditor ? "none" : "";
         if (!isEditor) return;
@@ -5873,6 +5901,38 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         return normalizar(waypoint.x - zombieCenter.x, waypoint.y - zombieCenter.y);
     }
 
+    function drawZombiePursuitPath(zombie, target) {
+        if (!zombiePathPreviewEnabled || !zombie || !target) return;
+        const startX = zombie.x + tamanoEntidad / 2;
+        const startY = zombie.y + tamanoEntidad / 2;
+        const pathTiles = zombie.pathCache && Array.isArray(zombie.pathCache.tiles) ? zombie.pathCache.tiles : null;
+        const targetX = Number.isFinite(target.x) ? target.x + tamanoEntidad / 2 : null;
+        const targetY = Number.isFinite(target.y) ? target.y + tamanoEntidad / 2 : null;
+
+        ctx.save();
+        ctx.strokeStyle = "rgba(92, 107, 192, 0.92)";
+        ctx.lineWidth = 0.9;
+        ctx.setLineDash([1.8, 1.4]);
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+
+        if (pathTiles && pathTiles.length >= 2) {
+            const maxTilesToDraw = Math.min(pathTiles.length - 1, 26);
+            for (let i = 1; i <= maxTilesToDraw; i += 1) {
+                const tile = pathTiles[i];
+                const px = tile.tx * cellSize + cellSize / 2;
+                const py = tile.ty * cellSize + cellSize / 2;
+                ctx.lineTo(px, py);
+            }
+        }
+
+        if (targetX != null && targetY != null) {
+            ctx.lineTo(targetX, targetY);
+        }
+        ctx.stroke();
+        ctx.restore();
+    }
+
 
     function getZombieDoorBreachTargetForPoint(zombie, targetPoint) {
         if (!zombie || !targetPoint || !doorGroups || !doorGroups.length) return null;
@@ -8209,6 +8269,7 @@ drawDoorsWorld();
                     alphaBoost: -0.04
                 });
             }
+            if (target) drawZombiePursuitPath(zombie, target);
             drawEnt(zombie, PALETA.zombie, radioVisual, "zombie");
         });
 
