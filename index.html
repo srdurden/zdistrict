@@ -2338,6 +2338,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     let deployZombieArmed = false;
     let zombieLureArmed = false;
     let zombiePathPreviewEnabled = false;
+    const ZOMBIE_PATH_WALL_HIGHLIGHT_MARGIN_PX = 10;
 
     function setDeployArmed(armed) {
         deployZombieArmed = armed;
@@ -5933,6 +5934,29 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         ctx.restore();
     }
 
+    function drawZombiePathWallHighlight() {
+        if (!zombiePathPreviewEnabled || !Array.isArray(grid) || !grid.length) return;
+
+        ctx.save();
+        ctx.strokeStyle = "rgba(255, 235, 59, 0.62)";
+        ctx.lineWidth = ZOMBIE_PATH_WALL_HIGHLIGHT_MARGIN_PX * 2;
+        ctx.lineJoin = "miter";
+        ctx.lineCap = "square";
+
+        for (let y = 0; y < gridHeight; y += 1) {
+            const row = grid[y];
+            if (!Array.isArray(row)) continue;
+            for (let x = 0; x < gridWidth; x += 1) {
+                if (!row[x]) continue;
+                const px = x * cellSize;
+                const py = y * cellSize;
+                ctx.strokeRect(px, py, cellSize, cellSize);
+            }
+        }
+
+        ctx.restore();
+    }
+
 
     function getZombieDoorBreachTargetForPoint(zombie, targetPoint) {
         if (!zombie || !targetPoint || !doorGroups || !doorGroups.length) return null;
@@ -7176,6 +7200,7 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
         ctx.drawImage(staticLayer, 0, 0);
         drawBloodStains();
         ctx.drawImage(wallLayer, 0, 0);
+        drawZombiePathWallHighlight();
         ctx.imageSmoothingEnabled = true;
 
 drawDoorsWorld();
