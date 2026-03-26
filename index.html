@@ -3527,7 +3527,7 @@ const DOOR_BASE_HP = 70;
     const ZOMBIE_STUCK_PROGRESS_RATIO_MIN = 0.26;
     const ZOMBIE_NEAR_WALL_TRIGGER_FRAMES = BASE_FPS * 1.0;
     const ZOMBIE_NEAR_WALL_COOLDOWN_FRAMES = BASE_FPS * 1.2;
-    const ZOMBIE_NEAR_WALL_TARGET_CLEARANCE_TILES = 0.5;
+    const ZOMBIE_NEAR_WALL_TARGET_CLEARANCE_TILES = 1.5;
 
     const director = {
         enabled: true,
@@ -5116,7 +5116,7 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
         return best;
     }
 
-    function updateZombieNearWallRecovery(zombie, hasTarget, timeScale = 1) {
+    function updateZombieNearWallRecovery(zombie, timeScale = 1) {
         if (!zombie) return false;
 
         zombie.nearWallFrames = Number.isFinite(zombie.nearWallFrames) ? zombie.nearWallFrames : 0;
@@ -5136,12 +5136,13 @@ function moverJugadorConMuebles(vx, vy, velocidad) {
             0.8,
             Math.min(cellSize * 0.24, getEntityWallClearance(zombie) + cellSize * 0.1)
         );
-        const nearest = hasTarget
-            ? getNearestWallInfo(zombie, Math.max(cellSize * 1.25, targetClearancePx + nearThresholdPx + 1))
-            : null;
+        const nearest = getNearestWallInfo(
+            zombie,
+            Math.max(cellSize * 1.25, targetClearancePx + nearThresholdPx + 1)
+        );
         const isNearWall = !!(nearest && nearest.distance <= nearThresholdPx);
 
-        if (!hasTarget || zombie.nearWallCooldownFrames > 0 || !isNearWall) {
+        if (zombie.nearWallCooldownFrames > 0 || !isNearWall) {
             zombie.nearWallFrames = Math.max(0, zombie.nearWallFrames - Math.max(1, timeScale * 1.5));
             return false;
         }
@@ -8183,7 +8184,7 @@ drawDoorsWorld();
                 zombie.goodProgressFrames = 0;
             }
 
-            updateZombieNearWallRecovery(zombie, !!target, timeScale);
+            updateZombieNearWallRecovery(zombie, timeScale);
 
             if(choco) {
                 const hitBox = zombieTryHitMueble(zombie);
