@@ -1105,10 +1105,6 @@ body.editor-active #configPanel {
         }
 
     ];
-    if (CAMPAIGN_LEVELS.length > 1) {
-        [CAMPAIGN_LEVELS[0], CAMPAIGN_LEVELS[1]] = [CAMPAIGN_LEVELS[1], CAMPAIGN_LEVELS[0]];
-    }
-
     const canvas = document.getElementById("myCanvas");
     const ctx = canvas.getContext("2d");
     let worldPixelWidth = canvas.width;
