@@ -2314,6 +2314,13 @@ const txtEventoElem = document.getElementById("txtEvento");
 
     if (topMenuToggle) {
         topMenuToggle.addEventListener("click", () => {
+            if (editorState.active) {
+                if (!editorSideMenu) return;
+                const nextVisible = !editorSideMenu.classList.contains("visible");
+                editorSideMenu.classList.toggle("visible", nextVisible);
+                if (nextVisible) setEditorSection(editorState.selectedSection || "project");
+                return;
+            }
             const nextVisible = !(topActionsMenu && topActionsMenu.classList.contains("visible"));
             setTopActionsMenuVisible(nextVisible);
         });
@@ -2321,9 +2328,7 @@ const txtEventoElem = document.getElementById("txtEvento");
 
     settingsToggle.addEventListener("click", () => {
         if (editorState.active) {
-            if (editorSideMenu) editorSideMenu.classList.toggle("visible");
-            if (editorSideMenu && editorSideMenu.classList.contains("visible")) setEditorSection(editorState.selectedSection || "surfaces");
-            else if (configPanel) configPanel.classList.remove("visible");
+            if (configPanel) configPanel.classList.toggle("visible");
             closeEditorScenarioSettingsIfNeeded();
             return;
         }
@@ -2922,7 +2927,10 @@ const txtEventoElem = document.getElementById("txtEvento");
         if (spawnZombieBtn) spawnZombieBtn.style.display = isEditor ? "none" : "";
         if (zombieLureBtn) zombieLureBtn.style.display = isEditor ? "none" : "";
         if (zombiePathBtn) zombiePathBtn.style.display = isEditor ? "none" : "";
-        if (topMenuToggle) topMenuToggle.style.display = isEditor ? "none" : "";
+        if (topMenuToggle) {
+            topMenuToggle.style.display = "";
+            topMenuToggle.title = isEditor ? "Mostrar controles del editor" : "Mostrar acciones";
+        }
         if (topActionsMenu) topActionsMenu.style.display = isEditor ? "none" : "";
         if (!isEditor) return;
         if (configPanel) configPanel.classList.remove("visible");
@@ -7059,7 +7067,7 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
     function updateStatusBarVisibility() {
         if (!statusBarElem) return;
         const menuVisible = !!(mainMenuOverlay && mainMenuOverlay.classList.contains("visible"));
-        const isVisible = (estadoJuego === "PLAYING" && !menuVisible);
+        const isVisible = ((estadoJuego === "PLAYING" && !menuVisible) || appState === "EDITOR");
         statusBarElem.style.display = isVisible ? "flex" : "none";
         if (!isVisible) setTopActionsMenuVisible(false);
     }
