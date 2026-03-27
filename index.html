@@ -221,8 +221,21 @@
             align-items: center;
             justify-content: center;
             line-height: 1;
+            flex-shrink: 0;
         }
         .mini-menu-toggle:hover { background: rgba(255,255,255,0.55); }
+        body.editor-active #topMenuToggle {
+            position: fixed;
+            top: calc(max(8px, env(safe-area-inset-top)) + 36px);
+            right: max(12px, env(safe-area-inset-right));
+            width: 40px;
+            height: 40px;
+            border: 2px solid #efebe9;
+            background: rgba(255, 255, 255, 0.88);
+            border-radius: 50%;
+            box-shadow: 0 8px 18px rgba(0,0,0,0.12);
+            z-index: 1330;
+        }
 
         .deploy-popup {
             position: fixed;
