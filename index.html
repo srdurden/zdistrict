@@ -136,7 +136,6 @@
         #hordeActiveCount { width: 5ch; }
         #energyCount { width: 4ch; }
         #hungerCount { width: 3ch; }
-        #topMenuToggle { margin-left: auto; }
 
         #settingsToggle,
         #homeBtn,
@@ -892,12 +891,12 @@ body.editor-active #configPanel {
 <div id="gameContainer">
     <canvas id="myCanvas" width="4500" height="2700"></canvas>
     <div id="statusBar">
+        <button id="topMenuToggle" class="mini-menu-toggle" title="Mostrar acciones">☰</button>
         <div class="status-summary">
             <div class="status-item">🎯<span class="status-count" id="hordeActiveCount">0/0</span></div>
             <div class="status-item">⚡<span class="status-count" id="energyCount">100</span></div>
             <div class="status-item">🍖<span class="status-count" id="hungerCount">1</span></div>
         </div>
-        <button id="topMenuToggle" class="mini-menu-toggle" title="Mostrar acciones">☰</button>
     </div>
 </div>
 <div id="banquetBanner">Banquete!!</div>
@@ -2314,6 +2313,13 @@ const txtEventoElem = document.getElementById("txtEvento");
 
     if (topMenuToggle) {
         topMenuToggle.addEventListener("click", () => {
+            if (editorState.active) {
+                if (!editorSideMenu) return;
+                const nextVisible = !editorSideMenu.classList.contains("visible");
+                editorSideMenu.classList.toggle("visible", nextVisible);
+                if (nextVisible) setEditorSection(editorState.selectedSection || "project");
+                return;
+            }
             const nextVisible = !(topActionsMenu && topActionsMenu.classList.contains("visible"));
             setTopActionsMenuVisible(nextVisible);
         });
@@ -2321,9 +2327,7 @@ const txtEventoElem = document.getElementById("txtEvento");
 
     settingsToggle.addEventListener("click", () => {
         if (editorState.active) {
-            if (editorSideMenu) editorSideMenu.classList.toggle("visible");
-            if (editorSideMenu && editorSideMenu.classList.contains("visible")) setEditorSection(editorState.selectedSection || "surfaces");
-            else if (configPanel) configPanel.classList.remove("visible");
+            if (configPanel) configPanel.classList.toggle("visible");
             closeEditorScenarioSettingsIfNeeded();
             return;
         }
@@ -2922,7 +2926,10 @@ const txtEventoElem = document.getElementById("txtEvento");
         if (spawnZombieBtn) spawnZombieBtn.style.display = isEditor ? "none" : "";
         if (zombieLureBtn) zombieLureBtn.style.display = isEditor ? "none" : "";
         if (zombiePathBtn) zombiePathBtn.style.display = isEditor ? "none" : "";
-        if (topMenuToggle) topMenuToggle.style.display = isEditor ? "none" : "";
+        if (topMenuToggle) {
+            topMenuToggle.style.display = "";
+            topMenuToggle.title = isEditor ? "Mostrar controles del editor" : "Mostrar acciones";
+        }
         if (topActionsMenu) topActionsMenu.style.display = isEditor ? "none" : "";
         if (!isEditor) return;
         if (configPanel) configPanel.classList.remove("visible");
