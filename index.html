@@ -2906,7 +2906,7 @@ const txtEventoElem = document.getElementById("txtEvento");
         if (!isVisible) cancelEditorResizePreview();
         editorOverlay.classList.toggle("visible", isVisible);
         document.body.classList.toggle("editor-active", isVisible);
-        if (editorSideMenu) editorSideMenu.classList.toggle("visible", false);
+        if (editorSideMenu) editorSideMenu.classList.toggle("visible", isVisible);
         if (!isVisible && configPanel) configPanel.classList.remove("visible");
         if (!isVisible) closeEditorScenarioSettingsIfNeeded();
         syncAppHeight();
