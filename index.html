@@ -99,6 +99,52 @@
             pointer-events: auto;
         }
 
+        #bottomControlBar {
+            background: rgba(255, 255, 255, 0.78);
+            backdrop-filter: blur(6px);
+            border-radius: 999px;
+            padding: 6px 12px;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.08);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            position: fixed;
+            bottom: calc(max(8px, env(safe-area-inset-bottom)) + 2px);
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1290;
+            border: 1px solid rgba(255,255,255,0.5);
+            max-width: min(900px, calc(100vw - 24px));
+            width: min(700px, calc(100vw - 24px));
+            pointer-events: auto;
+        }
+
+        #lureAnalogStick {
+            width: 92px;
+            height: 92px;
+            border-radius: 50%;
+            border: 3px solid #9e9e9e;
+            background: transparent;
+            position: relative;
+            touch-action: none;
+            user-select: none;
+            cursor: pointer;
+        }
+
+        #lureAnalogThumb {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255,255,255,0.9);
+            border: 2px solid #bdbdbd;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            pointer-events: none;
+        }
+
         .status-summary {
             display: flex;
             align-items: center;
@@ -910,6 +956,11 @@ body.editor-active #configPanel {
             <div class="status-item">🍖<span class="status-count" id="hungerCount">1</span></div>
         </div>
         <button id="topMenuToggle" class="mini-menu-toggle" title="Mostrar acciones">☰</button>
+    </div>
+    <div id="bottomControlBar" aria-label="Control de diana">
+        <div id="lureAnalogStick" title="Stick analógico diana">
+            <div id="lureAnalogThumb"></div>
+        </div>
     </div>
 </div>
 <div id="banquetBanner">Banquete!!</div>
@@ -2074,6 +2125,9 @@ const txtEventoElem = document.getElementById("txtEvento");
     const energyCountElem = document.getElementById("energyCount");
     const hungerCountElem = document.getElementById("hungerCount");
     const statusBarElem = document.getElementById("statusBar");
+    const bottomControlBarElem = document.getElementById("bottomControlBar");
+    const lureAnalogStickElem = document.getElementById("lureAnalogStick");
+    const lureAnalogThumbElem = document.getElementById("lureAnalogThumb");
     const topMenuToggle = document.getElementById("topMenuToggle");
     const topActionsMenu = document.getElementById("topActionsMenu");
     const banquetBanner = document.getElementById("banquetBanner");
@@ -3478,6 +3532,13 @@ let ciudadanos = [];
     const ZOMBIE_LURE_MOVE_FRAMES = BASE_FPS * 0.35;
 let frameCount = 0;
     let footstepCooldown = 0;
+    const LURE_CONTROL_SPEED_PX_PER_SEC = 11 * cellSize;
+    const LURE_CONTROL_DEADZONE = 0.14;
+    const lureControlState = {
+        pointerId: null,
+        analogX: 0,
+        analogY: 0
+    };
 
     
     // --- MUEBLES (CAJAS) ---
@@ -3519,15 +3580,111 @@ const DOOR_BASE_HP = 70;
 
     const teclas = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false, Space: false, ShiftLeft: false, ShiftRight: false };
 
+    function isTypingIntoInput() {
+        const active = document.activeElement;
+        if (!active) return false;
+        const tag = active.tagName;
+        return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || !!active.isContentEditable;
+    }
+
+    function resetAnalogStickVisual() {
+        if (lureAnalogThumbElem) lureAnalogThumbElem.style.transform = "translate(-50%, -50%)";
+    }
+
+    function setAnalogStickVectorFromClient(clientX, clientY) {
+        if (!lureAnalogStickElem) return;
+        const rect = lureAnalogStickElem.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const dx = clientX - cx;
+        const dy = clientY - cy;
+        const maxRadius = Math.max(1, (Math.min(rect.width, rect.height) / 2) - 12);
+        const dist = Math.hypot(dx, dy);
+        const clamped = dist > maxRadius ? (maxRadius / dist) : 1;
+        const rx = (dx * clamped) / maxRadius;
+        const ry = (dy * clamped) / maxRadius;
+        lureControlState.analogX = Math.max(-1, Math.min(1, rx));
+        lureControlState.analogY = Math.max(-1, Math.min(1, ry));
+        if (lureAnalogThumbElem) {
+            const px = lureControlState.analogX * maxRadius;
+            const py = lureControlState.analogY * maxRadius;
+            lureAnalogThumbElem.style.transform = `translate(calc(-50% + ${px}px), calc(-50% + ${py}px))`;
+        }
+    }
+
+    function clearAnalogStickInput() {
+        lureControlState.pointerId = null;
+        lureControlState.analogX = 0;
+        lureControlState.analogY = 0;
+        resetAnalogStickVisual();
+    }
+
+    function clearLureMoveInterpolation() {
+        if (!zombieLureTarget) return;
+        zombieLureTarget.moveFromX = undefined;
+        zombieLureTarget.moveFromY = undefined;
+        zombieLureTarget.moveToX = undefined;
+        zombieLureTarget.moveToY = undefined;
+        zombieLureTarget.moveStartFrame = undefined;
+        zombieLureTarget.moveEndFrame = undefined;
+    }
+
+    function ensureZombieLureTargetExists() {
+        if (zombieLureTarget) return true;
+        const worldX = jugador.x + tamanoEntidad / 2;
+        const worldY = jugador.y + tamanoEntidad / 2;
+        const snapped = snapWorldPointToGridCenter(worldX, worldY);
+        if (!snapped) return false;
+        createZombieLureAt(snapped.x, snapped.y);
+        return true;
+    }
+
+    function applyLureDirectMove(dx, dy) {
+        if (estadoJuego !== "PLAYING" || editorState.active) return;
+        if (!Number.isFinite(dx) || !Number.isFinite(dy) || (!dx && !dy)) return;
+        if (!ensureZombieLureTargetExists()) return;
+        const world = getWorldPixelSize();
+        const margin = cellSize / 2;
+        zombieLureTarget.x = Math.max(margin, Math.min(world.width - margin, zombieLureTarget.x + dx));
+        zombieLureTarget.y = Math.max(margin, Math.min(world.height - margin, zombieLureTarget.y + dy));
+        clearLureMoveInterpolation();
+    }
+
+    function applyLureControlInput(dtMs) {
+        if (estadoJuego !== "PLAYING" || editorState.active) return;
+        const keyboardX = (teclas.ArrowRight ? 1 : 0) - (teclas.ArrowLeft ? 1 : 0);
+        const keyboardY = (teclas.ArrowDown ? 1 : 0) - (teclas.ArrowUp ? 1 : 0);
+        const analogX = Number.isFinite(lureControlState.analogX) ? lureControlState.analogX : 0;
+        const analogY = Number.isFinite(lureControlState.analogY) ? lureControlState.analogY : 0;
+
+        let vx = keyboardX + analogX;
+        let vy = keyboardY + analogY;
+        const mag = Math.hypot(vx, vy);
+        if (mag <= LURE_CONTROL_DEADZONE) return;
+        if (mag > 1) {
+            vx /= mag;
+            vy /= mag;
+        }
+        const dtSec = Math.max(0, dtMs) / 1000;
+        applyLureDirectMove(vx * LURE_CONTROL_SPEED_PX_PER_SEC * dtSec, vy * LURE_CONTROL_SPEED_PX_PER_SEC * dtSec);
+    }
+
     document.addEventListener("keydown", (e) => {
         if (e.code === "Escape" && editorResizePreview) { e.preventDefault(); cancelEditorResizePreview(); return; }
         if (e.code === "KeyM") { e.preventDefault(); showMainMenu(); return; }
         if (estadoJuego !== "PLAYING" && e.code === "Space") { e.preventDefault(); handlePostgamePrimaryAction(); return; }
         if (estadoJuego === "PLAYING" && e.code === "KeyC") { toggleAllDoors(); e.preventDefault(); return; }
-        if (e.code in teclas) { teclas[e.code] = false; e.preventDefault(); } 
+        if (e.code in teclas) {
+            if (isTypingIntoInput()) return;
+            teclas[e.code] = true;
+            if (e.code.startsWith("Arrow")) e.preventDefault();
+        } 
     });
     document.addEventListener("keyup", (e) => { 
-        if (e.code in teclas) { teclas[e.code] = false; e.preventDefault(); } 
+        if (e.code in teclas) {
+            teclas[e.code] = false;
+            if (e.code.startsWith("Arrow")) e.preventDefault();
+        } 
     });
 
     function createZombieEntity(x, y, custom = {}) {
@@ -4339,6 +4496,32 @@ const DOOR_BASE_HP = 70;
             setCanvasDragging(false);
             clampCamera(false);
         }, { passive: true });
+    }
+
+    if (lureAnalogStickElem) {
+        const startAnalog = (e) => {
+            if (estadoJuego !== "PLAYING" || editorState.active) return;
+            e.preventDefault();
+            stopCameraInertia();
+            lureControlState.pointerId = e.pointerId;
+            try { lureAnalogStickElem.setPointerCapture(e.pointerId); } catch (_) {}
+            setAnalogStickVectorFromClient(e.clientX, e.clientY);
+        };
+
+        lureAnalogStickElem.addEventListener("pointerdown", startAnalog, { passive: false });
+        lureAnalogStickElem.addEventListener("pointermove", (e) => {
+            if (lureControlState.pointerId !== e.pointerId) return;
+            e.preventDefault();
+            setAnalogStickVectorFromClient(e.clientX, e.clientY);
+        }, { passive: false });
+
+        const endAnalog = (e) => {
+            if (lureControlState.pointerId !== e.pointerId) return;
+            clearAnalogStickInput();
+            try { lureAnalogStickElem.releasePointerCapture(e.pointerId); } catch (_) {}
+        };
+        lureAnalogStickElem.addEventListener("pointerup", endAnalog);
+        lureAnalogStickElem.addEventListener("pointercancel", endAnalog);
     }
 
     canvas.addEventListener('wheel', (e) => {
@@ -7007,7 +7190,10 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
         if (!statusBarElem) return;
         const menuVisible = !!(mainMenuOverlay && mainMenuOverlay.classList.contains("visible"));
         const isVisible = ((estadoJuego === "PLAYING" && !menuVisible) || appState === "EDITOR");
+        const controlsVisible = (estadoJuego === "PLAYING" && !menuVisible && !editorState.active);
         statusBarElem.style.display = isVisible ? "flex" : "none";
+        if (bottomControlBarElem) bottomControlBarElem.style.display = controlsVisible ? "flex" : "none";
+        if (!controlsVisible) clearAnalogStickInput();
         if (!isVisible) setTopActionsMenuVisible(false);
     }
 
@@ -7072,6 +7258,7 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
         if (!lastFrameTime) lastFrameTime = timestamp;
         const dtMs = Math.min(90, timestamp - lastFrameTime);
         lastFrameTime = timestamp;
+        applyLureControlInput(dtMs);
 
         // simulation step relative to BASE_FPS
         const realCameraStep = Math.min(2.5, dtMs / FRAME_MS);
