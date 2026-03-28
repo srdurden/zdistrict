@@ -3529,6 +3529,7 @@ let ciudadanos = [];
     let zombieDeploySpawnTiles = new Set();
     let zombieLureTarget = null; // {id,x,y,moveFromX,moveFromY,moveToX,moveToY,moveStartFrame,moveEndFrame}
     let zombieLureIdCounter = 0;
+    let zombieLeader = null;
     const ZOMBIE_LURE_MOVE_FRAMES = BASE_FPS * 0.35;
 let frameCount = 0;
     let footstepCooldown = 0;
@@ -3629,25 +3630,83 @@ const DOOR_BASE_HP = 70;
         zombieLureTarget.moveEndFrame = undefined;
     }
 
+    function getZombieCenter(zombie) {
+        if (!zombie) return null;
+        return {
+            x: zombie.x + tamanoEntidad / 2,
+            y: zombie.y + tamanoEntidad / 2
+        };
+    }
+
+    function pickClosestZombieToPoint(x, y) {
+        if (!Array.isArray(zombies) || zombies.length === 0) return null;
+        let best = null;
+        let bestDist = Infinity;
+        for (const z of zombies) {
+            if (!z) continue;
+            const c = getZombieCenter(z);
+            if (!c) continue;
+            const d = distancia(c.x, c.y, x, y);
+            if (d < bestDist) {
+                bestDist = d;
+                best = z;
+            }
+        }
+        return best;
+    }
+
+    function ensureZombieLeader() {
+        if (!Array.isArray(zombies) || zombies.length === 0) {
+            zombieLeader = null;
+            return null;
+        }
+        if (zombieLeader && zombies.includes(zombieLeader)) return zombieLeader;
+        if (zombieLureTarget) {
+            zombieLeader = pickClosestZombieToPoint(zombieLureTarget.x, zombieLureTarget.y) || zombies[0] || null;
+        } else {
+            zombieLeader = zombies[0] || null;
+        }
+        return zombieLeader;
+    }
+
+    function clampZombieLureToLeader() {
+        if (!zombieLureTarget) return;
+        const leader = ensureZombieLeader();
+        if (!leader) return;
+        const center = getZombieCenter(leader);
+        if (!center) return;
+        const maxDist = cellSize;
+        const dx = zombieLureTarget.x - center.x;
+        const dy = zombieLureTarget.y - center.y;
+        const d = Math.hypot(dx, dy);
+        if (d > maxDist && d > 0) {
+            const k = maxDist / d;
+            zombieLureTarget.x = center.x + dx * k;
+            zombieLureTarget.y = center.y + dy * k;
+            clearLureMoveInterpolation();
+        }
+    }
+
     function ensureZombieLureTargetExists() {
         if (zombieLureTarget) return true;
         const worldX = jugador.x + tamanoEntidad / 2;
         const worldY = jugador.y + tamanoEntidad / 2;
         const snapped = snapWorldPointToGridCenter(worldX, worldY);
         if (!snapped) return false;
-        createZombieLureAt(snapped.x, snapped.y);
-        return true;
+        return createZombieLureAt(snapped.x, snapped.y);
     }
 
     function applyLureDirectMove(dx, dy) {
         if (estadoJuego !== "PLAYING" || editorState.active) return;
         if (!Number.isFinite(dx) || !Number.isFinite(dy) || (!dx && !dy)) return;
+        if (!ensureZombieLeader()) return;
         if (!ensureZombieLureTargetExists()) return;
         const world = getWorldPixelSize();
         const margin = cellSize / 2;
         zombieLureTarget.x = Math.max(margin, Math.min(world.width - margin, zombieLureTarget.x + dx));
         zombieLureTarget.y = Math.max(margin, Math.min(world.height - margin, zombieLureTarget.y + dy));
         clearLureMoveInterpolation();
+        clampZombieLureToLeader();
     }
 
     function applyLureControlInput(dtMs) {
@@ -3720,26 +3779,45 @@ const DOOR_BASE_HP = 70;
         if (isTileBlocked(tx, ty)) return;
         const x = Math.max(0, Math.min(world.width - tamanoEntidad, worldX - tamanoEntidad / 2));
         const y = Math.max(0, Math.min(world.height - tamanoEntidad, worldY - tamanoEntidad / 2));
-        zombies.push(createZombieEntity(x, y, custom || undefined));
+        const spawnedZombie = createZombieEntity(x, y, custom || undefined);
+        zombies.push(spawnedZombie);
+        if (!zombieLeader) zombieLeader = spawnedZombie;
         updateZombieLureNpcPriorityByHorde();
         addNoise(x, y, 160, 26);
         actualizarStatsUI();
     }
 
     function createZombieLureAt(worldX, worldY) {
+        if (!ensureZombieLeader()) return false;
         zombieLureTarget = {
             id: ++zombieLureIdCounter,
             x: worldX,
             y: worldY
         };
+        clampZombieLureToLeader();
+        return true;
     }
 
     function moveZombieLureTo(worldX, worldY) {
         if (!zombieLureTarget) return;
+        const leader = ensureZombieLeader();
+        if (!leader) return;
+        const center = getZombieCenter(leader);
+        const maxDist = cellSize;
+        let tx = worldX;
+        let ty = worldY;
+        const dx = tx - center.x;
+        const dy = ty - center.y;
+        const d = Math.hypot(dx, dy);
+        if (d > maxDist && d > 0) {
+            const k = maxDist / d;
+            tx = center.x + dx * k;
+            ty = center.y + dy * k;
+        }
         zombieLureTarget.moveFromX = zombieLureTarget.x;
         zombieLureTarget.moveFromY = zombieLureTarget.y;
-        zombieLureTarget.moveToX = worldX;
-        zombieLureTarget.moveToY = worldY;
+        zombieLureTarget.moveToX = tx;
+        zombieLureTarget.moveToY = ty;
         zombieLureTarget.moveStartFrame = frameCount;
         zombieLureTarget.moveEndFrame = frameCount + ZOMBIE_LURE_MOVE_FRAMES;
     }
@@ -3759,8 +3837,7 @@ const DOOR_BASE_HP = 70;
         if (!snapped) return false;
         if (!zombieLureTarget) {
             if (!createIfMissing) return false;
-            createZombieLureAt(snapped.x, snapped.y);
-            return true;
+            return createZombieLureAt(snapped.x, snapped.y);
         }
         zombieLureTarget.x = snapped.x;
         zombieLureTarget.y = snapped.y;
@@ -3770,6 +3847,7 @@ const DOOR_BASE_HP = 70;
         zombieLureTarget.moveToY = undefined;
         zombieLureTarget.moveStartFrame = undefined;
         zombieLureTarget.moveEndFrame = undefined;
+        clampZombieLureToLeader();
         return true;
     }
 
@@ -6845,6 +6923,7 @@ function generarMapa() {
 
         ciudadanos = []; zombies = []; policias = []; cadaveres = []; bengalasActivas = [];
         zombieLureTarget = null;
+        zombieLeader = null;
         updateZombieLureNpcPriorityByHorde();
         invalidateNavigationCaches();
         setZombieLureArmed(false);
@@ -7136,7 +7215,8 @@ updateZombieLureNpcPriorityByHorde();
 if (zombies.length > 0) {
     // Si el escenario ya trae zombies colocados, activar automáticamente la diana
     // debajo de uno de ellos al iniciar la partida.
-    const seededZombie = zombies[0];
+    zombieLeader = zombies[0];
+    const seededZombie = zombieLeader;
     createZombieLureAt(seededZombie.x + tamanoEntidad / 2, seededZombie.y + tamanoEntidad / 2);
 }
 if (isActionCameraEnabled()) {
@@ -7235,6 +7315,7 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
             addHordeEnergy(-10);
         }
         zombies = [];
+        zombieLeader = null;
         updateZombieLureNpcPriorityByHorde();
     }
 
@@ -7300,6 +7381,9 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
                 zombieLureTarget.y = zombieLureTarget.moveFromY + (zombieLureTarget.moveToY - zombieLureTarget.moveFromY) * easeOut;
             }
         }
+
+        ensureZombieLeader();
+        clampZombieLureToLeader();
 
         updateNoises(simStep);
         directorTick(simStep);
@@ -7774,6 +7858,7 @@ drawDoorsWorld();
             target.lastHitFrame = frameCount;
             pushScreenShake(0.55);
             if (target.hp <= 0) {
+                if (target === zombieLeader) zombieLeader = null;
                 zombies.splice(targetIndex, 1);
                 cadaveres.push({ x: target.x, y: target.y });
                 gameStats.zombiesKilled++;
@@ -8176,6 +8261,7 @@ drawDoorsWorld();
                     bloodiness: 0.58
                 });
                 zombies.push(newZombie);
+                if (!zombieLeader) zombieLeader = newZombie;
                 updateZombieLureNpcPriorityByHorde();
                 if (citIdx !== -1) ciudadanos.splice(citIdx, 1);
                 if (polIdx !== -1) policias.splice(polIdx, 1);
