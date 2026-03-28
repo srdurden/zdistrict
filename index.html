@@ -873,6 +873,10 @@ body.editor-active #configPanel {
         <div class="slider-header"><span class="slider-label">Diana: duración (s)</span><input type="number" id="zombieLureDurationSecNum" min="1" max="120" step="1" value="10"></div>
         <input type="range" id="zombieLureDurationSecSlider" min="1" max="120" step="1" value="10">
     </div>
+    <div class="toggle-row">
+        <span class="toggle-label">Mostrar diana visual</span>
+        <input type="checkbox" id="showZombieLureCheckbox">
+    </div>
     <div class="slider-group">
         <div class="slider-header"><span class="slider-label">Energía inicial</span><input type="number" id="initialEnergyNum" min="1" max="10000" step="1" value="100"></div>
         <input type="range" id="initialEnergySlider" min="1" max="10000" step="1" value="100">
@@ -2146,6 +2150,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     const zombieLureRadiusTilesSlider = document.getElementById("zombieLureRadiusTilesSlider"); const zombieLureRadiusTilesNum = document.getElementById("zombieLureRadiusTilesNum");
     const zombieLureNpcPriorityTilesSlider = document.getElementById("zombieLureNpcPriorityTilesSlider"); const zombieLureNpcPriorityTilesNum = document.getElementById("zombieLureNpcPriorityTilesNum");
     const zombieLureDurationSecSlider = document.getElementById("zombieLureDurationSecSlider"); const zombieLureDurationSecNum = document.getElementById("zombieLureDurationSecNum");
+    const showZombieLureCheckbox = document.getElementById("showZombieLureCheckbox");
     const initialEnergySlider = document.getElementById("initialEnergySlider"); const initialEnergyNum = document.getElementById("initialEnergyNum");
     const feastWindowSecSlider = document.getElementById("feastWindowSecSlider"); const feastWindowSecNum = document.getElementById("feastWindowSecNum");
     
@@ -3179,6 +3184,7 @@ const txtEventoElem = document.getElementById("txtEvento");
     const ZOMBIE_LURE_NPC_PRIORITY_BASE_TILES = 5;
     let zombieLureNpcPriorityTiles = ZOMBIE_LURE_NPC_PRIORITY_BASE_TILES;
     let zombieLureDurationFrames = 30 * 30;
+    let showZombieLureVisual = false;
     let policeShootCooldownFrames = 30 * 1.0;
     const policePanicMemoryFrames = 30 * 10;
     const policeShootRangePx = 120;
@@ -3265,6 +3271,7 @@ const txtEventoElem = document.getElementById("txtEvento");
             zombieLureRadiusTiles: toFloat(zombieLureRadiusTilesNum, 20),
             zombieLureNpcPriorityTiles: toFloat(zombieLureNpcPriorityTilesNum, 5),
             zombieLureDurationSec: toFloat(zombieLureDurationSecNum, 10),
+            showZombieLureVisual: !!(showZombieLureCheckbox && showZombieLureCheckbox.checked),
             initialEnergy: toInt(initialEnergyNum, 100),
             feastWindowSec: toInt(feastWindowSecNum, 5),
 
@@ -3303,6 +3310,8 @@ const txtEventoElem = document.getElementById("txtEvento");
         zombieLureNpcPriorityTiles = ZOMBIE_LURE_NPC_PRIORITY_BASE_TILES;
         updateZombieLureNpcPriorityByHorde();
         zombieLureDurationFrames = BASE_FPS * Math.max(1, Number.isFinite(settings.zombieLureDurationSec) ? settings.zombieLureDurationSec : 10);
+        showZombieLureVisual = !!settings.showZombieLureVisual;
+        if (showZombieLureCheckbox) showZombieLureCheckbox.checked = showZombieLureVisual;
         hordeEnergy = Math.max(0, Math.floor(Number.isFinite(settings.initialEnergy) ? settings.initialEnergy : 100));
         feastWindowSec = Math.max(1, Math.floor(Number.isFinite(settings.feastWindowSec) ? settings.feastWindowSec : 5));
         hungerPerZombie = DEFAULT_HUNGER_PER_ZOMBIE;
@@ -7572,6 +7581,19 @@ drawDoorsWorld();
             }
             ctx.stroke();
 
+            if (inferredKind === "zombie" && e === zombieLeader) {
+                const leaderRingPad = 1.4;
+                ctx.strokeStyle = "rgba(0, 0, 0, 0.95)";
+                ctx.lineWidth = 2.25;
+                ctx.beginPath();
+                if (typeof ctx.ellipse === "function") {
+                    ctx.ellipse(0, 0, bodyRadiusX + leaderRingPad, bodyRadiusY + leaderRingPad, 0, 0, Math.PI * 2);
+                } else {
+                    ctx.arc(0, 0, Math.max(bodyRadiusX, bodyRadiusY) + leaderRingPad, 0, Math.PI * 2);
+                }
+                ctx.stroke();
+            }
+
             if (inferredKind === "zombie" && radius >= 3) {
                 ctx.fillStyle = zombieTugging ? "rgba(20,20,20,0.78)" : "rgba(38,50,56,0.6)";
                 ctx.beginPath();
@@ -8560,7 +8582,7 @@ drawDoorsWorld();
             drawEnt(zombie, PALETA.zombie, radioVisual, "zombie");
         });
 
-        if (zombieLureTarget) {
+        if (zombieLureTarget && showZombieLureVisual) {
             const lx = zombieLureTarget.x;
             const ly = zombieLureTarget.y;
             ctx.save();
@@ -8581,7 +8603,7 @@ drawDoorsWorld();
             ctx.restore();
         }
 
-        if (lureMovePreviewTile && zombieLureTarget) {
+        if (lureMovePreviewTile && zombieLureTarget && showZombieLureVisual) {
             const previewX = (lureMovePreviewTile.x * cellSize) + cellSize / 2;
             const previewY = (lureMovePreviewTile.y * cellSize) + cellSize / 2;
             const isSameSpot = Math.hypot(previewX - zombieLureTarget.x, previewY - zombieLureTarget.y) < 0.1;
