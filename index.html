@@ -3531,6 +3531,7 @@ let ciudadanos = [];
     let zombieLureIdCounter = 0;
     let zombieLeader = null;
     const ZOMBIE_LURE_MOVE_FRAMES = BASE_FPS * 0.35;
+    const ZOMBIE_LURE_MAX_DISTANCE_TILES = 2;
 let frameCount = 0;
     let footstepCooldown = 0;
     const LURE_CONTROL_SPEED_PX_PER_SEC = 11 * cellSize;
@@ -3675,7 +3676,7 @@ const DOOR_BASE_HP = 70;
         if (!leader) return;
         const center = getZombieCenter(leader);
         if (!center) return;
-        const maxDist = cellSize;
+        const maxDist = cellSize * ZOMBIE_LURE_MAX_DISTANCE_TILES;
         const dx = zombieLureTarget.x - center.x;
         const dy = zombieLureTarget.y - center.y;
         const d = Math.hypot(dx, dy);
@@ -3803,7 +3804,7 @@ const DOOR_BASE_HP = 70;
         const leader = ensureZombieLeader();
         if (!leader) return;
         const center = getZombieCenter(leader);
-        const maxDist = cellSize;
+        const maxDist = cellSize * ZOMBIE_LURE_MAX_DISTANCE_TILES;
         let tx = worldX;
         let ty = worldY;
         const dx = tx - center.x;
@@ -7708,11 +7709,23 @@ drawDoorsWorld();
             return ciudadanos.includes(npc) || policias.includes(npc);
         };
 
+        const canZombieChaseCitizen = (zombie, citizen) => {
+            if (!zombie || !citizen) return false;
+            if (!ciudadanos.includes(citizen)) return true;
+            if (zombie !== ensureZombieLeader()) return true;
+            const zombieCx = zombie.x + (tamanoEntidad * 0.5);
+            const zombieCy = zombie.y + (tamanoEntidad * 0.5);
+            const citizenCx = citizen.x + (tamanoEntidad * 0.5);
+            const citizenCy = citizen.y + (tamanoEntidad * 0.5);
+            return distancia(zombieCx, zombieCy, citizenCx, citizenCy) <= cellSize;
+        };
+
         const pickZombieNpcObjective = (zombie, forceRetarget = false) => {
             if (!zombie) return null;
             const nearby = [];
             const tryPush = (npc) => {
                 if (!isNpcViableTarget(npc)) return;
+                if (!canZombieChaseCitizen(zombie, npc)) return;
                 nearby.push({ npc, d: distancia(zombie.x, zombie.y, npc.x, npc.y) });
             };
             ciudadanos.forEach(tryPush);
@@ -8286,6 +8299,7 @@ drawDoorsWorld();
             if (lureActive) {
                 const checkNpcNearLure = (e) => {
                     if (!e || (e.infectionFramesLeft && e.infectionFramesLeft > 0)) return;
+                    if (!canZombieChaseCitizen(zombie, e)) return;
                     const dToLure = distancia(e.x, e.y, zombieLureTarget.x, zombieLureTarget.y);
                     if (dToLure > lureNpcPriorityPx) return;
                     const dToZombie = distancia(zombie.x, zombie.y, e.x, e.y);
@@ -8327,11 +8341,12 @@ drawDoorsWorld();
                 if(!target) {
                     const check = (e) => {
                         if (e && e.infectionFramesLeft && e.infectionFramesLeft > 0) return;
+                        if (!canZombieChaseCitizen(zombie, e)) return;
                         const d = distancia(zombie.x, zombie.y, e.x, e.y);
                         if (d < minDist) { minDist=d; target=e; }
                     };
                     const objective = pickZombieNpcObjective(zombie);
-                    if (isNpcViableTarget(objective)) {
+                    if (isNpcViableTarget(objective) && canZombieChaseCitizen(zombie, objective)) {
                         target = objective;
                         minDist = distancia(zombie.x, zombie.y, objective.x, objective.y);
                     } else {
