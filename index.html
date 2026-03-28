@@ -7521,7 +7521,8 @@ drawDoorsWorld();
 
             const bodyRadiusX = radius * (inferredKind === "zombie" ? 1.02 : 1);
             const bodyRadiusY = radius * (inferredKind === "zombie" ? 0.96 : 1);
-            ctx.fillStyle = color;
+            const bodyColor = (inferredKind === "zombie" && e === zombieLeader) ? "#7b1f2a" : color;
+            ctx.fillStyle = bodyColor;
             ctx.beginPath();
             if (typeof ctx.ellipse === "function") {
                 ctx.ellipse(0, 0, bodyRadiusX, bodyRadiusY, 0, 0, Math.PI * 2);
