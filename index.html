@@ -7669,9 +7669,10 @@ drawDoorsWorld();
 
         const infectNpcFromZombie = (npc, zombie) => {
             if (!npc || !zombie) return;
-            if (npc.infectionFramesLeft && npc.infectionFramesLeft > 0) return;
+            if ((npc.infectionFramesLeft && npc.infectionFramesLeft > 0) || npc.infectedBy) return;
             const propagationSec = Number.isFinite(zombie.propagationSec) ? zombie.propagationSec : 5;
-            npc.infectionFramesLeft = Math.max(1, propagationSec * BASE_FPS);
+            const infectionFrames = Math.max(0, Math.round(propagationSec * BASE_FPS));
+            npc.infectionFramesLeft = infectionFrames;
             npc.infectedBy = {
                 speed: Number.isFinite(zombie.speed) ? zombie.speed : velocidadZombie,
                 propagationSec,
@@ -7703,6 +7704,10 @@ drawDoorsWorld();
                 );
             }
             lastInfectionAt = now;
+
+            if (infectionFrames <= 0) {
+                pendingZombieTransforms.push({ npc, infectedBy: npc.infectedBy });
+            }
         };
 
         const getNpcTypeForEntity = (ent) => {
