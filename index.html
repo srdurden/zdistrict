@@ -180,6 +180,7 @@
         }
 
         #hordeActiveCount { width: 5ch; }
+        #civiliansRemainingCount { width: 3ch; }
         #energyCount { width: 4ch; }
         #hungerCount { width: 3ch; }
 
@@ -956,6 +957,7 @@ body.editor-active #configPanel {
     <div id="statusBar">
         <div class="status-summary">
             <div class="status-item">🎯<span class="status-count" id="hordeActiveCount">0/0</span></div>
+            <div class="status-item">👥<span class="status-count" id="civiliansRemainingCount">0</span></div>
             <div class="status-item">⚡<span class="status-count" id="energyCount">100</span></div>
             <div class="status-item">🍖<span class="status-count" id="hungerCount">1</span></div>
         </div>
@@ -1797,7 +1799,7 @@ body.editor-active #configPanel {
         const power = (typeof intensity === "number") ? intensity : (Number.isFinite(opts.intensity) ? opts.intensity : 1);
         const dir = opts.dir ? normalizar(opts.dir.x, opts.dir.y) : null;
         const varianceBoost = 1 + Math.random() * 1.9;
-        const ellipseBase = 1.6 + Math.random() * (4.4 + power * 3.8) * varianceBoost;
+        const ellipseBase = (1.6 + Math.random() * (4.4 + power * 3.8) * varianceBoost) * BLOOD_STAIN_SIZE_MULTIPLIER;
         const alpha = Math.min(0.52, (0.14 + Math.random() * 0.22) + (opts.alphaBoost || 0));
         const canPlaceBloodAt = (bx, by) => hasWallLineOfSightPx(x, y, bx, by, { ignoreStartTile: true, ignoreEndTile: false });
 
@@ -1821,8 +1823,8 @@ body.editor-active #configPanel {
                 const jitter = (Math.random() - 0.5) * (0.5 + power * 0.12);
                 const ox = x + dir.x * distance + (-dir.y) * jitter * 2.3;
                 const oy = y + dir.y * distance + (dir.x) * jitter * 2.3;
-                const rx = 0.8 + Math.random() * (1.4 + power * 0.5);
-                const ry = 0.45 + Math.random() * 0.9;
+                const rx = (0.8 + Math.random() * (1.4 + power * 0.5)) * BLOOD_STAIN_SIZE_MULTIPLIER;
+                const ry = (0.45 + Math.random() * 0.9) * BLOOD_STAIN_SIZE_MULTIPLIER;
                 if (!canPlaceBloodAt(ox, oy)) continue;
                 pushBloodStainSafely({
                     x: ox,
@@ -1942,7 +1944,7 @@ body.editor-active #configPanel {
             ctx.fillStyle = `rgba(183,28,28,${a})`;
             ctx.beginPath();
             if (s.rx && s.ry && typeof ctx.ellipse === "function") {
-                ctx.ellipse(s.x, s.y, Math.max(0.3, s.rx), Math.max(0.25, s.ry), s.rot || 0, 0, Math.PI * 2);
+                ctx.ellipse(s.x, s.y, Math.max(0.15, s.rx), Math.max(0.125, s.ry), s.rot || 0, 0, Math.PI * 2);
             } else {
                 ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
             }
@@ -2126,6 +2128,7 @@ body.editor-active #configPanel {
     const numSalvadosElem = document.getElementById("numSalvados");
 const txtEventoElem = document.getElementById("txtEvento");
     const hordeActiveElem = document.getElementById("hordeActiveCount");
+    const civiliansRemainingElem = document.getElementById("civiliansRemainingCount");
     const energyCountElem = document.getElementById("energyCount");
     const hungerCountElem = document.getElementById("hungerCount");
     const statusBarElem = document.getElementById("statusBar");
@@ -2591,6 +2594,10 @@ const txtEventoElem = document.getElementById("txtEvento");
     let campaignIndex = 0;
     let postGameShown = false;
     let postWasVictory = false;
+    let pendingVictoryAtMs = null;
+
+    const BLOOD_STAIN_SIZE_MULTIPLIER = 0.5;
+    const VICTORY_END_DELAY_MS = 3000;
 
     editorState = {
         active: false,
@@ -6908,6 +6915,7 @@ function generarMapa() {
         staticDirty = true; 
         if (postGameOverlay) postGameOverlay.classList.remove("visible");
         postGameShown = false;
+        pendingVictoryAtMs = null;
         if (animationId) cancelAnimationFrame(animationId);
         resetTimeSpeed();
 
@@ -7251,6 +7259,7 @@ if (isActionCameraEnabled()) {
         if (numBengalasElem) numBengalasElem.textContent = bengalasRestantes;
         if (numSalvadosElem) numSalvadosElem.textContent = ciudadanosSalvados;
         if (hordeActiveElem) hordeActiveElem.textContent = `${zombies.length}/${totalHorde}`;
+        if (civiliansRemainingElem) civiliansRemainingElem.textContent = `${getLivingCiviliansCount()}`;
         if (energyCountElem) energyCountElem.textContent = `${Math.max(0, Math.floor(hordeEnergy))}`;
         if (hungerCountElem) hungerCountElem.textContent = `${effectiveHunger}`;
 if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? director.message : "-";
@@ -8775,10 +8784,18 @@ drawDoorsWorld();
         disparoEnFotograma = false;
 
 
-        if (!editorState.active && getActiveZombieThreatCount() === 0 && estadoJuego === "PLAYING") {
-            estadoJuego = "DEFEAT";
-        } else if (!editorState.active && (ciudadanos.length + policias.length) === 0 && estadoJuego === "PLAYING") {
-            estadoJuego = "VICTORY";
+        if (!editorState.active && estadoJuego === "PLAYING") {
+            const livingCivilians = getLivingCiviliansCount();
+            if (livingCivilians === 0) {
+                if (pendingVictoryAtMs == null) pendingVictoryAtMs = Date.now() + VICTORY_END_DELAY_MS;
+                if (Date.now() >= pendingVictoryAtMs) estadoJuego = "VICTORY";
+            } else {
+                pendingVictoryAtMs = null;
+            }
+            if (estadoJuego === "PLAYING" && getActiveZombieThreatCount() === 0) {
+                estadoJuego = "DEFEAT";
+                pendingVictoryAtMs = null;
+            }
         }
 
         drawAttackBursts();
