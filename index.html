@@ -2073,6 +2073,78 @@ body.editor-active #configPanel {
         }
     }
 
+    function roundRect(targetCtx, x, y, width, height, radius) {
+        const r = Math.max(0, Math.min(radius, Math.min(width, height) * 0.5));
+        targetCtx.beginPath();
+        targetCtx.moveTo(x + r, y);
+        targetCtx.lineTo(x + width - r, y);
+        targetCtx.quadraticCurveTo(x + width, y, x + width, y + r);
+        targetCtx.lineTo(x + width, y + height - r);
+        targetCtx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+        targetCtx.lineTo(x + r, y + height);
+        targetCtx.quadraticCurveTo(x, y + height, x, y + height - r);
+        targetCtx.lineTo(x, y + r);
+        targetCtx.quadraticCurveTo(x, y, x + r, y);
+        targetCtx.closePath();
+    }
+
+    function drawEnergyOverlay() {
+        if (estadoJuego !== "PLAYING" || editorState.active) return;
+
+        const energyValue = Math.max(0, Math.floor(hordeEnergy));
+        const isMobile = window.matchMedia("(max-width: 900px)").matches;
+        const panelW = isMobile ? 154 : 196;
+        const panelH = isMobile ? 64 : 84;
+        const margin = isMobile ? 14 : 18;
+        const radius = isMobile ? 16 : 20;
+        const iconRadius = isMobile ? 18 : 22;
+        const iconX = margin + (isMobile ? 32 : 40);
+        const iconY = margin + (panelH * 0.5);
+        const textX = margin + (isMobile ? 64 : 82);
+
+        ctx.save();
+
+        const cardGradient = ctx.createLinearGradient(margin, margin, margin, margin + panelH);
+        cardGradient.addColorStop(0, "rgba(255,255,255,0.95)");
+        cardGradient.addColorStop(1, "rgba(255,255,255,0.88)");
+        ctx.fillStyle = cardGradient;
+        roundRect(ctx, margin, margin, panelW, panelH, radius);
+        ctx.fill();
+
+        ctx.shadowColor = "rgba(0,0,0,0.12)";
+        ctx.shadowBlur = 12;
+        ctx.shadowOffsetY = 6;
+        const coinGrad = ctx.createLinearGradient(iconX, iconY - iconRadius, iconX, iconY + iconRadius);
+        coinGrad.addColorStop(0, "#ffe082");
+        coinGrad.addColorStop(1, "#ffca28");
+        ctx.fillStyle = coinGrad;
+        ctx.beginPath();
+        ctx.arc(iconX, iconY, iconRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowColor = "transparent";
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+
+        ctx.strokeStyle = "#f9a825";
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.arc(iconX, iconY, iconRadius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.fillStyle = "#f9a825";
+        ctx.font = `900 ${isMobile ? 26 : 30}px Nunito`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("⚡", iconX, iconY + 1);
+
+        ctx.fillStyle = "#3e2f38";
+        ctx.textAlign = "left";
+        ctx.font = `900 ${isMobile ? 40 : 56}px Nunito`;
+        ctx.fillText(`${energyValue}`, textX, iconY + 3);
+
+        ctx.restore();
+    }
+
     function buildStaticLayer() {
         if (!grid || !grid.length) return;
         const world = getWorldPixelSize();
@@ -8829,6 +8901,7 @@ drawDoorsWorld();
 
         ctx.restore();
         drawGrainAndVignette();
+        drawEnergyOverlay();
 
         if (estadoJuego !== "PLAYING") {
             // Stats Calc
