@@ -7667,6 +7667,35 @@ drawDoorsWorld();
 
         const pendingZombieTransforms = [];
 
+        const convertNpcToZombie = (npc, infectedBy) => {
+            if (!npc || !infectedBy) return false;
+            const citIdx = ciudadanos.indexOf(npc);
+            const polIdx = policias.indexOf(npc);
+            if (citIdx === -1 && polIdx === -1) return false;
+            addBlood(npc.x + 1.5, npc.y + 1.5, {
+                intensity: 2.6,
+                dir: { x: Math.cos(frameCount * 0.17), y: Math.sin(frameCount * 0.21) },
+                spray: true,
+                smear: true,
+                alphaBoost: 0.12
+            });
+            addAttackBurst(npc.x + 1.5, npc.y + 1.5, { radius: 15, ttl: 11, darkAlpha: 0.22, ringAlpha: 0.18, intensity: 1.15 });
+            pushScreenShake(1.1);
+            const newZombie = createZombieEntity(npc.x, npc.y, {
+                speed: infectedBy.speed,
+                propagationSec: infectedBy.propagationSec,
+                strength: clampStrength(infectedBy.strength, zombieBaseStrength),
+                bloodiness: 0.58
+            });
+            zombies.push(newZombie);
+            if (!zombieLeader) zombieLeader = newZombie;
+            updateZombieLureNpcPriorityByHorde();
+            if (citIdx !== -1) ciudadanos.splice(citIdx, 1);
+            if (polIdx !== -1) policias.splice(polIdx, 1);
+            gameStats.civsInfected++;
+            return true;
+        };
+
         const infectNpcFromZombie = (npc, zombie) => {
             if (!npc || !zombie) return;
             if ((npc.infectionFramesLeft && npc.infectionFramesLeft > 0) || npc.infectedBy) return;
@@ -7706,7 +7735,7 @@ drawDoorsWorld();
             lastInfectionAt = now;
 
             if (infectionFrames <= 0) {
-                pendingZombieTransforms.push({ npc, infectedBy: npc.infectedBy });
+                convertNpcToZombie(npc, npc.infectedBy);
             }
         };
 
@@ -8268,32 +8297,7 @@ drawDoorsWorld();
 
         if (!editorState.active && pendingZombieTransforms.length) {
             for (const entry of pendingZombieTransforms) {
-                const npc = entry.npc;
-                if (!npc) continue;
-                const citIdx = ciudadanos.indexOf(npc);
-                const polIdx = policias.indexOf(npc);
-                if (citIdx === -1 && polIdx === -1) continue;
-                addBlood(npc.x + 1.5, npc.y + 1.5, {
-                    intensity: 2.6,
-                    dir: { x: Math.cos(frameCount * 0.17), y: Math.sin(frameCount * 0.21) },
-                    spray: true,
-                    smear: true,
-                    alphaBoost: 0.12
-                });
-                addAttackBurst(npc.x + 1.5, npc.y + 1.5, { radius: 15, ttl: 11, darkAlpha: 0.22, ringAlpha: 0.18, intensity: 1.15 });
-                pushScreenShake(1.1);
-                const newZombie = createZombieEntity(npc.x, npc.y, {
-                    speed: entry.infectedBy.speed,
-                    propagationSec: entry.infectedBy.propagationSec,
-                    strength: clampStrength(entry.infectedBy.strength, zombieBaseStrength),
-                    bloodiness: 0.58
-                });
-                zombies.push(newZombie);
-                if (!zombieLeader) zombieLeader = newZombie;
-                updateZombieLureNpcPriorityByHorde();
-                if (citIdx !== -1) ciudadanos.splice(citIdx, 1);
-                if (polIdx !== -1) policias.splice(polIdx, 1);
-                gameStats.civsInfected++;
+                convertNpcToZombie(entry.npc, entry.infectedBy);
             }
             actualizarStatsUI();
         }
