@@ -7788,15 +7788,14 @@ drawDoorsWorld();
             return ciudadanos.includes(npc) || policias.includes(npc);
         };
 
-        const canZombieChaseCitizen = (zombie, citizen) => {
-            if (!zombie || !citizen) return false;
-            if (!ciudadanos.includes(citizen)) return true;
+        const canZombieChaseCitizen = (zombie, npc) => {
+            if (!zombie || !npc) return false;
             if (zombie !== ensureZombieLeader()) return true;
             const zombieCx = zombie.x + (tamanoEntidad * 0.5);
             const zombieCy = zombie.y + (tamanoEntidad * 0.5);
-            const citizenCx = citizen.x + (tamanoEntidad * 0.5);
-            const citizenCy = citizen.y + (tamanoEntidad * 0.5);
-            return distancia(zombieCx, zombieCy, citizenCx, citizenCy) <= cellSize;
+            const npcCx = npc.x + (tamanoEntidad * 0.5);
+            const npcCy = npc.y + (tamanoEntidad * 0.5);
+            return distancia(zombieCx, zombieCy, npcCx, npcCy) <= cellSize;
         };
 
         const pickZombieNpcObjective = (zombie, forceRetarget = false) => {
