@@ -1620,7 +1620,11 @@ body.editor-active #configPanel {
     const wallLayer = document.createElement("canvas");
     const wallCtx = wallLayer.getContext("2d");
     wallCtx.imageSmoothingEnabled = false;
+    const bloodLayer = document.createElement("canvas");
+    const bloodCtx = bloodLayer.getContext("2d");
+    bloodCtx.imageSmoothingEnabled = true;
     let staticDirty = true;
+    let bloodLayerDirty = true;
 
     let fieldRectTiles = null; // legacy placeholder (fields removed)
 
@@ -1772,6 +1776,7 @@ body.editor-active #configPanel {
         for (let i = 0; i < 7; i++) {
             if (canPlaceBloodShape(candidate)) {
                 bloodStains.push(candidate);
+                drawSingleBloodStain(candidate, bloodCtx);
                 return true;
             }
             candidate = {
@@ -1783,12 +1788,14 @@ body.editor-active #configPanel {
         }
 
         if (!isPointBlockedByWall(candidate.x, candidate.y)) {
-            bloodStains.push({
+            const fallbackStain = {
                 ...candidate,
                 r: Math.max(0.16, candidate.r * 0.55),
                 rx: Math.max(0.16, candidate.rx * 0.55),
                 ry: Math.max(0.16, candidate.ry * 0.55)
-            });
+            };
+            bloodStains.push(fallbackStain);
+            drawSingleBloodStain(fallbackStain, bloodCtx);
             return true;
         }
         return false;
@@ -1938,29 +1945,46 @@ body.editor-active #configPanel {
         }
     }
 
-    function drawBloodStains() {
-        for (const s of bloodStains) {
-            const a = Math.max(0.08, Math.min(0.52, s.alpha || 0.2));
-            ctx.fillStyle = `rgba(183,28,28,${a})`;
-            ctx.beginPath();
-            if (s.rx && s.ry && typeof ctx.ellipse === "function") {
-                ctx.ellipse(s.x, s.y, Math.max(0.15, s.rx), Math.max(0.125, s.ry), s.rot || 0, 0, Math.PI * 2);
-            } else {
-                ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-            }
-            ctx.fill();
+    function syncBloodLayerSize() {
+        const world = getWorldPixelSize();
+        if (bloodLayer.width === world.width && bloodLayer.height === world.height) return;
+        bloodLayer.width = world.width;
+        bloodLayer.height = world.height;
+        bloodLayerDirty = true;
+    }
 
-            if (s.kind === "pool" || s.kind === "splash") {
-                ctx.fillStyle = `rgba(255,205,210,${Math.max(0.02, a * 0.16)})`;
-                ctx.beginPath();
-                if (s.rx && s.ry && typeof ctx.ellipse === "function") {
-                    ctx.ellipse(s.x - ((s.rx || s.r) * 0.15), s.y - ((s.ry || s.r) * 0.18), Math.max(0.2, (s.rx || s.r) * 0.35), Math.max(0.15, (s.ry || s.r) * 0.18), s.rot || 0, 0, Math.PI * 2);
-                } else {
-                    ctx.arc(s.x - (s.r * 0.18), s.y - (s.r * 0.2), Math.max(0.15, s.r * 0.22), 0, Math.PI * 2);
-                }
-                ctx.fill();
-            }
+    function drawSingleBloodStain(stain, targetCtx = ctx) {
+        if (!stain || !targetCtx) return;
+        const a = Math.max(0.08, Math.min(0.52, stain.alpha || 0.2));
+        targetCtx.fillStyle = `rgba(183,28,28,${a})`;
+        targetCtx.beginPath();
+        if (stain.rx && stain.ry && typeof targetCtx.ellipse === "function") {
+            targetCtx.ellipse(stain.x, stain.y, Math.max(0.15, stain.rx), Math.max(0.125, stain.ry), stain.rot || 0, 0, Math.PI * 2);
+        } else {
+            targetCtx.arc(stain.x, stain.y, stain.r, 0, Math.PI * 2);
         }
+        targetCtx.fill();
+
+        if (stain.kind === "pool" || stain.kind === "splash") {
+            targetCtx.fillStyle = `rgba(255,205,210,${Math.max(0.02, a * 0.16)})`;
+            targetCtx.beginPath();
+            if (stain.rx && stain.ry && typeof targetCtx.ellipse === "function") {
+                targetCtx.ellipse(stain.x - ((stain.rx || stain.r) * 0.15), stain.y - ((stain.ry || stain.r) * 0.18), Math.max(0.2, (stain.rx || stain.r) * 0.35), Math.max(0.15, (stain.ry || stain.r) * 0.18), stain.rot || 0, 0, Math.PI * 2);
+            } else {
+                targetCtx.arc(stain.x - (stain.r * 0.18), stain.y - (stain.r * 0.2), Math.max(0.15, stain.r * 0.22), 0, Math.PI * 2);
+            }
+            targetCtx.fill();
+        }
+    }
+
+    function drawBloodStains() {
+        syncBloodLayerSize();
+        if (bloodLayerDirty) {
+            bloodCtx.clearRect(0, 0, bloodLayer.width, bloodLayer.height);
+            for (const stain of bloodStains) drawSingleBloodStain(stain, bloodCtx);
+            bloodLayerDirty = false;
+        }
+        ctx.drawImage(bloodLayer, 0, 0);
     }
 
     function drawAttackBursts() {
@@ -2057,6 +2081,7 @@ body.editor-active #configPanel {
 
         wallLayer.width = world.width;
         wallLayer.height = world.height;
+        syncBloodLayerSize();
 
         const w = staticLayer.width, h = staticLayer.height;
         staticCtx.clearRect(0, 0, w, h);
@@ -6911,6 +6936,7 @@ function generarMapa() {
         introTimer = 0;
         particles = [];
         bloodStains = [];
+        bloodLayerDirty = true;
         floatingTexts = [];
         staticDirty = true; 
         if (postGameOverlay) postGameOverlay.classList.remove("visible");
