@@ -8312,10 +8312,28 @@ drawDoorsWorld();
                 return;
             }
 
+            const currentLeader = ensureZombieLeader();
+            const isMainZombie = zombie === currentLeader;
+            const mainZombieNpcAutoChaseRadius = cellSize * 4.5;
+            const mainZombieLureStopRadius = Math.max(0.35, cellSize * 0.22);
+            let holdMainZombieAtLure = false;
             let target = null; let minDist = Infinity;
             const lureActive = zombieLureTarget;
             const lureNpcPriorityPx = zombieLureNpcPriorityTiles * cellSize;
             if (lureActive) {
+                const tryAcquireNearbyNpcForMainZombie = (e) => {
+                    if (!isMainZombie || target) return;
+                    if (!e || (e.infectionFramesLeft && e.infectionFramesLeft > 0)) return;
+                    if (!canZombieChaseCitizen(zombie, e)) return;
+                    const dToZombie = distancia(zombie.x, zombie.y, e.x, e.y);
+                    if (dToZombie > mainZombieNpcAutoChaseRadius) return;
+                    if (!(dToZombie < 35 || tieneLineaDeVision(zombie.x, zombie.y, e.x, e.y))) return;
+                    minDist = dToZombie;
+                    target = e;
+                };
+                policias.forEach(tryAcquireNearbyNpcForMainZombie);
+                ciudadanos.forEach(tryAcquireNearbyNpcForMainZombie);
+
                 const checkNpcNearLure = (e) => {
                     if (!e || (e.infectionFramesLeft && e.infectionFramesLeft > 0)) return;
                     if (!canZombieChaseCitizen(zombie, e)) return;
@@ -8331,15 +8349,20 @@ drawDoorsWorld();
                 ciudadanos.forEach(checkNpcNearLure);
 
                 if (!target) {
-                    const maxGatherRadius = Math.max(cellSize * 0.9, zombieLureRadiusTiles * cellSize * 0.5);
-                    if (!Number.isFinite(zombie.lureOrbitSeed)) zombie.lureOrbitSeed = Math.random() * Math.PI * 2;
-                    if (!Number.isFinite(zombie.lureOrbitRadius)) {
-                        zombie.lureOrbitRadius = Math.min(maxGatherRadius, cellSize * (0.9 + (Math.floor(Math.random() * 4) * 0.35)));
-                    }
-                    const orbitAngle = zombie.lureOrbitSeed + frameCount * 0.018;
-                    const gatherX = zombieLureTarget.x + Math.cos(orbitAngle) * zombie.lureOrbitRadius;
-                    const gatherY = zombieLureTarget.y + Math.sin(orbitAngle) * zombie.lureOrbitRadius;
                     const lureGoalTile = worldToTile(zombieLureTarget.x, zombieLureTarget.y);
+                    const gatherX = isMainZombie ? zombieLureTarget.x : (() => {
+                        const maxGatherRadius = Math.max(cellSize * 0.9, zombieLureRadiusTiles * cellSize * 0.5);
+                        if (!Number.isFinite(zombie.lureOrbitSeed)) zombie.lureOrbitSeed = Math.random() * Math.PI * 2;
+                        if (!Number.isFinite(zombie.lureOrbitRadius)) {
+                            zombie.lureOrbitRadius = Math.min(maxGatherRadius, cellSize * (0.9 + (Math.floor(Math.random() * 4) * 0.35)));
+                        }
+                        const orbitAngle = zombie.lureOrbitSeed + frameCount * 0.018;
+                        return zombieLureTarget.x + Math.cos(orbitAngle) * zombie.lureOrbitRadius;
+                    })();
+                    const gatherY = isMainZombie ? zombieLureTarget.y : (() => {
+                        const orbitAngle = zombie.lureOrbitSeed + frameCount * 0.018;
+                        return zombieLureTarget.y + Math.sin(orbitAngle) * zombie.lureOrbitRadius;
+                    })();
                     target = {
                         x: gatherX,
                         y: gatherY,
@@ -8351,6 +8374,10 @@ drawDoorsWorld();
                         navTargetKey: `lure:${zombieLureTarget.id}|${keyForTile(lureGoalTile.tx, lureGoalTile.ty)}`
                     };
                     minDist = distancia(zombie.x, zombie.y, gatherX, gatherY);
+                    if (isMainZombie && minDist <= mainZombieLureStopRadius) {
+                        holdMainZombieAtLure = true;
+                        target = null;
+                    }
                 }
             } else {
                 for(const b of bengalasActivas) {
@@ -8469,19 +8496,23 @@ drawDoorsWorld();
                 if(Math.random() < 0.05) zombie.direccion = normalizar(zombie.direccion.x + (Math.random()-0.5), zombie.direccion.y + (Math.random()-0.5));
             }
             const hordeSpread = Math.max(0, zombies.length - 1);
-            const dynamicSeparationRadius = radioSeparacion + Math.min(cellSize * 0.9, hordeSpread * 0.08);
-            const sep = obtenerFuerzaSeparacion(zombie, zombies, dynamicSeparationRadius);
-            const separationBaseWeight = 0.35 + Math.min(0.65, hordeSpread * 0.02) + (Math.random() * 0.14);
-            const separationWeight = zombie.pathFollowInfo
-                ? separationBaseWeight * (zombie.pathFollowInfo.safeMode ? 0.42 : 0.62)
-                : separationBaseWeight;
-            zombie.direccion.x += sep.x * separationWeight;
-            zombie.direccion.y += sep.y * separationWeight;
+            if (!holdMainZombieAtLure) {
+                const dynamicSeparationRadius = radioSeparacion + Math.min(cellSize * 0.9, hordeSpread * 0.08);
+                const sep = obtenerFuerzaSeparacion(zombie, zombies, dynamicSeparationRadius);
+                const separationBaseWeight = 0.35 + Math.min(0.65, hordeSpread * 0.02) + (Math.random() * 0.14);
+                const separationWeight = zombie.pathFollowInfo
+                    ? separationBaseWeight * (zombie.pathFollowInfo.safeMode ? 0.42 : 0.62)
+                    : separationBaseWeight;
+                zombie.direccion.x += sep.x * separationWeight;
+                zombie.direccion.y += sep.y * separationWeight;
+            } else {
+                zombie.direccion = { x: 0, y: 0 };
+            }
             const beforeX = zombie.x;
             const beforeY = zombie.y;
             const choco = aplicarFuerzas(
                 zombie,
-                Number.isFinite(zombie.speed) ? zombie.speed : velocidadZombie,
+                holdMainZombieAtLure ? 0 : (Number.isFinite(zombie.speed) ? zombie.speed : velocidadZombie),
                 timeScale,
                 {
                     enableSteering: true,
