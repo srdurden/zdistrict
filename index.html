@@ -701,26 +701,6 @@ body.editor-active #configPanel {
             font-size: 18px;
         }
 
-        #banquetBanner {
-            position: fixed;
-            top: 84px;
-            left: 0;
-            right: 0;
-            margin-inline: auto;
-            width: max-content;
-            z-index: 2100;
-            background: rgba(229, 57, 53, 0.92);
-            color: #fff;
-            border-radius: 14px;
-            padding: 8px 14px;
-            font: 900 18px/1 Nunito, sans-serif;
-            box-shadow: 0 12px 30px rgba(0,0,0,0.2);
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.2s ease;
-        }
-        #banquetBanner.visible { opacity: 1; }
-
         @media (max-width: 768px) and (orientation: portrait) {
             #mapNavControls {
                 right: max(8px, env(safe-area-inset-right));
@@ -886,10 +866,6 @@ body.editor-active #configPanel {
         <div class="slider-header"><span class="slider-label">Energía inicial</span><input type="number" id="initialEnergyNum" min="1" max="10000" step="1" value="100"></div>
         <input type="range" id="initialEnergySlider" min="1" max="10000" step="1" value="100">
     </div>
-    <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Segundos banquete</span><input type="number" id="feastWindowSecNum" min="1" max="60" step="1" value="5"></div>
-        <input type="range" id="feastWindowSecSlider" min="1" max="60" step="1" value="5">
-    </div>
 
     <!-- Ocultos -->
     <div style="display:none">
@@ -973,8 +949,6 @@ body.editor-active #configPanel {
         </div>
     </div>
 </div>
-<div id="banquetBanner">Banquete!!</div>
-
 <script>
 
 
@@ -2210,7 +2184,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     const lureAnalogThumbElem = document.getElementById("lureAnalogThumb");
     const topMenuToggle = document.getElementById("topMenuToggle");
     const topActionsMenu = document.getElementById("topActionsMenu");
-    const banquetBanner = document.getElementById("banquetBanner");
     const configPanel = document.getElementById("configPanel");
 
     // Inputs
@@ -2228,7 +2201,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     const zombieLureDurationSecSlider = document.getElementById("zombieLureDurationSecSlider"); const zombieLureDurationSecNum = document.getElementById("zombieLureDurationSecNum");
     const showZombieLureCheckbox = document.getElementById("showZombieLureCheckbox");
     const initialEnergySlider = document.getElementById("initialEnergySlider"); const initialEnergyNum = document.getElementById("initialEnergyNum");
-    const feastWindowSecSlider = document.getElementById("feastWindowSecSlider"); const feastWindowSecNum = document.getElementById("feastWindowSecNum");
     
     // Config Inputs
     const policeCoolSlider = document.getElementById("policeCoolSlider"); const policeCoolNum = document.getElementById("policeCoolNum");
@@ -2328,7 +2300,6 @@ const txtEventoElem = document.getElementById("txtEvento");
     linkInput(zombieLureRadiusTilesSlider, zombieLureRadiusTilesNum);
     linkInput(zombieLureDurationSecSlider, zombieLureDurationSecNum);
     linkInput(initialEnergySlider, initialEnergyNum);
-    linkInput(feastWindowSecSlider, feastWindowSecNum);
     linkInput(policeCoolSlider, policeCoolNum);
     linkInput(jamCountSlider, jamCountNum);
     linkInput(jamDurSlider, jamDurNum);
@@ -3353,7 +3324,6 @@ const txtEventoElem = document.getElementById("txtEvento");
             zombieLureDurationSec: toFloat(zombieLureDurationSecNum, 10),
             showZombieLureVisual: !!(showZombieLureCheckbox && showZombieLureCheckbox.checked),
             initialEnergy: toInt(initialEnergyNum, 100),
-            feastWindowSec: toInt(feastWindowSecNum, 5),
 
             // Player
             balas: toInt(balasNum, 0),
@@ -3393,11 +3363,8 @@ const txtEventoElem = document.getElementById("txtEvento");
         showZombieLureVisual = !!settings.showZombieLureVisual;
         if (showZombieLureCheckbox) showZombieLureCheckbox.checked = showZombieLureVisual;
         hordeEnergy = Math.max(0, Math.floor(Number.isFinite(settings.initialEnergy) ? settings.initialEnergy : 100));
-        feastWindowSec = Math.max(1, Math.floor(Number.isFinite(settings.feastWindowSec) ? settings.feastWindowSec : 5));
         hungerPerZombie = DEFAULT_HUNGER_PER_ZOMBIE;
         lastEnergyTickAt = Date.now();
-        lastInfectionAt = null;
-        feastChainBonusLevel = 0;
         policeShootCooldownFrames = BASE_FPS * Math.max(0.1, Number.isFinite(settings.policeCooldownSec) ? settings.policeCooldownSec : 1.0);
         citizenBaseStrength = clampStrength(settings.citizenStrength, 1);
         policeBaseStrength = clampStrength(settings.policeStrength, 3);
@@ -3505,15 +3472,11 @@ const txtEventoElem = document.getElementById("txtEvento");
     let lastFrameTime = 0;
     let disparoEnFotograma = false;
     let timeSpeedMultiplier = 1;
-    const ENERGY_GAIN_PER_INFECTION = 10;
+    const ENERGY_GAIN_PER_INFECTION = 5;
     const DEFAULT_HUNGER_PER_ZOMBIE = 1;
     let hordeEnergy = 100;
     let hungerPerZombie = DEFAULT_HUNGER_PER_ZOMBIE;
-    let feastWindowSec = 5;
     let lastEnergyTickAt = Date.now();
-    let lastInfectionAt = null;
-    let feastChainBonusLevel = 0;
-    let banquetBannerTimer = null;
 
     
     // STATS
@@ -7371,19 +7334,16 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
         if (!isVisible) setTopActionsMenuVisible(false);
     }
 
-    function showBanquetBanner(text) {
-        if (!banquetBanner) return;
-        banquetBanner.textContent = text;
-        banquetBanner.classList.add("visible");
-        if (banquetBannerTimer) clearTimeout(banquetBannerTimer);
-        banquetBannerTimer = setTimeout(() => {
-            banquetBanner.classList.remove("visible");
-        }, 1200);
-    }
-
     function addHordeEnergy(points) {
         if (!Number.isFinite(points) || points === 0) return;
         hordeEnergy = Math.max(0, hordeEnergy + points);
+    }
+
+    function applyZombieDeathEnergyLoss(zombieCountBeforeDeath) {
+        const safeCount = Math.max(1, Math.floor(Number.isFinite(zombieCountBeforeDeath) ? zombieCountBeforeDeath : 1));
+        const currentEnergy = Math.max(0, Math.floor(hordeEnergy));
+        const loss = Math.floor(currentEnergy / safeCount);
+        hordeEnergy = Math.max(0, currentEnergy - loss);
     }
 
     function updateZombieLureNpcPriorityByHorde() {
@@ -7402,13 +7362,13 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
 
     function killAllZombies() {
         if (!Array.isArray(zombies) || zombies.length === 0) return;
-        for (const z of zombies) {
+        while (zombies.length > 0) {
+            const z = zombies.pop();
             if (!z) continue;
             cadaveres.push({ x: z.x, y: z.y });
             gameStats.zombiesKilled++;
-            addHordeEnergy(-10);
+            applyZombieDeathEnergyLoss(zombies.length + 1);
         }
-        zombies = [];
         zombieLeader = null;
         updateZombieLureNpcPriorityByHorde();
     }
@@ -7801,32 +7761,8 @@ drawDoorsWorld();
                 propagationSec,
                 strength: clampStrength(zombie.strength, zombieBaseStrength)
             };
-            const now = Date.now();
-            const windowMs = Math.max(1000, feastWindowSec * 1000);
-            if (lastInfectionAt && (now - lastInfectionAt) <= windowMs) feastChainBonusLevel += 1;
-            else feastChainBonusLevel = 1;
-            const bonus = Math.floor(feastChainBonusLevel / 5);
             const hordeSize = Math.max(0, zombies.length);
             addHordeEnergy(hordeSize * ENERGY_GAIN_PER_INFECTION);
-            if (bonus >= 1) {
-                const feastText = bonus > 1 ? `Banquete! x ${bonus}` : "Banquete!";
-                addFloatText(
-                    feastText,
-                    npc.x + (tamanoEntidad * 0.5),
-                    npc.y - Math.max(14, tamanoEntidad * 0.45),
-                    "rgba(198, 40, 40, 0.98)",
-                    {
-                        font: "900 18px Nunito",
-                        shadowColor: "rgba(255, 255, 255, 0.92)",
-                        shadowOffsetX: 1,
-                        shadowOffsetY: 1.2,
-                        vy: -0.32,
-                        vx: 0,
-                        life: 40
-                    }
-                );
-            }
-            lastInfectionAt = now;
 
             if (infectionFrames <= 0) {
                 convertNpcToZombie(npc, npc.infectedBy);
@@ -8008,11 +7944,12 @@ drawDoorsWorld();
             target.lastHitFrame = frameCount;
             pushScreenShake(0.55);
             if (target.hp <= 0) {
+                const zombieCountBeforeDeath = Math.max(1, zombies.length);
                 if (target === zombieLeader) zombieLeader = null;
                 zombies.splice(targetIndex, 1);
                 cadaveres.push({ x: target.x, y: target.y });
                 gameStats.zombiesKilled++;
-                addHordeEnergy(-10);
+                applyZombieDeathEnergyLoss(zombieCountBeforeDeath);
                 updateZombieLureNpcPriorityByHorde();
                 addFloatText('+1', target.x + 1.5, target.y - 3, 'rgba(229,57,53,0.9)');
             } else {
