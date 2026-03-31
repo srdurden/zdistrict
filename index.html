@@ -26,6 +26,7 @@
             --shadow-float: 0 8px 16px rgba(0,0,0,0.08);
             --app-height: 100vh;
             --top-ui-offset: 0px;
+            --bottom-ui-offset: 0px;
         }
 
         body {
@@ -68,7 +69,7 @@
             /* The CSS box defines the visible area. JS syncs the internal bitmap to this size
                so the camera uses the real screen aspect ratio and the map never stretches. */
             width: min(920px, 98vw);
-            height: min(calc(var(--app-height) - 66px), calc(98vw * 0.6));
+            height: min(calc(var(--app-height) - 66px - var(--bottom-ui-offset)), calc(98vw * 0.6));
             max-width: none;
             max-height: none;
             aspect-ratio: auto;
@@ -541,7 +542,7 @@ body.editor-active #configPanel {
 
             canvas {
                 width: var(--safe-inline);
-                height: calc(var(--safe-block) - 34px);
+                height: calc(var(--safe-block) - 34px - var(--bottom-ui-offset));
                 max-height: none;
                 max-width: none;
                 aspect-ratio: auto;
@@ -569,6 +570,10 @@ body.editor-active #configPanel {
                 width: auto;
                 max-width: none;
             }
+        }
+
+        body.controls-visible {
+            --bottom-ui-offset: clamp(98px, 14vh, 138px);
         }
 
         #configPanel h1 {
@@ -7359,6 +7364,7 @@ if (txtEventoElem) txtEventoElem.textContent = (director && director.message) ? 
         const menuVisible = !!(mainMenuOverlay && mainMenuOverlay.classList.contains("visible"));
         const isVisible = ((estadoJuego === "PLAYING" && !menuVisible) || appState === "EDITOR");
         const controlsVisible = (estadoJuego === "PLAYING" && !menuVisible && !editorState.active);
+        document.body.classList.toggle("controls-visible", controlsVisible);
         statusBarElem.style.display = isVisible ? "flex" : "none";
         if (bottomControlBarElem) bottomControlBarElem.style.display = controlsVisible ? "flex" : "none";
         if (!controlsVisible) clearAnalogStickInput();
