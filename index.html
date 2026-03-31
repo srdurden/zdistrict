@@ -863,8 +863,8 @@ body.editor-active #configPanel {
         <input type="checkbox" id="showZombieLureCheckbox">
     </div>
     <div class="slider-group">
-        <div class="slider-header"><span class="slider-label">Energía inicial</span><input type="number" id="initialEnergyNum" min="1" max="10000" step="1" value="100"></div>
-        <input type="range" id="initialEnergySlider" min="1" max="10000" step="1" value="100">
+        <div class="slider-header"><span class="slider-label">Energía inicial</span><input type="number" id="initialEnergyNum" min="1" max="10000" step="1" value="25"></div>
+        <input type="range" id="initialEnergySlider" min="1" max="10000" step="1" value="25">
     </div>
 
     <!-- Ocultos -->
@@ -938,7 +938,7 @@ body.editor-active #configPanel {
         <div class="status-summary">
             <div class="status-item">🎯<span class="status-count" id="hordeActiveCount">0/0</span></div>
             <div class="status-item">👥<span class="status-count" id="civiliansRemainingCount">0</span></div>
-            <div class="status-item">⚡<span class="status-count" id="energyCount">100</span></div>
+            <div class="status-item">⚡<span class="status-count" id="energyCount">25</span></div>
             <div class="status-item">🍖<span class="status-count" id="hungerCount">1</span></div>
         </div>
         <button id="topMenuToggle" class="mini-menu-toggle" title="Mostrar acciones">☰</button>
@@ -3323,7 +3323,7 @@ const txtEventoElem = document.getElementById("txtEvento");
             zombieLureNpcPriorityTiles: toFloat(zombieLureNpcPriorityTilesNum, 5),
             zombieLureDurationSec: toFloat(zombieLureDurationSecNum, 10),
             showZombieLureVisual: !!(showZombieLureCheckbox && showZombieLureCheckbox.checked),
-            initialEnergy: toInt(initialEnergyNum, 100),
+            initialEnergy: toInt(initialEnergyNum, 25),
 
             // Player
             balas: toInt(balasNum, 0),
@@ -3362,7 +3362,7 @@ const txtEventoElem = document.getElementById("txtEvento");
         zombieLureDurationFrames = BASE_FPS * Math.max(1, Number.isFinite(settings.zombieLureDurationSec) ? settings.zombieLureDurationSec : 10);
         showZombieLureVisual = !!settings.showZombieLureVisual;
         if (showZombieLureCheckbox) showZombieLureCheckbox.checked = showZombieLureVisual;
-        hordeEnergy = Math.max(0, Math.floor(Number.isFinite(settings.initialEnergy) ? settings.initialEnergy : 100));
+        hordeEnergy = Math.max(0, Math.floor(Number.isFinite(settings.initialEnergy) ? settings.initialEnergy : 25));
         hungerPerZombie = DEFAULT_HUNGER_PER_ZOMBIE;
         lastEnergyTickAt = Date.now();
         policeShootCooldownFrames = BASE_FPS * Math.max(0.1, Number.isFinite(settings.policeCooldownSec) ? settings.policeCooldownSec : 1.0);
@@ -3472,9 +3472,9 @@ const txtEventoElem = document.getElementById("txtEvento");
     let lastFrameTime = 0;
     let disparoEnFotograma = false;
     let timeSpeedMultiplier = 1;
-    const ENERGY_GAIN_PER_INFECTION = 5;
+    const ENERGY_GAIN_PER_INFECTION = 2;
     const DEFAULT_HUNGER_PER_ZOMBIE = 1;
-    let hordeEnergy = 100;
+    let hordeEnergy = 25;
     let hungerPerZombie = DEFAULT_HUNGER_PER_ZOMBIE;
     let lastEnergyTickAt = Date.now();
 
