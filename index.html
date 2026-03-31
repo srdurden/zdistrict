@@ -7761,8 +7761,8 @@ drawDoorsWorld();
                 propagationSec,
                 strength: clampStrength(zombie.strength, zombieBaseStrength)
             };
-            const hordeSize = Math.max(0, zombies.length);
-            addHordeEnergy(hordeSize * ENERGY_GAIN_PER_INFECTION);
+            const hordeSize = Math.max(1, zombies.length);
+            addHordeEnergy(Math.max(10, hordeSize));
 
             if (infectionFrames <= 0) {
                 convertNpcToZombie(npc, npc.infectedBy);
